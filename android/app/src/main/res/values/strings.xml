@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">2P Games</string>
+    <string name="title_activity_main">2P Games</string>
+    <string name="package_name">com.local2p.games</string>
+    <string name="custom_url_scheme">com.local2p.games</string>
+</resources>

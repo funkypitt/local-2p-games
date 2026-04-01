@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>2P Games</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;font-family:system-ui,sans-serif;background:#0f0f1a;color:#f0f0f0;touch-action:none;user-select:none;-webkit-user-select:none}
+#menu{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:12px;height:100vh;overflow-y:auto;align-content:start}
+#menu h1{grid-column:1/-1;text-align:center;font-size:1.3em;padding:8px 0;color:#fff}
+.card{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px 8px;border-radius:14px;cursor:pointer;min-height:80px;transition:transform .1s;-webkit-tap-highlight-color:transparent}
+.card:active{transform:scale(.95)}
+.card .icon{font-size:2em;margin-bottom:4px}
+.card .name{font-size:.85em;font-weight:600;text-align:center}
+#game{display:none;flex-direction:column;height:100vh;width:100vw}
+#game-header{display:flex;align-items:center;padding:8px 12px;background:#1a1a2e;gap:10px;min-height:52px;z-index:10}
+#back-btn{background:none;border:none;color:#f0f0f0;font-size:1.5em;cursor:pointer;padding:4px 8px}
+#game-title{font-weight:700;font-size:1.15em;flex:1}
+#game-status{font-size:1.1em;color:#FFD54F;font-weight:700}
+#game-area{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;background:#0f0f1a}
+#game-area canvas{display:block}
+.board-game{display:flex;flex-direction:column;align-items:center;gap:8px;padding:8px;width:100%;height:100%;justify-content:center}
+.btn{background:#2a2a4a;color:#f0f0f0;border:none;border-radius:8px;padding:8px 16px;font-size:.9em;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.btn:active{background:#3a3a5a}
+.overlay{position:absolute;inset:0;background:rgba(15,15,26,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:20;gap:12px;font-size:1.1em}
+.overlay .btn{font-size:1em;padding:10px 24px}
+</style>
+</head>
+<body>
+<div id="menu">
+<h1 style="display:flex;align-items:center;justify-content:center;gap:8px">2 Player Games <button id="menu-music-btn" style="background:none;border:none;font-size:1em;cursor:pointer" onclick="if(typeof SND!=='undefined'){const on=SND.musicToggle();this.textContent=on?'\u{1F50A}':'\u{1F507}';document.querySelectorAll('#music-btn').forEach(b=>b.textContent=on?'\u{1F50A}':'\u{1F507}')}"></button></h1>
+</div>
+<div id="game">
+<div id="game-header">
+<button id="back-btn">&#9664;</button>
+<span id="game-title"></span>
+<span id="game-status"></span>
+</div>
+<div id="game-area"></div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
