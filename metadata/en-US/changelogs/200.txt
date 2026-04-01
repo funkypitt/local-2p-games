@@ -1,0 +1,7 @@
+v1.1 — New games and improvements
+
+- New: Munch Maze (2P maze chase with monsters and power pellets)
+- New: Pixel Run (split-screen auto-runner with coins and enemies)
+- New: Tennis power-ups (ghost ball, magnet, quake, speed, and more)
+- Improved: Star Clash control zones so fingers don't hide ships
+- New custom app icon

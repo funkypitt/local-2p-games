@@ -1,0 +1,27 @@
+2P Games is a collection of 16 touch-friendly local multiplayer games designed
+for two players sharing one device. No internet needed, no accounts, no ads.
+
+GAMES:
+
+- Tennis — Classic pong with funny power-ups (ghost ball, magnet, quake!)
+- 4 in a Row — Drop discs, connect four to win
+- Pool — Realistic 2D pool with proper physics
+- Memory — Flip cards and match pairs
+- Snakes — Two snakes, swipe to steer, don't crash
+- Air Hockey — Flick the puck into the opponent's goal
+- Tank Wars — Artillery duels on destructible terrain
+- Ship Battle — Classic battleship with drag-to-place ships
+- Mini Golf — Take turns putting through tricky courses
+- Star Clash — Space invaders with two ships and control zones
+- Munch Maze — 2-player maze chase with dots, monsters, and power pellets
+- Awalé — Ancient African seed-sowing strategy game
+- Mastermonde — Crack the color code in fewest guesses
+- Wheel of Funktune — Spin the wheel, guess the phrase
+- Pixel Run — Split-screen auto-runner with coins and enemies
+- Horse Jump — Split-screen horse racing over hurdles
+
+All games feature intuitive touch controls split between the two halves of the
+screen (left/right or top/bottom). Built-in calming background music with
+toggle. Every game has rematch support.
+
+Free and open source. No ads. No tracking. No in-app purchases.
