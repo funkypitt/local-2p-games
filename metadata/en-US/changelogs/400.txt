@@ -1,0 +1,5 @@
+v1.3 — Tennis Tuning
+
+- Tennis: faster ball speed, smaller paddles, sharper angles for more competitive rallies
+- Tennis: matches are now first to 5 (was 7) for quicker games
+- Tennis: stronger TURBO power-up, shorter BIG paddle duration

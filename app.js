@@ -1678,7 +1678,7 @@ function initStarClash(area, setStatus) {
 // ==================== TENNIS (Pong) ====================
 function initTennis(area, setStatus) {
   const {canvas, ctx, w, h} = createCanvas(area);
-  const BASE_PW = w * 0.22, PH = h * 0.018, BR = Math.min(w,h) * 0.018;
+  const BASE_PW = w * 0.16, PH = h * 0.018, BR = Math.min(w,h) * 0.018;
   let p1y = h - 50, p2y = 50, p1x = w/2, p2x = w/2;
   let bx = w/2, by = h/2, bvx = 0, bvy = 0;
   let s1 = 0, s2 = 0, serving = true;
@@ -1705,7 +1705,7 @@ function initTennis(area, setStatus) {
   function resetBall(dir) {
     bx = w/2; by = h/2;
     const angle = (Math.random() * 0.6 + 0.2) * (Math.random()<0.5?1:-1);
-    const speed = Math.min(w, h) * 0.006;
+    const speed = Math.min(w, h) * 0.009;
     bvx = Math.sin(angle) * speed;
     bvy = Math.cos(angle) * speed * dir;
     serving = false; lastHitter = 0;
@@ -1737,11 +1737,11 @@ function initTennis(area, setStatus) {
     flashTimer = 60;
 
     if (t.name === 'BIG') {
-      if (collector === 1) fx.p1big = 360; else fx.p2big = 360; // 6s
+      if (collector === 1) fx.p1big = 240; else fx.p2big = 240; // 4s
     } else if (t.name === 'SHRINK') {
       if (collector === 1) fx.p2shrink = 360; else fx.p1shrink = 360; // shrink opponent
     } else if (t.name === 'TURBO') {
-      const boost = 1.4;
+      const boost = 1.6;
       bvx *= boost; bvy *= boost;
     } else if (t.name === 'SLOW') {
       fx.slow = 300; // 5s
@@ -1804,11 +1804,11 @@ function initTennis(area, setStatus) {
 
     // Paddle collision P1 (bottom)
     if (by + BR > p1y - PH/2 && by + BR < p1y + PH/2 && bvy > 0 && Math.abs(bx - p1x) < PW1/2 + BR) {
-      bvy = -Math.abs(bvy) * 1.05; bvx += (bx - p1x) / PW1 * 3; SND.pong(); lastHitter = 1;
+      bvy = -Math.abs(bvy) * 1.08; bvx += (bx - p1x) / PW1 * 4; SND.pong(); lastHitter = 1;
     }
     // Paddle collision P2 (top)
     if (by - BR < p2y + PH/2 && by - BR > p2y - PH/2 && bvy < 0 && Math.abs(bx - p2x) < PW2/2 + BR) {
-      bvy = Math.abs(bvy) * 1.05; bvx += (bx - p2x) / PW2 * 3; SND.pong(); lastHitter = 2;
+      bvy = Math.abs(bvy) * 1.08; bvx += (bx - p2x) / PW2 * 4; SND.pong(); lastHitter = 2;
     }
 
     // Power-up collision (ball touches powerup)
@@ -1838,7 +1838,7 @@ function initTennis(area, setStatus) {
     // Score
     if (by < 0) { s1++; SND.score(); resetBall(-1); }
     if (by > h) { s2++; SND.score(); resetBall(1); }
-    if (s1 >= 7 || s2 >= 7) { SND.win(); setStatus(s1>=7?'P1 wins!':'P2 wins!'); draw(); return; }
+    if (s1 >= 5 || s2 >= 5) { SND.win(); setStatus(s1>=5?'P1 wins!':'P2 wins!'); draw(); return; }
     setStatus(`P2: ${s2}  |  P1: ${s1}`);
     draw();
     raf = requestAnimationFrame(update);
