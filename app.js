@@ -111,21 +111,232 @@ const SND = {
   gallop() { try { this.init(); const t=this._ctx.currentTime; this._tone(200,0.04,'triangle',0.15,t,this._sfxGain); this._tone(250,0.04,'triangle',0.12,t+0.06,this._sfxGain); } catch(e){} },
 };
 
+// === ONLINE MULTIPLAYER MODULE ===
+const ONLINE = (function() {
+  if (typeof firebase === 'undefined' || !firebase.database) return null;
+  firebase.initializeApp({
+    projectId: 'tankwars-mobile',
+    appId: '1:1006160242389:web:6b476c740b22a8c682a45c',
+    storageBucket: 'tankwars-mobile.firebasestorage.app',
+    apiKey: 'AIzaSyAXBa8oFAuXFUge2HrpZ3N-5kUrkiDJnS0',
+    authDomain: 'tankwars-mobile.firebaseapp.com',
+    messagingSenderId: '1006160242389',
+    databaseURL: 'https://tankwars-mobile-default-rtdb.firebaseio.com',
+  });
+  const db = firebase.database();
+  const BASE = '2p-rooms/';
+
+  // Seeded PRNG (mulberry32)
+  function mulberry32(seed) {
+    return function() {
+      seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+      let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  // Room code
+  const CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  function makeCode() {
+    let c = '';
+    for (let i = 0; i < 4; i++) c += CHARS[Math.floor(Math.random() * CHARS.length)];
+    return c;
+  }
+
+  function buildContext(ref, playerId, seed, code) {
+    const rng = mulberry32(seed);
+    const movesRef = ref.child('moves');
+    const stateRef = ref.child('state');
+    const listeners = [];
+
+    function addListener(ref, event, cb) {
+      ref.on(event, cb);
+      listeners.push({ ref, event, cb });
+    }
+
+    return {
+      playerId, seed, code, rng,
+      sendMove(data) {
+        movesRef.push({ p: playerId, d: data });
+      },
+      listenMoves(cb) {
+        let initial = true;
+        const snap = movesRef.orderByKey();
+        addListener(snap, 'child_added', s => {
+          const v = s.val();
+          if (v.p !== playerId) {
+            cb(v.d);
+            s.ref.remove();
+          } else if (!initial) {
+            s.ref.remove();
+          }
+        });
+        // Mark initial load complete after a tick
+        setTimeout(() => { initial = false; }, 500);
+      },
+      setState(key, data) {
+        stateRef.child(key).set(data);
+      },
+      onState(key, cb) {
+        addListener(stateRef.child(key), 'value', s => {
+          if (s.val() !== null) cb(s.val());
+        });
+      },
+      onOpponentDisconnect(cb) {
+        addListener(ref.child('players'), 'value', s => {
+          const v = s.val();
+          if (v && v[playerId] && !v[1 - playerId]) cb();
+        });
+      },
+      cleanup() {
+        for (const l of listeners) l.ref.off(l.event, l.cb);
+        listeners.length = 0;
+        ref.child('players/' + playerId).remove();
+      }
+    };
+  }
+
+  function createRoom(gameId, onReady) {
+    const code = makeCode();
+    const seed = Math.floor(Math.random() * 2147483647);
+    const ref = db.ref(BASE + code);
+    ref.set({
+      game: gameId, status: 'waiting', seed,
+      players: { 0: true },
+      created: firebase.database.ServerValue.TIMESTAMP
+    });
+    ref.child('players/0').onDisconnect().remove();
+    // Listen for player 1
+    const p1Ref = ref.child('players/1');
+    p1Ref.on('value', s => {
+      if (s.val()) {
+        p1Ref.off();
+        ref.child('status').set('playing');
+        onReady(buildContext(ref, 0, seed, code));
+      }
+    });
+    return code;
+  }
+
+  function joinRoom(code, gameId, onReady, onError) {
+    code = code.toUpperCase().trim();
+    const ref = db.ref(BASE + code);
+    ref.once('value', s => {
+      const v = s.val();
+      if (!v) { onError('Room not found'); return; }
+      if (v.game !== gameId) { onError('Wrong game'); return; }
+      if (v.status !== 'waiting') { onError('Room full'); return; }
+      ref.child('players/1').set(true);
+      ref.child('players/1').onDisconnect().remove();
+      onReady(buildContext(ref, 1, v.seed, code));
+    });
+  }
+
+  function autoMatch(gameId, onReady, onWaiting) {
+    const roomsRef = db.ref(BASE);
+    roomsRef.orderByChild('game').equalTo(gameId).once('value', s => {
+      let joined = false;
+      s.forEach(child => {
+        if (joined) return;
+        const v = child.val();
+        if (v.status === 'waiting') {
+          joined = true;
+          const code = child.key;
+          const ref = db.ref(BASE + code);
+          ref.child('players/1').set(true);
+          ref.child('players/1').onDisconnect().remove();
+          ref.child('status').set('playing');
+          onReady(buildContext(ref, 1, v.seed, code));
+        }
+      });
+      if (!joined) {
+        const code = createRoom(gameId, onReady);
+        onWaiting(code);
+      }
+    });
+  }
+
+  function showLobby(area, gameId, onStart, onCancel) {
+    const ov = document.createElement('div');
+    ov.className = 'overlay';
+    ov.style.gap = '14px';
+
+    function showMain() {
+      ov.innerHTML = `
+        <div style="font-size:1.3em;font-weight:bold">Online Play</div>
+        <button class="btn" id="ol-create" style="padding:12px 32px;font-size:1em">Create Room</button>
+        <button class="btn" id="ol-join" style="padding:12px 32px;font-size:1em">Join Room</button>
+        <button class="btn" id="ol-quick" style="padding:12px 32px;font-size:1em">Quick Match</button>
+        <button class="btn" id="ol-back" style="padding:12px 32px;font-size:.9em;background:#555">Back</button>
+      `;
+      ov.querySelector('#ol-create').onclick = () => {
+        showWaiting('Creating...');
+        const code = createRoom(gameId, ctx => { ov.remove(); onStart(ctx); });
+        showWaiting('Room: ' + code + '\\nWaiting for opponent...');
+      };
+      ov.querySelector('#ol-join').onclick = showJoin;
+      ov.querySelector('#ol-quick').onclick = () => {
+        showWaiting('Searching...');
+        autoMatch(gameId, ctx => { ov.remove(); onStart(ctx); }, code => {
+          showWaiting('Room: ' + code + '\\nWaiting for opponent...');
+        });
+      };
+      ov.querySelector('#ol-back').onclick = () => { ov.remove(); onCancel(); };
+    }
+
+    function showWaiting(msg) {
+      ov.innerHTML = `
+        <div style="font-size:1.2em;font-weight:bold;text-align:center;white-space:pre-line">${msg}</div>
+        <div style="font-size:.85em;color:#888">Share the room code with your friend</div>
+        <button class="btn" id="ol-cancel" style="padding:10px 24px">Cancel</button>
+      `;
+      ov.querySelector('#ol-cancel').onclick = () => { ov.remove(); onCancel(); };
+    }
+
+    function showJoin() {
+      ov.innerHTML = `
+        <div style="font-size:1.1em;font-weight:bold">Enter Room Code</div>
+        <input id="ol-code" type="text" maxlength="4" placeholder="ABCD" style="font-size:1.5em;text-align:center;width:140px;padding:10px;border-radius:8px;border:2px solid #555;background:#1a1a2e;color:#fff;text-transform:uppercase;letter-spacing:6px" autocomplete="off" autocapitalize="characters">
+        <div id="ol-error" style="color:#F44336;font-size:.85em;min-height:1.2em"></div>
+        <button class="btn" id="ol-go" style="padding:10px 28px;font-size:1em">Join</button>
+        <button class="btn" id="ol-back2" style="padding:8px 20px;font-size:.85em;background:#555">Back</button>
+      `;
+      const inp = ov.querySelector('#ol-code');
+      const errEl = ov.querySelector('#ol-error');
+      setTimeout(() => inp.focus(), 100);
+      ov.querySelector('#ol-go').onclick = () => {
+        const code = inp.value;
+        if (code.length < 4) { errEl.textContent = 'Enter 4-char code'; return; }
+        errEl.textContent = 'Joining...';
+        joinRoom(code, gameId, ctx => { ov.remove(); onStart(ctx); }, err => { errEl.textContent = err; });
+      };
+      ov.querySelector('#ol-back2').onclick = showMain;
+    }
+
+    showMain();
+    area.appendChild(ov);
+    return ov;
+  }
+
+  return { createRoom, joinRoom, autoMatch, showLobby, mulberry32 };
+})();
+
 // --- Framework ---
 const GAMES = [
   {id:'tennis',name:'Tennis',icon:'🎾',color:'#388E3C',init:initTennis},
-  {id:'four',name:'4 in a Row',icon:'🔴',color:'#D32F2F',init:initFourInARow},
+  {id:'four',name:'4 in a Row',icon:'🔴',color:'#D32F2F',init:initFourInARow,online:true},
   {id:'pool',name:'Pool',icon:'🎱',color:'#1B5E20',init:initPool},
-  {id:'memory',name:'Memory',icon:'🃏',color:'#7B1FA2',init:initMemory},
+  {id:'memory',name:'Memory',icon:'🃏',color:'#7B1FA2',init:initMemory,online:true},
   {id:'snakes',name:'Snakes',icon:'🐍',color:'#689F38',init:initSnakes},
   {id:'hockey',name:'Air Hockey',icon:'🏒',color:'#0097A7',init:initAirHockey},
-  {id:'tanks',name:'Tank Wars',icon:'💣',color:'#F57F17',init:initTankWars},
-  {id:'ships',name:'Ship Battle',icon:'🚢',color:'#1565C0',init:initShipBattle},
+  {id:'tanks',name:'Tank Wars',icon:'💣',color:'#F57F17',init:initTankWars,online:true},
+  {id:'ships',name:'Ship Battle',icon:'🚢',color:'#1565C0',init:initShipBattle,online:true},
   {id:'golf',name:'Mini Golf',icon:'⛳',color:'#00796B',init:initMiniGolf},
   {id:'starclash',name:'Star Clash',icon:'👾',color:'#C62828',init:initStarClash},
-  {id:'munchmaze',name:'Munch Maze',icon:'👾',color:'#E65100',init:initMunchMaze},
-  {id:'awale',name:'Awalé',icon:'🥜',color:'#4E342E',init:initAwale},
-  {id:'master',name:'Mastermonde',icon:'🔮',color:'#AD1457',init:initMastermind},
+  {id:'caro',name:'Caro',icon:'⚫',color:'#4E342E',init:initCaro,online:true},
+  {id:'awale',name:'Awalé',icon:'🥜',color:'#4E342E',init:initAwale,online:true},
+  {id:'master',name:'Mastermonde',icon:'🔮',color:'#AD1457',init:initMastermind,online:true},
   {id:'hangman',name:'Wheel of Funktune',icon:'🎡',color:'#4A148C',init:initHangman},
   {id:'pixelrun',name:'Pixel Run',icon:'🏃',color:'#455A64',init:initPixelRun},
   {id:'horse',name:'Horse Jump',icon:'🏇',color:'#8D6E63',init:initHorseJump},
@@ -167,7 +378,24 @@ function startGame(g) {
   const hdr = document.getElementById('game-header');
   if (!hdr.querySelector('#music-btn')) makeMusicBtn(hdr);
   SND.musicStart();
-  currentDestroy = g.init(area, s => status.textContent = s);
+  if (g.online && ONLINE) {
+    // Show Local vs Online choice
+    const ov = document.createElement('div');
+    ov.className = 'overlay';
+    ov.innerHTML = '<div style="font-size:1.3em;font-weight:bold;margin-bottom:8px">Play Mode</div>' +
+      '<button class="btn" id="pm-local" style="padding:14px 36px;font-size:1.1em">Local</button>' +
+      '<button class="btn" id="pm-online" style="padding:14px 36px;font-size:1.1em;background:#1565C0">Online</button>';
+    ov.querySelector('#pm-local').onclick = () => { ov.remove(); currentDestroy = g.init(area, s => status.textContent = s); };
+    ov.querySelector('#pm-online').onclick = () => {
+      ov.remove();
+      ONLINE.showLobby(area, g.id, online => {
+        currentDestroy = g.init(area, s => status.textContent = s, online);
+      }, () => endGame());
+    };
+    area.appendChild(ov);
+  } else {
+    currentDestroy = g.init(area, s => status.textContent = s);
+  }
 }
 
 function endGame() {
@@ -673,7 +901,7 @@ function initPixelRun(area, setStatus) {
 }
 
 // ==================== 4 IN A ROW ====================
-function initFourInARow(area, setStatus) {
+function initFourInARow(area, setStatus, online) {
   const ROWS = 6, COLS = 7;
   const board = Array.from({length:ROWS}, () => Array(COLS).fill(0));
   let turn = 1, gameOver = false;
@@ -688,22 +916,26 @@ function initFourInARow(area, setStatus) {
   for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
     const cell = document.createElement('div');
     cell.style.cssText = 'aspect-ratio:1;border-radius:50%;background:#0a0a1a;cursor:pointer;transition:background .15s';
-    cell.onclick = () => drop(c);
+    cell.onclick = () => {
+      if (online && turn !== online.playerId + 1) return;
+      execDrop(c);
+      if (online) online.sendMove({c});
+    };
     grid.appendChild(cell);
     cells.push(cell);
   }
-  setStatus("Red's turn");
-  function drop(c) {
+  setStatus(online ? (online.playerId === 0 ? "Your turn (Red)" : "Opponent's turn") : "Red's turn");
+  function execDrop(c) {
     if (gameOver) return;
     let r = ROWS - 1;
     while (r >= 0 && board[r][c]) r--;
     if (r < 0) return;
     board[r][c] = turn; SND.drop();
     cells[r * COLS + c].style.background = turn === 1 ? '#F44336' : '#FFEB3B';
-    if (checkWin(r, c)) { SND.win(); setStatus(`${turn===1?'Red':'Yellow'} wins!`); gameOver = true; return; }
+    if (checkWin(r, c)) { SND.win(); setStatus(online ? (turn === online.playerId + 1 ? 'You win!' : 'You lose!') : `${turn===1?'Red':'Yellow'} wins!`); gameOver = true; return; }
     if (board[0].every(v => v)) { setStatus('Draw!'); gameOver = true; return; }
     turn = 3 - turn;
-    setStatus(`${turn===1?'Red':'Yellow'}'s turn`);
+    setStatus(online ? (turn === online.playerId + 1 ? 'Your turn' : "Opponent's turn") : `${turn===1?'Red':'Yellow'}'s turn`);
   }
   function checkWin(r, c) {
     for (const [dr,dc] of [[0,1],[1,0],[1,1],[1,-1]]) {
@@ -714,15 +946,20 @@ function initFourInARow(area, setStatus) {
     }
     return false;
   }
-  return () => {};
+  if (online) {
+    online.listenMoves(data => execDrop(data.c));
+    online.onOpponentDisconnect(() => { if (!gameOver) { gameOver = true; setStatus('Opponent disconnected'); } });
+  }
+  return () => { if (online) online.cleanup(); };
 }
 
 // ==================== MEMORY ====================
-function initMemory(area, setStatus) {
+function initMemory(area, setStatus, online) {
   const PAIRS = 16, TOTAL = 32, COLS = 8;
   const symbols = ['🍎','🍊','🍋','🍇','🍉','🍓','🫐','🥝','🍌','🥭','🍑','🍒','🍍','🥥','🍆','🫑'];
   let cards = [...symbols, ...symbols];
-  for (let i = cards.length - 1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [cards[i],cards[j]]=[cards[j],cards[i]]; }
+  const rngFn = online ? online.rng : Math.random;
+  for (let i = cards.length - 1; i > 0; i--) { const j = Math.floor(rngFn()*(i+1)); [cards[i],cards[j]]=[cards[j],cards[i]]; }
   let matched = Array(TOTAL).fill(false);
   let first = -1, second = -1, busy = false;
   let turn = 1, scores = [0, 0];
@@ -737,13 +974,20 @@ function initMemory(area, setStatus) {
   for (let i = 0; i < TOTAL; i++) {
     const el = document.createElement('div');
     el.style.cssText = 'aspect-ratio:1;background:#2a2a4a;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.5em;cursor:pointer;transition:background .2s';
-    el.onclick = () => flip(i);
+    el.onclick = () => {
+      if (online && turn !== online.playerId + 1) return;
+      execFlip(i);
+      if (online) online.sendMove({i});
+    };
     grid.appendChild(el);
     cardEls.push(el);
   }
   updateStatus();
-  function updateStatus() { setStatus(`P1: ${scores[0]}  P2: ${scores[1]} — P${turn}'s turn`); }
-  function flip(i) {
+  function updateStatus() {
+    if (online) setStatus(`You: ${scores[online.playerId]}  Opp: ${scores[1-online.playerId]} — ${turn === online.playerId+1 ? 'Your turn' : "Opponent's turn"}`);
+    else setStatus(`P1: ${scores[0]}  P2: ${scores[1]} — P${turn}'s turn`);
+  }
+  function execFlip(i) {
     if (busy || matched[i] || (first === i)) return;
     cardEls[i].textContent = cards[i];
     cardEls[i].style.background = '#3a3a6a'; SND.pop();
@@ -753,7 +997,7 @@ function initMemory(area, setStatus) {
       matched[first] = matched[second] = true;
       scores[turn - 1]++; SND.chime();
       first = second = -1; busy = false;
-      if (matched.every(v => v)) { SND.win(); setStatus(scores[0] > scores[1] ? 'P1 wins!' : scores[1] > scores[0] ? 'P2 wins!' : 'Draw!'); return; }
+      if (matched.every(v => v)) { SND.win(); setStatus(online ? (scores[online.playerId] > scores[1-online.playerId] ? 'You win!' : scores[online.playerId] < scores[1-online.playerId] ? 'You lose!' : 'Draw!') : (scores[0] > scores[1] ? 'P1 wins!' : scores[1] > scores[0] ? 'P2 wins!' : 'Draw!')); return; }
       updateStatus();
     } else {
       SND.buzz();
@@ -765,11 +1009,15 @@ function initMemory(area, setStatus) {
       }, 800);
     }
   }
-  return () => {};
+  if (online) {
+    online.listenMoves(data => execFlip(data.i));
+    online.onOpponentDisconnect(() => setStatus('Opponent disconnected'));
+  }
+  return () => { if (online) online.cleanup(); };
 }
 
 // ==================== AWALÉ ====================
-function initAwale(area, setStatus) {
+function initAwale(area, setStatus, online) {
   let board = Array(12).fill(4);
   let scores = [0, 0], turn = 0, gameOver = false;
   const wrap = document.createElement('div');
@@ -791,29 +1039,39 @@ function initAwale(area, setStatus) {
     return h;
   }
   function render() {
-    let h = `<div style="text-align:center;margin-bottom:6px;font-weight:bold;color:${turn===1?'#fff':'#888'}">▲ P2: ${scores[1]}</div>`;
+    let h = `<div style="text-align:center;margin-bottom:6px;font-weight:bold;color:${turn===1?'#fff':'#888'}">▲ ${online ? (online.playerId===1?'You':'Opp') : 'P2'}: ${scores[1]}</div>`;
     h += '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-bottom:4px">';
     for (let i = 11; i >= 6; i--) {
-      const a = turn===1 && board[i]>0 && !gameOver;
+      const a = turn===1 && board[i]>0 && !gameOver && (!online || online.playerId===1);
       h += `<div data-pit="${i}" style="background:${a?'#6D4C41':'#3E2723'};padding:6px 3px;border-radius:12px;text-align:center;cursor:${a?'pointer':'default'};min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative">`;
       h += renderBeans(board[i], a);
       h += `<div style="font-size:.65em;color:#aaa;margin-top:1px">${board[i]}</div></div>`;
     }
     h += '</div><div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px">';
     for (let i = 0; i <= 5; i++) {
-      const a = turn===0 && board[i]>0 && !gameOver;
+      const a = turn===0 && board[i]>0 && !gameOver && (!online || online.playerId===0);
       h += `<div data-pit="${i}" style="background:${a?'#6D4C41':'#3E2723'};padding:6px 3px;border-radius:12px;text-align:center;cursor:${a?'pointer':'default'};min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative">`;
       h += renderBeans(board[i], a);
       h += `<div style="font-size:.65em;color:#aaa;margin-top:1px">${board[i]}</div></div>`;
     }
-    h += `</div><div style="text-align:center;margin-top:6px;font-weight:bold;color:${turn===0?'#fff':'#888'}">▼ P1: ${scores[0]}</div>`;
+    h += `</div><div style="text-align:center;margin-top:6px;font-weight:bold;color:${turn===0?'#fff':'#888'}">▼ ${online ? (online.playerId===0?'You':'Opp') : 'P1'}: ${scores[0]}</div>`;
     cont.innerHTML = h;
     cont.querySelectorAll('[data-pit]').forEach(el => {
-      el.onclick = () => play(parseInt(el.dataset.pit));
+      el.onclick = () => {
+        const pit = parseInt(el.dataset.pit);
+        if (online && turn !== online.playerId) return;
+        execPlay(pit);
+        if (online) online.sendMove({pit});
+      };
     });
-    setStatus(gameOver ? (scores[0]>scores[1]?'P1 wins!':scores[1]>scores[0]?'P2 wins!':'Draw!') : `P${turn+1}'s turn`);
+    if (gameOver) {
+      if (online) setStatus(scores[online.playerId]>scores[1-online.playerId]?'You win!':scores[online.playerId]<scores[1-online.playerId]?'You lose!':'Draw!');
+      else setStatus(scores[0]>scores[1]?'P1 wins!':scores[1]>scores[0]?'P2 wins!':'Draw!');
+    } else {
+      setStatus(online ? (turn===online.playerId?'Your turn':"Opponent's turn") : `P${turn+1}'s turn`);
+    }
   }
-  function play(pit) {
+  function execPlay(pit) {
     if (gameOver) return;
     if (turn===0 && (pit<0||pit>5)) return;
     if (turn===1 && (pit<6||pit>11)) return;
@@ -839,12 +1097,16 @@ function initAwale(area, setStatus) {
     turn = 1 - turn;
     render();
   }
+  if (online) {
+    online.listenMoves(data => execPlay(data.pit));
+    online.onOpponentDisconnect(() => { if (!gameOver) { gameOver = true; setStatus('Opponent disconnected'); } });
+  }
   render();
-  return () => {};
+  return () => { if (online) online.cleanup(); };
 }
 
 // ==================== MASTERMIND ====================
-function initMastermind(area, setStatus) {
+function initMastermind(area, setStatus, online) {
   const COLORS = ['#E53935','#1E88E5','#43A047','#FDD835','#8E24AA','#FF8F00'];
   const COLOR_NAMES = ['Red','Blue','Green','Yellow','Purple','Orange'];
   const PEGS = 4, MAX_GUESS = 10;
@@ -857,20 +1119,46 @@ function initMastermind(area, setStatus) {
   const cont = document.createElement('div');
   cont.style.cssText = 'width:min(95vw,400px)';
   wrap.appendChild(cont);
+  // Online: P0 sets code, P1 guesses
+  if (online && online.playerId === 1) {
+    // P1 waits for secret from P0
+    phase = 'wait';
+    online.onState('secret', s => {
+      secret = s; phase = 'guess'; render();
+    });
+  }
   function render() {
     let h = '';
     // Title bar
     const titleCol = phase === 'set' ? '#FF8F00' : '#1E88E5';
-    if (phase === 'set') {
+    if (phase === 'wait') {
+      h += `<div style="text-align:center;font-size:1.2em;font-weight:bold;color:#888;padding:40px 0">Waiting for opponent to set code...</div>`;
+    } else if (phase === 'set') {
+      const canEdit = !online || online.playerId === 0;
       h += `<div style="background:linear-gradient(135deg,#1a1a2e,#2a1a3e);border-radius:12px;padding:12px;margin-bottom:10px">`;
-      h += `<div style="text-align:center;font-size:1.1em;font-weight:bold;color:${titleCol};margin-bottom:8px">🔮 P1: Set the secret code</div>`;
-      h += `<div style="text-align:center;font-size:.75em;color:#888;margin-bottom:8px">Choose ${PEGS} colors — P2 will try to crack it</div>`;
-      h += renderPegs(currentGuess, true);
-      h += renderPalette();
-      if (currentGuess.length === PEGS) h += `<div style="text-align:center;margin-top:10px"><button class="btn" id="mm-confirm" style="background:#FF8F00;font-size:1em;padding:10px 28px">✓ Confirm Code</button></div>`;
+      h += `<div style="text-align:center;font-size:1.1em;font-weight:bold;color:${titleCol};margin-bottom:8px">${online ? 'Set the secret code' : '🔮 P1: Set the secret code'}</div>`;
+      h += `<div style="text-align:center;font-size:.75em;color:#888;margin-bottom:8px">Choose ${PEGS} colors — ${online ? 'opponent' : 'P2'} will try to crack it</div>`;
+      h += renderPegs(currentGuess, canEdit);
+      if (canEdit) h += renderPalette();
+      if (canEdit && currentGuess.length === PEGS) h += `<div style="text-align:center;margin-top:10px"><button class="btn" id="mm-confirm" style="background:#FF8F00;font-size:1em;padding:10px 28px">✓ Confirm Code</button></div>`;
       h += `</div>`;
+    } else if (phase === 'waitguess') {
+      // P0 waiting for P1 guesses
+      h += `<div style="text-align:center;font-size:1.1em;font-weight:bold;color:#888;margin-bottom:8px">Waiting for opponent to guess...</div>`;
+      if (guesses.length > 0) {
+        h += `<div style="background:rgba(255,255,255,0.03);border-radius:10px;padding:6px 8px;margin-bottom:8px">`;
+        for (let i = 0; i < guesses.length; i++) {
+          h += `<div style="display:flex;align-items:center;gap:8px;padding:5px 4px">`;
+          h += `<span style="color:#555;font-size:.7em;width:18px;text-align:right">${i+1}.</span>`;
+          h += renderPegsInline(guesses[i]);
+          h += renderFeedbackInline(feedback[i]);
+          h += `</div>`;
+        }
+        h += `</div>`;
+      }
     } else if (phase === 'guess') {
-      h += `<div style="text-align:center;font-size:1em;font-weight:bold;color:#64B5F6;margin-bottom:6px">P2: Crack the code! (${MAX_GUESS - guesses.length} guesses left)</div>`;
+      const canGuess = !online || online.playerId === 1;
+      h += `<div style="text-align:center;font-size:1em;font-weight:bold;color:#64B5F6;margin-bottom:6px">${canGuess ? 'Crack' : 'P2: Crack'} the code! (${MAX_GUESS - guesses.length} guesses left)</div>`;
       // Legend
       h += `<div style="display:flex;justify-content:center;gap:14px;margin-bottom:8px;font-size:.7em;color:#999">`;
       h += `<span>⬛ = right color & place</span>`;
@@ -889,13 +1177,15 @@ function initMastermind(area, setStatus) {
         }
         h += `</div>`;
       }
-      // Current guess
-      h += `<div style="background:linear-gradient(135deg,#1a1a2e,#2a1a3e);border-radius:12px;padding:10px;margin-top:4px">`;
-      h += `<div style="text-align:center;font-size:.8em;color:#888;margin-bottom:6px">Your guess:</div>`;
-      h += renderPegs(currentGuess, true);
-      h += renderPalette();
-      if (currentGuess.length === PEGS) h += `<div style="text-align:center;margin-top:10px"><button class="btn" id="mm-submit" style="background:#1E88E5;font-size:1em;padding:10px 28px">Submit Guess</button></div>`;
-      h += `</div>`;
+      // Current guess input (only for guesser)
+      if (canGuess) {
+        h += `<div style="background:linear-gradient(135deg,#1a1a2e,#2a1a3e);border-radius:12px;padding:10px;margin-top:4px">`;
+        h += `<div style="text-align:center;font-size:.8em;color:#888;margin-bottom:6px">Your guess:</div>`;
+        h += renderPegs(currentGuess, true);
+        h += renderPalette();
+        if (currentGuess.length === PEGS) h += `<div style="text-align:center;margin-top:10px"><button class="btn" id="mm-submit" style="background:#1E88E5;font-size:1em;padding:10px 28px">Submit Guess</button></div>`;
+        h += `</div>`;
+      }
     } else {
       // Game over — show all guesses and reveal secret
       h += `<div style="text-align:center;font-size:1em;font-weight:bold;color:#FFD54F;margin-bottom:8px">Game Over!</div>`;
@@ -920,18 +1210,43 @@ function initMastermind(area, setStatus) {
     });
     const confirmBtn = cont.querySelector('#mm-confirm');
     if (confirmBtn) confirmBtn.onclick = () => {
-      secret = [...currentGuess]; currentGuess = []; phase = 'guess';
-      showOverlay(area, 'Pass device to P2', 'Ready', () => render());
+      secret = [...currentGuess]; currentGuess = [];
+      if (online) {
+        online.setState('secret', secret);
+        phase = 'waitguess';
+        render();
+      } else {
+        phase = 'guess';
+        showOverlay(area, 'Pass device to P2', 'Ready', () => render());
+      }
     };
     const submitBtn = cont.querySelector('#mm-submit');
     if (submitBtn) submitBtn.onclick = () => {
       const fb = calcFeedback(currentGuess, secret); SND.click();
       guesses.push([...currentGuess]); feedback.push(fb);
-      if (fb.exact === PEGS) { phase = 'done'; SND.win(); setStatus('P2 cracked the code!'); }
-      else if (guesses.length >= MAX_GUESS) { phase = 'done'; SND.buzz(); setStatus('P1 wins! Code unbroken.'); }
+      if (online) online.sendMove({guess: currentGuess});
+      if (fb.exact === PEGS) { phase = 'done'; SND.win(); setStatus(online ? (online.playerId === 1 ? 'You cracked the code!' : 'Opponent cracked your code!') : 'P2 cracked the code!'); }
+      else if (guesses.length >= MAX_GUESS) { phase = 'done'; SND.buzz(); setStatus(online ? (online.playerId === 0 ? 'You win! Code unbroken.' : 'You lose! Code unbroken.') : 'P1 wins! Code unbroken.'); }
       currentGuess = []; render();
     };
-    if (phase !== 'done') setStatus(phase === 'set' ? 'P1: Set code' : `P2: Guess (${MAX_GUESS - guesses.length} left)`);
+    if (phase === 'set') setStatus(online ? 'Set your secret code' : 'P1: Set code');
+    else if (phase === 'guess') setStatus(online ? (online.playerId === 1 ? `Guess (${MAX_GUESS - guesses.length} left)` : 'Opponent is guessing...') : `P2: Guess (${MAX_GUESS - guesses.length} left)`);
+    else if (phase === 'wait') setStatus('Waiting for code...');
+    else if (phase === 'waitguess') setStatus('Waiting for guesses...');
+  }
+  // Online: P0 receives guesses from P1
+  if (online && online.playerId === 0) {
+    online.listenMoves(data => {
+      const guess = data.guess;
+      const fb = calcFeedback(guess, secret);
+      guesses.push(guess); feedback.push(fb);
+      if (fb.exact === PEGS) { phase = 'done'; SND.win(); setStatus('Opponent cracked your code!'); }
+      else if (guesses.length >= MAX_GUESS) { phase = 'done'; SND.buzz(); setStatus('You win! Code unbroken.'); }
+      render();
+    });
+  }
+  if (online) {
+    online.onOpponentDisconnect(() => { if (phase !== 'done') { phase = 'done'; setStatus('Opponent disconnected'); render(); } });
   }
   function renderPegs(pegs, editable) {
     let h = '<div style="display:flex;justify-content:center;gap:8px;margin:6px 0">';
@@ -977,7 +1292,7 @@ function initMastermind(area, setStatus) {
     return { exact, color };
   }
   render();
-  return () => {};
+  return () => { if (online) online.cleanup(); };
 }
 
 // ==================== STAR CLASH (Galaga-style 2P) ====================
@@ -1834,11 +2149,12 @@ function initSnakes(area, setStatus) {
 }
 
 // ==================== TANK WARS ====================
-function initTankWars(area, setStatus) {
+function initTankWars(area, setStatus, online) {
   const {canvas, ctx, w, h} = createCanvas(area);
   const GRAVITY = 0.15, HUD_H = 40, CTRL_H = 90;
   const GAME_TOP = HUD_H, GAME_BOT = h - CTRL_H;
   const TANK_W = 24, TANK_H = 12, BARREL_LEN = 16;
+  const rng = online ? online.rng : Math.random;
 
   // Pixel-block terrain
   const BK = 5; // block size in pixels
@@ -1847,13 +2163,13 @@ function initTankWars(area, setStatus) {
   const grid = new Uint8Array(gridCols * gridRows); // 0=empty, 1=filled
   (function genTerrain() {
     const minH = 60, maxH = (GAME_BOT - GAME_TOP) * 0.65;
-    let ht = minH + Math.random() * (maxH - minH) * 0.5;
+    let ht = minH + rng() * (maxH - minH) * 0.5;
     const midH = (minH + maxH) / 2;
     const heights = new Float32Array(gridCols);
     for (let c = 0; c < gridCols; c++) {
       heights[c] = ht;
       const drift = (midH - ht) * 0.02;
-      ht += (Math.random() - 0.5) * 8 + drift;
+      ht += (rng() - 0.5) * 8 + drift;
       ht = Math.max(minH, Math.min(maxH, ht));
     }
     for (let p = 0; p < 3; p++) {
@@ -1883,7 +2199,7 @@ function initTankWars(area, setStatus) {
 
   let turn = 0, state = 'aim', gameOver = false;
   let proj = null, explosions = [], trail = [];
-  let wind = (Math.random() - 0.5) * 20;
+  let wind = (rng() - 0.5) * 20;
   let dragStart = null, dragAngle = 0, dragPower = 0;
 
   function sfxFire() { SND.shoot(); }
@@ -1941,16 +2257,18 @@ function initTankWars(area, setStatus) {
     if (!tanks[0].alive || !tanks[1].alive) {
       gameOver = true;
       state = 'done';
-      const winner = tanks[0].alive ? 'P1' : 'P2';
-      setStatus(`${winner} wins!`);
-      showOverlay(area, `${winner} wins!`, 'Rematch', () => location.reload());
+      const winner = tanks[0].alive ? 0 : 1;
+      const label = online ? (winner === online.playerId ? 'You win!' : 'You lose!') : `P${winner+1} wins!`;
+      setStatus(label);
+      showOverlay(area, label, 'Rematch', () => location.reload());
       return;
     }
     turn = 1 - turn;
-    wind += (Math.random() - 0.5) * 10;
+    wind += (rng() - 0.5) * 10;
     wind = Math.max(-25, Math.min(25, wind));
     state = 'aim';
-    setStatus(`P${turn+1}'s turn | Wind: ${wind > 0 ? '→' : '←'} ${Math.abs(wind).toFixed(0)}`);
+    const windStr = `Wind: ${wind > 0 ? '→' : '←'} ${Math.abs(wind).toFixed(0)}`;
+    setStatus(online ? (turn === online.playerId ? `Your turn | ${windStr}` : `Opponent's turn | ${windStr}`) : `P${turn+1}'s turn | ${windStr}`);
   }
 
   // Input
@@ -1964,9 +2282,13 @@ function initTankWars(area, setStatus) {
 
   function handleDown(p) {
     if (state !== 'aim' || gameOver) return;
+    if (online && turn !== online.playerId) return;
     // Check fire button
     const fbx = w/2, fby = h - CTRL_H/2;
-    if (Math.sqrt((p.x-fbx)**2+(p.y-fby)**2) < 28) { fire(); return; }
+    if (Math.sqrt((p.x-fbx)**2+(p.y-fby)**2) < 28) {
+      if (online) online.sendMove({angle: tanks[turn].angle, power: tanks[turn].power});
+      fire(); return;
+    }
     dragStart = p;
     dragAngle = tanks[turn].angle;
     dragPower = tanks[turn].power;
@@ -1978,6 +2300,15 @@ function initTankWars(area, setStatus) {
     tanks[turn].power = Math.max(50, Math.min(1000, dragPower - dy * 3));
   }
   function handleUp() { dragStart = null; }
+
+  if (online) {
+    online.listenMoves(data => {
+      tanks[turn].angle = data.angle;
+      tanks[turn].power = data.power;
+      fire();
+    });
+    online.onOpponentDisconnect(() => { if (!gameOver) { gameOver = true; state = 'done'; setStatus('Opponent disconnected'); } });
+  }
 
   let raf;
   function update() {
@@ -2119,18 +2450,20 @@ function initTankWars(area, setStatus) {
     ctx.textAlign = 'left';
   }
 
-  setStatus(`P1's turn | Wind: ${wind > 0 ? '→' : '←'} ${Math.abs(wind).toFixed(0)}`);
+  const windStr0 = `Wind: ${wind > 0 ? '→' : '←'} ${Math.abs(wind).toFixed(0)}`;
+  setStatus(online ? (turn === online.playerId ? `Your turn | ${windStr0}` : `Opponent's turn | ${windStr0}`) : `P1's turn | ${windStr0}`);
   raf = requestAnimationFrame(update);
-  return () => cancelAnimationFrame(raf);
+  return () => { cancelAnimationFrame(raf); if (online) online.cleanup(); };
 }
 
 // ==================== SHIP BATTLE ====================
-function initShipBattle(area, setStatus) {
+function initShipBattle(area, setStatus, online) {
   const SZ = 10, SHIPS = [5,4,3,3,2];
   const grids = [Array.from({length:SZ},()=>Array(SZ).fill(0)), Array.from({length:SZ},()=>Array(SZ).fill(0))];
   const shots = [Array.from({length:SZ},()=>Array(SZ).fill(0)), Array.from({length:SZ},()=>Array(SZ).fill(0))];
-  let phase = 'place', placer = 0, shipIdx = 0, horizontal = true;
+  let phase = 'place', placer = online ? online.playerId : 0, shipIdx = 0, horizontal = true;
   let turn = 0, gameOver = false;
+  let oppGridReceived = false, myGridSent = false;
   const wrap = document.createElement('div');
   wrap.className = 'board-game';
   wrap.style.overflow = 'auto';
@@ -2141,21 +2474,30 @@ function initShipBattle(area, setStatus) {
   function render() {
     let h = '';
     if (phase === 'place') {
-      h += `<div style="text-align:center;margin-bottom:6px">P${placer+1}: Place ship (${SHIPS[shipIdx]} cells)</div>`;
+      h += `<div style="text-align:center;margin-bottom:6px">${online ? 'Place' : 'P'+(placer+1)+': Place'} ship (${SHIPS[shipIdx]} cells)</div>`;
       h += `<div style="text-align:center;margin-bottom:6px"><button class="btn" id="sb-rotate">${horizontal?'Horizontal':'Vertical'} ↻</button></div>`;
       h += renderGrid(grids[placer], null, true);
-    } else if (!gameOver) {
-      h += `<div style="text-align:center;margin-bottom:4px;font-size:.85em">Your shots (opponent's sea):</div>`;
-      h += renderGrid(null, shots[turn], false);
+    } else if (phase === 'waitopp') {
+      h += `<div style="text-align:center;font-size:1.2em;font-weight:bold;color:#888;padding:40px 0">Waiting for opponent to place ships...</div>`;
       h += `<div style="text-align:center;margin:6px 0;font-size:.85em">Your ships:</div>`;
-      h += renderGridSmall(grids[turn], shots[1-turn]);
+      h += renderGridSmall(grids[online.playerId], shots[1-online.playerId]);
+    } else if (phase === 'battle' && !gameOver) {
+      const myId = online ? online.playerId : turn;
+      h += `<div style="text-align:center;margin-bottom:4px;font-size:.85em">${online ? 'Your shots' : 'Your shots'} (opponent's sea):</div>`;
+      h += renderGrid(null, shots[myId], false);
+      h += `<div style="text-align:center;margin:6px 0;font-size:.85em">Your ships:</div>`;
+      h += renderGridSmall(grids[myId], shots[1-myId]);
     }
     cont.innerHTML = h;
     cont.querySelectorAll('[data-cell]').forEach(el => {
       el.onclick = () => {
         const [r,c] = el.dataset.cell.split(',').map(Number);
         if (phase === 'place') placeShip(r, c);
-        else if (!gameOver) fireAt(r, c);
+        else if (phase === 'battle' && !gameOver) {
+          if (online && turn !== online.playerId) return;
+          execFireAt(r, c);
+          if (online) online.sendMove({r, c});
+        }
       };
     });
     const rotBtn = cont.querySelector('#sb-rotate');
@@ -2184,6 +2526,13 @@ function initShipBattle(area, setStatus) {
     }
     return h + '</div>';
   }
+  function checkBothReady() {
+    if (myGridSent && oppGridReceived) {
+      phase = 'battle'; turn = 0;
+      setStatus(online ? (turn === online.playerId ? 'Your turn' : "Opponent's turn") : "P1's turn");
+      render();
+    }
+  }
   function placeShip(r, c) {
     const len = SHIPS[shipIdx];
     const cells = [];
@@ -2195,7 +2544,16 @@ function initShipBattle(area, setStatus) {
     cells.forEach(([rr,cc]) => grids[placer][rr][cc] = shipIdx + 1);
     shipIdx++;
     if (shipIdx >= SHIPS.length) {
-      if (placer === 0) {
+      if (online) {
+        // Send our grid and wait for opponent
+        const gridData = grids[online.playerId].map(row => row.slice());
+        online.setState('grid' + online.playerId, gridData);
+        myGridSent = true;
+        phase = 'waitopp';
+        setStatus('Waiting for opponent...');
+        checkBothReady();
+        render();
+      } else if (placer === 0) {
         placer = 1; shipIdx = 0; horizontal = true;
         showOverlay(area, 'Pass device to P2', 'Ready', render);
       } else {
@@ -2206,21 +2564,45 @@ function initShipBattle(area, setStatus) {
     }
     render();
   }
-  function fireAt(r, c) {
+  function execFireAt(r, c) {
     const target = 1 - turn;
     if (shots[turn][r][c]) return;
-    if (grids[target][r][c]) { shots[turn][r][c] = 1; SND.boom(); setStatus('Hit!'); }
-    else { shots[turn][r][c] = 2; SND.splash(); setStatus('Miss'); }
+    if (grids[target][r][c]) { shots[turn][r][c] = 1; SND.boom(); setStatus(online ? (turn === online.playerId ? 'Hit!' : 'They hit!') : 'Hit!'); }
+    else { shots[turn][r][c] = 2; SND.splash(); setStatus(online ? (turn === online.playerId ? 'Miss' : 'They missed') : 'Miss'); }
     // Check win
     let allHit = true;
     for (let rr=0;rr<SZ;rr++) for (let cc=0;cc<SZ;cc++) if (grids[target][rr][cc] && shots[turn][rr][cc] !== 1) allHit = false;
-    if (allHit) { gameOver = true; SND.win(); setStatus(`P${turn+1} wins!`); render(); return; }
+    if (allHit) {
+      gameOver = true; SND.win();
+      setStatus(online ? (turn === online.playerId ? 'You win!' : 'You lose!') : `P${turn+1} wins!`);
+      render(); return;
+    }
+    const prevTurn = turn;
     render();
-    setTimeout(() => { turn = 1 - turn; showOverlay(area, `Pass device to P${turn+1}`, 'Ready', render); }, 800);
+    setTimeout(() => {
+      turn = 1 - prevTurn;
+      if (online) {
+        setStatus(turn === online.playerId ? 'Your turn' : "Opponent's turn");
+        render();
+      } else {
+        showOverlay(area, `Pass device to P${turn+1}`, 'Ready', render);
+      }
+    }, 800);
+  }
+  if (online) {
+    // Listen for opponent's grid
+    const oppId = 1 - online.playerId;
+    online.onState('grid' + oppId, data => {
+      for (let r = 0; r < SZ; r++) for (let c = 0; c < SZ; c++) grids[oppId][r][c] = data[r][c];
+      oppGridReceived = true;
+      checkBothReady();
+    });
+    online.listenMoves(data => execFireAt(data.r, data.c));
+    online.onOpponentDisconnect(() => { if (!gameOver) { gameOver = true; setStatus('Opponent disconnected'); } });
   }
   render();
-  setStatus('P1: Place ships');
-  return () => {};
+  setStatus(online ? 'Place your ships' : 'P1: Place ships');
+  return () => { if (online) online.cleanup(); };
 }
 
 // ==================== POOL ====================
@@ -2512,523 +2894,180 @@ function initMiniGolf(area, setStatus) {
   return () => cancelAnimationFrame(raf);
 }
 
-// ==================== MUNCH MAZE (2P Pac-Man Clone) ====================
-function initMunchMaze(area, setStatus) {
-  const {canvas, ctx, w, h} = createCanvas(area);
-  const COLS = 21, ROWS = 15;
-  const CS = Math.min(Math.floor(w / COLS), Math.floor(h / (ROWS + 2))); // cell size
-  const MAZE_W = COLS * CS, MAZE_H = ROWS * CS;
-  const OX = Math.floor((w - MAZE_W) / 2), OY = Math.floor((h - MAZE_H) / 2);
+// ==================== CARO (Gomoku Variant - 13x13) ====================
+function initCaro(area, setStatus, online) {
+  const SIZE = 13;
+  const board = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
+  let turn = 1; // 1 = Black, 2 = White
+  let gameOver = false;
+  let winCells = null;
 
-  // Maze layout: 1=wall, 0=path, 2=dot, 3=power pellet
-  // Symmetric 21x15 maze
-  const MAZE_TEMPLATE = [
-    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-    [1,3,2,2,2,2,2,2,2,2,1,2,2,2,2,2,2,2,2,3,1],
-    [1,2,1,1,2,1,1,1,2,1,1,1,2,1,1,1,2,1,1,2,1],
-    [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
-    [1,2,1,1,2,1,2,1,1,1,1,1,1,1,2,1,2,1,1,2,1],
-    [1,2,2,2,2,1,2,2,2,2,1,2,2,2,2,1,2,2,2,2,1],
-    [1,1,1,1,2,1,1,1,0,0,0,0,0,1,1,1,2,1,1,1,1],
-    [1,1,1,1,2,1,0,0,0,1,0,1,0,0,0,1,2,1,1,1,1],
-    [1,1,1,1,2,1,0,1,0,0,0,0,0,1,0,1,2,1,1,1,1],
-    [1,2,2,2,2,0,0,0,0,2,1,2,0,0,0,0,2,2,2,2,1],
-    [1,2,1,1,2,1,2,1,1,1,1,1,1,1,2,1,2,1,1,2,1],
-    [1,2,2,1,2,2,2,2,2,2,2,2,2,2,2,2,2,1,2,2,1],
-    [1,1,2,1,2,1,2,1,1,1,1,1,1,1,2,1,2,1,2,1,1],
-    [1,3,2,2,2,2,2,2,2,2,1,2,2,2,2,2,2,2,2,3,1],
-    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-  ];
+  const wrap = document.createElement('div');
+  wrap.className = 'board-game';
+  area.appendChild(wrap);
 
-  let maze, dots, totalDots;
-  let p1, p2, monsters, pickups;
-  let gameOver, frameCount, difficultyTimer, monsterCount;
+  const rect = area.getBoundingClientRect();
+  const maxW = rect.width * 0.95;
+  const maxH = rect.height * 0.82;
+  const sz = Math.min(maxW, maxH);
+  const cellSz = Math.floor(sz / SIZE);
+  const gridSz = cellSz * SIZE;
 
-  function initGame() {
-    maze = MAZE_TEMPLATE.map(r => [...r]);
-    dots = 0;
-    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-      if (maze[r][c] === 2) dots++;
-    }
-    totalDots = dots;
+  const grid = document.createElement('div');
+  grid.style.cssText = `display:grid;grid-template-columns:repeat(${SIZE},1fr);width:${gridSz}px;height:${gridSz}px;background:#1a1a2e;border-radius:10px;overflow:hidden;border:2px solid #333;box-shadow:0 4px 20px rgba(0,0,0,0.5)`;
+  wrap.appendChild(grid);
 
-    p1 = { cx: 1, cy: 1, tx: 1, ty: 1, dir: {x:1,y:0}, nextDir: {x:1,y:0}, speed: 0.08, t: 1, lives: 3, score: 0, color: '#FF69B4', mouthPhase: 0, powerTimer: 0, speedBoost: 0, reversed: 0 };
-    p2 = { cx: 19, cy: 13, tx: 19, ty: 13, dir: {x:-1,y:0}, nextDir: {x:-1,y:0}, speed: 0.08, t: 1, lives: 3, score: 0, color: '#4CAF50', mouthPhase: 0, powerTimer: 0, speedBoost: 0, reversed: 0 };
+  const cells = [];
+  for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+    const cell = document.createElement('div');
+    cell.style.cssText = `position:relative;aspect-ratio:1;background:#2a1f0e;cursor:pointer;border:1px solid rgba(80,60,30,0.4)`;
+    // Draw board lines via pseudo-style using inner div
+    const inner = document.createElement('div');
+    inner.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center';
+    // Cross-hair lines
+    const hLine = document.createElement('div');
+    hLine.style.cssText = 'position:absolute;top:50%;left:0;right:0;height:1px;background:rgba(120,90,40,0.5)';
+    const vLine = document.createElement('div');
+    vLine.style.cssText = 'position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(120,90,40,0.5)';
+    inner.appendChild(hLine);
+    inner.appendChild(vLine);
+    cell.appendChild(inner);
 
-    monsters = [];
-    const monsterColors = ['#E53935','#FF9800','#00BCD4','#9C27B0'];
-    const spawnPositions = [{cx:9,cy:7},{cx:11,cy:7},{cx:9,cy:8},{cx:11,cy:8}];
-    for (let i = 0; i < 4; i++) {
-      monsters.push({
-        cx: spawnPositions[i].cx, cy: spawnPositions[i].cy,
-        tx: spawnPositions[i].cx, ty: spawnPositions[i].cy,
-        dir: {x:0,y:-1}, speed: 0.055, t: 1,
-        color: monsterColors[i], frightened: false, frightenTimer: 0,
-        dead: false, respawnTimer: 0, eyeDir: {x:0,y:-1},
-      });
-    }
-    monsterCount = 4;
+    const stone = document.createElement('div');
+    stone.style.cssText = 'position:absolute;inset:12%;border-radius:50%;transition:transform .1s,box-shadow .1s;z-index:1';
+    cell.appendChild(stone);
 
-    pickups = [];
-    gameOver = false;
-    frameCount = 0;
-    difficultyTimer = 0;
-  }
-  initGame();
-
-  // Swipe controls (left half = P1, right half = P2) — same as Snakes
-  const swipes = {};
-  canvas.addEventListener('touchstart', e => {
-    e.preventDefault();
-    const rect = canvas.getBoundingClientRect();
-    for (const t of e.changedTouches) {
-      const x = (t.clientX - rect.left) / rect.width * w;
-      const y = (t.clientY - rect.top) / rect.height * h;
-      swipes[t.identifier] = { sx: x, sy: y, player: x < w / 2 ? 0 : 1 };
-    }
-  });
-  canvas.addEventListener('touchmove', e => {
-    e.preventDefault();
-    const rect = canvas.getBoundingClientRect();
-    for (const t of e.changedTouches) {
-      const st = swipes[t.identifier]; if (!st) continue;
-      const x = (t.clientX - rect.left) / rect.width * w;
-      const y = (t.clientY - rect.top) / rect.height * h;
-      const dx = x - st.sx, dy = y - st.sy;
-      if (Math.sqrt(dx * dx + dy * dy) > 12) {
-        let dir;
-        if (Math.abs(dx) > Math.abs(dy)) dir = { x: dx > 0 ? 1 : -1, y: 0 };
-        else dir = { x: 0, y: dy > 0 ? 1 : -1 };
-        const pl = st.player === 0 ? p1 : p2;
-        if (pl.reversed > 0) dir = { x: -dir.x, y: -dir.y };
-        pl.nextDir = dir;
-        st.sx = x; st.sy = y;
-      }
-    }
-  });
-  canvas.addEventListener('touchend', e => { for (const t of e.changedTouches) delete swipes[t.identifier]; });
-
-  function isWall(c, r) {
-    if (c < 0 || c >= COLS || r < 0 || r >= ROWS) return true;
-    return maze[r][c] === 1;
+    cell.onclick = () => {
+      if (online && turn !== online.playerId + 1) return;
+      execPlace(r, c);
+      if (online) online.sendMove({r, c});
+    };
+    grid.appendChild(cell);
+    cells.push({cell, stone, inner});
   }
 
-  function canMove(cx, cy, dir) {
-    const nc = cx + dir.x, nr = cy + dir.y;
-    return !isWall(nc, nr);
+  // Star points (center and 4 corners of the star area)
+  const starPts = [[3,3],[3,9],[6,6],[9,3],[9,9]];
+  for (const [sr,sc] of starPts) {
+    const dot = document.createElement('div');
+    dot.style.cssText = 'position:absolute;width:6px;height:6px;border-radius:50%;background:rgba(120,90,40,0.7);top:50%;left:50%;transform:translate(-50%,-50%);z-index:1';
+    cells[sr * SIZE + sc].inner.appendChild(dot);
   }
 
-  function moveEntity(e) {
-    if (e.t < 1) {
-      e.t += e.speed * (e.speedBoost > 0 ? 1.5 : 1);
-      if (e.t >= 1) {
-        e.t = 1;
-        e.cx = e.tx; e.cy = e.ty;
-      }
-      return;
-    }
-    // At cell center - try nextDir first, then current dir
-    if (e.nextDir && canMove(e.cx, e.cy, e.nextDir)) {
-      e.dir = { ...e.nextDir };
-    }
-    if (canMove(e.cx, e.cy, e.dir)) {
-      e.tx = e.cx + e.dir.x;
-      e.ty = e.cy + e.dir.y;
-      e.t = 0;
-    }
-  }
+  setStatus(online ? (online.playerId === 0 ? "Your Turn (Black)" : "Opponent's Turn") : "Black's Turn");
 
-  function moveMonster(m) {
-    if (m.dead) {
-      m.respawnTimer--;
-      if (m.respawnTimer <= 0) {
-        m.dead = false;
-        m.cx = 10; m.cy = 7; m.tx = 10; m.ty = 7; m.t = 1;
-        m.frightened = false; m.frightenTimer = 0;
-      }
-      return;
-    }
-    if (m.frightenTimer > 0) {
-      m.frightenTimer--;
-      if (m.frightenTimer <= 0) m.frightened = false;
-    }
-    if (m.t < 1) {
-      m.t += m.speed;
-      if (m.t >= 1) { m.t = 1; m.cx = m.tx; m.cy = m.ty; }
-      return;
-    }
-    // AI: pick direction at intersections
-    const dirs = [{x:0,y:-1},{x:0,y:1},{x:-1,y:0},{x:1,y:0}];
-    const valid = dirs.filter(d => canMove(m.cx, m.cy, d) && !(d.x === -m.dir.x && d.y === -m.dir.y));
-    if (valid.length === 0) {
-      // Dead end - reverse
-      const rev = { x: -m.dir.x, y: -m.dir.y };
-      if (canMove(m.cx, m.cy, rev)) {
-        m.dir = rev;
-        m.tx = m.cx + rev.x; m.ty = m.cy + rev.y; m.t = 0;
-      }
-      return;
-    }
-    if (m.frightened) {
-      // Flee: pick random direction
-      const d = valid[Math.floor(Math.random() * valid.length)];
-      m.dir = d; m.tx = m.cx + d.x; m.ty = m.cy + d.y; m.t = 0;
+  function execPlace(r, c) {
+    if (gameOver || board[r][c]) return;
+    board[r][c] = turn;
+    SND.drop();
+
+    const stone = cells[r * SIZE + c].stone;
+    if (turn === 1) {
+      stone.style.background = 'radial-gradient(circle at 35% 35%, #555, #111)';
+      stone.style.boxShadow = '0 2px 6px rgba(0,0,0,0.6)';
     } else {
-      // 40% chase nearest player, 60% random
-      if (Math.random() < 0.4) {
-        // Chase nearest player
-        const d1 = Math.abs(m.cx - p1.cx) + Math.abs(m.cy - p1.cy);
-        const d2 = Math.abs(m.cx - p2.cx) + Math.abs(m.cy - p2.cy);
-        const target = (d1 <= d2 && p1.lives > 0) || p2.lives <= 0 ? p1 : p2;
-        let best = valid[0], bestDist = Infinity;
-        for (const d of valid) {
-          const nc = m.cx + d.x, nr = m.cy + d.y;
-          const dist = Math.abs(nc - target.cx) + Math.abs(nr - target.cy);
-          if (dist < bestDist) { bestDist = dist; best = d; }
-        }
-        m.dir = best; m.tx = m.cx + best.x; m.ty = m.cy + best.y; m.t = 0;
-      } else {
-        const d = valid[Math.floor(Math.random() * valid.length)];
-        m.dir = d; m.tx = m.cx + d.x; m.ty = m.cy + d.y; m.t = 0;
-      }
+      stone.style.background = 'radial-gradient(circle at 35% 35%, #fff, #ccc)';
+      stone.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
     }
-    m.eyeDir = { ...m.dir };
-  }
+    stone.style.transform = 'scale(1)';
 
-  function playerPos(p) {
-    const px = p.cx + (p.tx - p.cx) * Math.min(p.t, 1);
-    const py = p.cy + (p.ty - p.cy) * Math.min(p.t, 1);
-    return { x: OX + px * CS + CS / 2, y: OY + py * CS + CS / 2, gx: px, gy: py };
-  }
-
-  function monsterPos(m) {
-    const mx = m.cx + (m.tx - m.cx) * Math.min(m.t, 1);
-    const my = m.cy + (m.ty - m.cy) * Math.min(m.t, 1);
-    return { x: OX + mx * CS + CS / 2, y: OY + my * CS + CS / 2, gx: mx, gy: my };
-  }
-
-  let raf;
-
-  function update() {
-    if (gameOver) { draw(); return; }
-    frameCount++;
-
-    // Move players
-    for (const pl of [p1, p2]) {
-      if (pl.lives <= 0) continue;
-      if (pl.speedBoost > 0) pl.speedBoost--;
-      if (pl.reversed > 0) pl.reversed--;
-      if (pl.powerTimer > 0) pl.powerTimer--;
-      moveEntity(pl);
-      pl.mouthPhase += 0.15;
-
-      // Check dot/pellet eating
-      if (pl.t >= 1) {
-        const cell = maze[pl.cy][pl.cx];
-        if (cell === 2) {
-          maze[pl.cy][pl.cx] = 0;
-          pl.score++;
-          dots--;
-          SND.pop();
-        } else if (cell === 3) {
-          maze[pl.cy][pl.cx] = 0;
-          pl.score += 5;
-          pl.powerTimer = 360; // 6 seconds at 60fps
-          for (const m of monsters) {
-            if (!m.dead) { m.frightened = true; m.frightenTimer = 360; }
-          }
-          SND.score();
-        }
-      }
-    }
-
-    // Move monsters
-    for (const m of monsters) moveMonster(m);
-
-    // Player-monster collision
-    for (const pl of [p1, p2]) {
-      if (pl.lives <= 0) continue;
-      const pp = playerPos(pl);
-      for (const m of monsters) {
-        if (m.dead) continue;
-        const mp = monsterPos(m);
-        const dist = Math.sqrt((pp.gx - mp.gx) ** 2 + (pp.gy - mp.gy) ** 2);
-        if (dist < 0.7) {
-          if (m.frightened) {
-            // Eat monster
-            pl.score += 10;
-            m.dead = true;
-            m.respawnTimer = 180; // 3s
-            SND.alienDie();
-          } else {
-            // Player hit
-            pl.lives--;
-            pl.cx = pl === p1 ? 1 : 19;
-            pl.cy = pl === p1 ? 1 : 13;
-            pl.tx = pl.cx; pl.ty = pl.cy; pl.t = 1;
-            SND.buzz();
-          }
-        }
-      }
-    }
-
-    // Pickup collision
-    for (let i = pickups.length - 1; i >= 0; i--) {
-      const pk = pickups[i];
-      pk.timer--;
-      if (pk.timer <= 0) { pickups.splice(i, 1); continue; }
-      for (const pl of [p1, p2]) {
-        if (pl.lives <= 0) continue;
-        if (Math.abs(pl.cx - pk.cx) + Math.abs(pl.cy - pk.cy) < 1.2 && pl.t >= 0.8) {
-          if (pk.type === 'speed') {
-            pl.speedBoost = 240; // 4s
-          } else if (pk.type === 'dizzy') {
-            const other = pl === p1 ? p2 : p1;
-            if (other.lives > 0) other.reversed = 180; // 3s
-          }
-          SND.chime();
-          pickups.splice(i, 1);
-          break;
-        }
-      }
-    }
-
-    // Spawn special pickups every ~15s
-    if (frameCount % 900 === 450) {
-      // Find a random open cell
-      let tries = 0, cx, cy;
-      do {
-        cx = Math.floor(Math.random() * COLS);
-        cy = Math.floor(Math.random() * ROWS);
-        tries++;
-      } while (tries < 100 && (maze[cy][cx] === 1 || (cx < 3 && cy < 3) || (cx > COLS - 4 && cy > ROWS - 4)));
-      if (tries < 100) {
-        pickups.push({
-          cx, cy,
-          type: Math.random() < 0.5 ? 'speed' : 'dizzy',
-          timer: 600, // 10s
-        });
-      }
-    }
-
-    // Difficulty: every 20s add monster, speed up all
-    difficultyTimer++;
-    if (difficultyTimer >= 1200 && monsterCount < 10) {
-      difficultyTimer = 0;
-      monsterCount++;
-      const colors = ['#E53935','#FF9800','#00BCD4','#9C27B0','#FFEB3B','#607D8B','#E91E63','#00E676','#FF5722','#3F51B5'];
-      monsters.push({
-        cx: 10, cy: 7, tx: 10, ty: 7,
-        dir: {x:0,y:-1}, speed: 0.055 + monsterCount * 0.005, t: 1,
-        color: colors[monsterCount % colors.length],
-        frightened: false, frightenTimer: 0,
-        dead: false, respawnTimer: 0, eyeDir: {x:0,y:-1},
-      });
-      // Speed up all monsters
-      for (const m of monsters) m.speed += 0.003;
-    }
-
-    // Game over conditions
-    if (dots <= 0) {
+    const win = checkWin(r, c, turn);
+    if (win) {
       gameOver = true;
-      const msg = p1.score > p2.score ? 'P1 Wins!' : p2.score > p1.score ? 'P2 Wins!' : 'Draw!';
+      winCells = win;
       SND.win();
-      setStatus(`All dots eaten! ${msg}`);
-      setTimeout(() => showOverlay(area, `${msg}<br>P1: ${p1.score} | P2: ${p2.score}`, 'Rematch', () => { initGame(); raf = requestAnimationFrame(loop); }), 800);
-      draw(); return;
+      // Highlight winning stones
+      for (const [wr, wc] of win) {
+        cells[wr * SIZE + wc].stone.style.boxShadow = '0 0 12px 4px #FFD700';
+      }
+      const label = online ? (turn === online.playerId + 1 ? 'You Win!' : 'You Lose!') : (turn === 1 ? 'Black' : 'White') + ' Wins!';
+      setStatus(label);
+      setTimeout(() => showOverlay(area, label, 'Restart', restart), 600);
+      return;
     }
-    if (p1.lives <= 0 && p2.lives <= 0) {
+
+    // Check draw
+    let filled = 0;
+    for (let i = 0; i < SIZE; i++) for (let j = 0; j < SIZE; j++) if (board[i][j]) filled++;
+    if (filled === SIZE * SIZE) {
       gameOver = true;
-      const msg = p1.score > p2.score ? 'P1 Wins!' : p2.score > p1.score ? 'P2 Wins!' : 'Draw!';
-      SND.win();
-      setStatus(`Both eliminated! ${msg}`);
-      setTimeout(() => showOverlay(area, `${msg}<br>P1: ${p1.score} | P2: ${p2.score}`, 'Rematch', () => { initGame(); raf = requestAnimationFrame(loop); }), 800);
-      draw(); return;
-    }
-    if (p1.lives <= 0 || p2.lives <= 0) {
-      const alive = p1.lives > 0 ? 'P1' : 'P2';
-      // Continue until all dots eaten or 10s grace
-      if (!gameOver && frameCount % 60 === 0) {
-        // Just let remaining player continue
-      }
+      SND.buzz();
+      setStatus('Draw!');
+      setTimeout(() => showOverlay(area, 'Draw!', 'Restart', restart), 600);
+      return;
     }
 
-    setStatus(`P1:${p1.score}(❤${Math.max(0,p1.lives)}) P2:${p2.score}(❤${Math.max(0,p2.lives)}) Dots:${dots}`);
-    draw();
-    raf = requestAnimationFrame(loop);
+    turn = 3 - turn;
+    setStatus(online ? (turn === online.playerId + 1 ? 'Your Turn' : "Opponent's Turn") : (turn === 1 ? "Black's Turn" : "White's Turn"));
+  }
+  if (online) {
+    online.listenMoves(data => execPlace(data.r, data.c));
+    online.onOpponentDisconnect(() => { if (!gameOver) { gameOver = true; setStatus('Opponent disconnected'); } });
   }
 
-  function draw() {
-    // Background
-    ctx.fillStyle = '#0a0a2e';
-    ctx.fillRect(0, 0, w, h);
-
-    // Maze
-    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-      const x = OX + c * CS, y = OY + r * CS;
-      if (maze[r][c] === 1) {
-        ctx.fillStyle = '#1a237e';
-        ctx.fillRect(x, y, CS, CS);
-        // Wall edges
-        ctx.strokeStyle = '#3949ab'; ctx.lineWidth = 1;
-        if (r > 0 && maze[r-1][c] !== 1) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + CS, y); ctx.stroke(); }
-        if (r < ROWS-1 && maze[r+1][c] !== 1) { ctx.beginPath(); ctx.moveTo(x, y + CS); ctx.lineTo(x + CS, y + CS); ctx.stroke(); }
-        if (c > 0 && maze[r][c-1] !== 1) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + CS); ctx.stroke(); }
-        if (c < COLS-1 && maze[r][c+1] !== 1) { ctx.beginPath(); ctx.moveTo(x + CS, y); ctx.lineTo(x + CS, y + CS); ctx.stroke(); }
-      } else {
-        if (maze[r][c] === 2) {
-          // Dot
-          ctx.fillStyle = '#FFD54F';
-          ctx.beginPath(); ctx.arc(x + CS / 2, y + CS / 2, CS * 0.12, 0, Math.PI * 2); ctx.fill();
-        } else if (maze[r][c] === 3) {
-          // Power pellet (pulsing)
-          const pulse = 0.2 + Math.sin(frameCount * 0.1) * 0.08;
-          ctx.fillStyle = '#FFD54F';
-          ctx.beginPath(); ctx.arc(x + CS / 2, y + CS / 2, CS * pulse, 0, Math.PI * 2); ctx.fill();
-        }
+  function checkWin(r, c, player) {
+    const dirs = [[0,1],[1,0],[1,1],[1,-1]]; // horizontal, vertical, diag, anti-diag
+    for (const [dr, dc] of dirs) {
+      // Collect all consecutive stones in this direction
+      const line = [[r, c]];
+      // Forward
+      for (let d = 1; d < SIZE; d++) {
+        const nr = r + dr * d, nc = c + dc * d;
+        if (nr < 0 || nr >= SIZE || nc < 0 || nc >= SIZE || board[nr][nc] !== player) break;
+        line.push([nr, nc]);
       }
+      // Backward
+      for (let d = 1; d < SIZE; d++) {
+        const nr = r - dr * d, nc = c - dc * d;
+        if (nr < 0 || nr >= SIZE || nc < 0 || nc >= SIZE || board[nr][nc] !== player) break;
+        line.unshift([nr, nc]);
+      }
+
+      // Must be EXACTLY 5 (no overlines)
+      if (line.length !== 5) continue;
+
+      // Caro rule: check both ends
+      const [sr, sc] = line[0];
+      const [er, ec] = line[4];
+      const beforeR = sr - dr, beforeC = sc - dc;
+      const afterR = er + dr, afterC = ec + dc;
+
+      const opponent = 3 - player;
+      const beforeBlocked = (beforeR < 0 || beforeR >= SIZE || beforeC < 0 || beforeC >= SIZE)
+        ? false // wall counts as one block but not opponent block
+        : board[beforeR][beforeC] === opponent;
+      const afterBlocked = (afterR < 0 || afterR >= SIZE || afterC < 0 || afterC >= SIZE)
+        ? false
+        : board[afterR][afterC] === opponent;
+
+      // Blocked by opponent on BOTH ends => no win
+      if (beforeBlocked && afterBlocked) continue;
+
+      // Check if wall+opponent combo
+      const beforeIsWall = beforeR < 0 || beforeR >= SIZE || beforeC < 0 || beforeC >= SIZE;
+      const afterIsWall = afterR < 0 || afterR >= SIZE || afterC < 0 || afterC >= SIZE;
+
+      if ((beforeIsWall && afterBlocked) || (afterIsWall && beforeBlocked)) continue;
+
+      return line;
     }
-
-    // Pickups
-    for (const pk of pickups) {
-      const px = OX + pk.cx * CS + CS / 2, py = OY + pk.cy * CS + CS / 2;
-      const flash = pk.timer < 120 && frameCount % 10 < 5;
-      if (!flash) {
-        if (pk.type === 'speed') {
-          // Yellow star
-          ctx.fillStyle = '#FFEB3B';
-          ctx.beginPath();
-          for (let i = 0; i < 5; i++) {
-            const a = (i * 4 * Math.PI / 5) - Math.PI / 2;
-            const r = i === 0 ? CS * 0.3 : CS * 0.3;
-            ctx[i === 0 ? 'moveTo' : 'lineTo'](px + Math.cos(a) * r, py + Math.sin(a) * r);
-            const a2 = a + 2 * Math.PI / 10;
-            ctx.lineTo(px + Math.cos(a2) * r * 0.4, py + Math.sin(a2) * r * 0.4);
-          }
-          ctx.closePath(); ctx.fill();
-        } else {
-          // Purple swirl
-          ctx.strokeStyle = '#9C27B0'; ctx.lineWidth = 2;
-          ctx.beginPath();
-          for (let a = 0; a < Math.PI * 4; a += 0.2) {
-            const r = a * CS * 0.02;
-            const sx = px + Math.cos(a + frameCount * 0.05) * r;
-            const sy = py + Math.sin(a + frameCount * 0.05) * r;
-            a === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
-          }
-          ctx.stroke();
-        }
-      }
-    }
-
-    // Monsters
-    for (const m of monsters) {
-      if (m.dead) continue;
-      const mp = monsterPos(m);
-      const sz = CS * 0.4;
-      if (m.frightened) {
-        const flashing = m.frightenTimer < 120 && frameCount % 10 < 5;
-        ctx.fillStyle = flashing ? '#fff' : '#2196F3';
-      } else {
-        ctx.fillStyle = m.color;
-      }
-      // Square body
-      ctx.fillRect(mp.x - sz, mp.y - sz, sz * 2, sz * 2);
-      // Wavy bottom
-      for (let i = 0; i < 3; i++) {
-        const bx = mp.x - sz + i * sz * 0.667 + sz * 0.333;
-        const by = mp.y + sz + Math.sin(frameCount * 0.2 + i) * 2;
-        ctx.beginPath(); ctx.arc(bx, by, sz * 0.333, 0, Math.PI); ctx.fill();
-      }
-      // Eyes
-      if (!m.frightened) {
-        ctx.fillStyle = '#fff';
-        ctx.beginPath(); ctx.arc(mp.x - sz * 0.35, mp.y - sz * 0.2, sz * 0.3, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(mp.x + sz * 0.35, mp.y - sz * 0.2, sz * 0.3, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#111';
-        ctx.beginPath(); ctx.arc(mp.x - sz * 0.35 + m.eyeDir.x * 2, mp.y - sz * 0.2 + m.eyeDir.y * 2, sz * 0.15, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(mp.x + sz * 0.35 + m.eyeDir.x * 2, mp.y - sz * 0.2 + m.eyeDir.y * 2, sz * 0.15, 0, Math.PI * 2); ctx.fill();
-      } else {
-        // Frightened face
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(mp.x - sz * 0.3, mp.y - sz * 0.1, sz * 0.15, sz * 0.15);
-        ctx.fillRect(mp.x + sz * 0.15, mp.y - sz * 0.1, sz * 0.15, sz * 0.15);
-        // Wobbly mouth
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
-        ctx.beginPath();
-        for (let i = 0; i < 5; i++) {
-          const mx = mp.x - sz * 0.4 + i * sz * 0.2;
-          const my = mp.y + sz * 0.3 + (i % 2 === 0 ? -2 : 2);
-          i === 0 ? ctx.moveTo(mx, my) : ctx.lineTo(mx, my);
-        }
-        ctx.stroke();
-      }
-    }
-
-    // Players
-    for (const pl of [p1, p2]) {
-      if (pl.lives <= 0) continue;
-      const pp = playerPos(pl);
-      const sz = CS * 0.42;
-      const mouthOpen = Math.abs(Math.sin(pl.mouthPhase)) * 0.4;
-
-      ctx.fillStyle = pl.color;
-      // Square body with animated mouth
-      const angle = Math.atan2(pl.dir.y, pl.dir.x);
-      ctx.save();
-      ctx.translate(pp.x, pp.y);
-      ctx.rotate(angle);
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.arc(0, 0, sz, mouthOpen, Math.PI * 2 - mouthOpen);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
-
-      // Eyes
-      const eyeX = pp.x + pl.dir.x * sz * 0.2 - pl.dir.y * sz * 0.2;
-      const eyeY = pp.y + pl.dir.y * sz * 0.2 + pl.dir.x * sz * 0.2;
-      ctx.fillStyle = '#111';
-      ctx.beginPath(); ctx.arc(eyeX, eyeY, 2, 0, Math.PI * 2); ctx.fill();
-
-      // Reversed indicator
-      if (pl.reversed > 0) {
-        ctx.strokeStyle = '#9C27B0'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(pp.x, pp.y, sz + 4, 0, Math.PI * 2); ctx.stroke();
-      }
-      // Speed boost indicator
-      if (pl.speedBoost > 0) {
-        ctx.strokeStyle = '#FFEB3B'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(pp.x, pp.y, sz + 6, 0, Math.PI * 2); ctx.stroke();
-      }
-    }
-
-    // HUD
-    ctx.fillStyle = '#FF69B4'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'left';
-    ctx.fillText(`P1:${p1.score}`, 4, OY - 4);
-    for (let i = 0; i < p1.lives; i++) ctx.fillText('❤', 60 + i * 14, OY - 4);
-
-    ctx.fillStyle = '#4CAF50'; ctx.textAlign = 'right';
-    ctx.fillText(`P2:${p2.score}`, w - 4, OY - 4);
-    for (let i = 0; i < p2.lives; i++) ctx.fillText('❤', w - 60 - i * 14, OY - 4);
-
-    ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.textAlign = 'center'; ctx.font = '10px sans-serif';
-    ctx.fillText(`Monsters: ${monsters.filter(m=>!m.dead).length}`, w / 2, OY - 4);
-
-    // Swipe zone labels
-    ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText('← P1 swipe', w * 0.25, h - 4);
-    ctx.fillText('P2 swipe →', w * 0.75, h - 4);
-    ctx.textAlign = 'left';
+    return null;
   }
 
-  function loop() {
-    update();
+  function restart() {
+    for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+      board[r][c] = 0;
+      cells[r * SIZE + c].stone.style.background = 'none';
+      cells[r * SIZE + c].stone.style.boxShadow = 'none';
+      cells[r * SIZE + c].stone.style.transform = 'scale(0)';
+    }
+    turn = 1;
+    gameOver = false;
+    winCells = null;
+    setStatus(online ? (online.playerId === 0 ? "Your Turn (Black)" : "Opponent's Turn") : "Black's Turn");
   }
 
-  setStatus(`P1:0(❤3) P2:0(❤3) Dots:${dots}`);
-  raf = requestAnimationFrame(loop);
-  return () => cancelAnimationFrame(raf);
+  return () => { if (online) online.cleanup(); };
 }
 
 // ==================== WHEEL OF FORTUNE (Hangman) ====================

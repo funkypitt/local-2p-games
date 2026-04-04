@@ -1,5 +1,10 @@
-2P Games is a collection of 16 touch-friendly local multiplayer games designed
-for two players sharing one device. No internet needed, no accounts, no ads.
+2P Games is a collection of 16 touch-friendly multiplayer games designed
+for two players. Play locally on one device or online with a friend. No
+accounts, no ads.
+
+ONLINE MULTIPLAYER:
+7 turn-based games support online play via room codes or quick match:
+4 in a Row, Caro, Awalé, Memory, Mastermonde, Tank Wars, Ship Battle.
 
 GAMES:
 

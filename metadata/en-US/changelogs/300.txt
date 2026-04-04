@@ -1,0 +1,5 @@
+v1.2 — Online Multiplayer
+
+- New: Online multiplayer for 7 turn-based games (4 in a Row, Caro, Awalé, Memory, Mastermonde, Tank Wars, Ship Battle)
+- Create rooms, join with codes, or quick match
+- All 16 games still work in local mode
