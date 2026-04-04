@@ -1814,7 +1814,7 @@ function initTennis(area, setStatus) {
     // Power-up collision (ball touches powerup)
     if (powerup && lastHitter > 0) {
       const dx = bx - powerup.x, dy = by - powerup.y;
-      if (Math.sqrt(dx*dx + dy*dy) < BR + 14) {
+      if (Math.sqrt(dx*dx + dy*dy) < BR + 42) {
         collectPowerup(lastHitter);
       }
     }
@@ -1877,21 +1877,21 @@ function initTennis(area, setStatus) {
     // Power-up
     if (powerup) {
       const pu = powerup;
-      const pulse = Math.sin(pu.age * 0.08) * 4;
+      const pulse = Math.sin(pu.age * 0.08) * 8;
       // Glow
       ctx.fillStyle = pu.type.color + '33';
-      ctx.beginPath(); ctx.arc(pu.x, pu.y, 18 + pulse, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(pu.x, pu.y, 54 + pulse, 0, Math.PI*2); ctx.fill();
       // Body
       ctx.fillStyle = pu.type.color;
-      ctx.beginPath(); ctx.arc(pu.x, pu.y, 12, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(pu.x, pu.y, 36, 0, Math.PI*2); ctx.fill();
       // Label
-      ctx.fillStyle = '#fff'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 22px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(pu.type.label, pu.x, pu.y);
       ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
       // Despawn warning
       if (pu.age > 480 && frameCount % 10 < 5) {
         ctx.strokeStyle = pu.type.color; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(pu.x, pu.y, 16, 0, Math.PI*2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(pu.x, pu.y, 48, 0, Math.PI*2); ctx.stroke();
       }
     }
 
