@@ -416,35 +416,47 @@ if (mmb) mmb.textContent = SND._musicOn ? '\u{1F50A}' : '\u{1F507}';
 // ==================== PIXEL RUN (Split-screen Auto-Runner) ====================
 function initPixelRun(area, setStatus) {
   const {canvas, ctx, w, h} = createCanvas(area);
-  const HALF = h / 2, DIVIDER = 3;
-  const GRAVITY = 0.55, JUMP_V = -9.5, DOUBLE_JUMP_V = -8.5;
+  const HALF = h / 2, DIVIDER = 4;
+  const GRAVITY = 0.58, JUMP_V = -10, DOUBLE_JUMP_V = -8.5;
   const CHAR_W = 16, CHAR_H = 22;
-  const GROUND_H = 30; // ground thickness in each half
-  const GAME_DUR = 90; // seconds
-
-  // Terrain segment types
+  const GROUND_H = 30;
+  const GAME_DUR = 60;
   const SEG_GROUND = 0, SEG_GAP = 1, SEG_PLATFORM = 2;
+
+  const ITEM_TYPES = [
+    { name:'SPEED', label:'\u26A1', color:'#FF9800' },
+    { name:'QUAKE', label:'~', color:'#F44336' },
+    { name:'BLIND', label:'\u25C9', color:'#9C27B0' },
+    { name:'SHIELD', label:'\u2605', color:'#4CAF50' },
+  ];
+
+  let particles = [], scorePopups = [];
 
   function makeLane(pColor, idx) {
     return {
       color: pColor, idx,
       x: w * 0.18, y: 0, vy: 0, onGround: true, hasDoubleJump: true,
-      score: 0, invincible: 0,
-      legPhase: 0, eyeBlink: 0,
-      segments: [], coins: [], enemies: [],
+      score: 0, invincible: 0, legPhase: 0,
+      segments: [], coins: [], enemies: [], items: [],
       scrollX: 0, nextSegX: 0,
+      combo: 0, comboTimer: 0,
+      fxSpeed: 0, fxQuake: 0, fxBlind: 0, fxShield: 0,
+      dustTimer: 0, scarfPts: [],
     };
   }
 
   let p1 = makeLane('#E53935', 0);
   let p2 = makeLane('#1E88E5', 1);
-  let speed = 3, timer = GAME_DUR, gameOver = false, started = false;
+  let speed = 3.5, timer = GAME_DUR, gameOver = false, started = false;
   let frameCount = 0, lastTimerTick = 0;
   const SEGMENT_W = 80;
 
-  function groundY(lane, halfH) {
-    return halfH - GROUND_H - 10;
-  }
+  const mountains = [];
+  for (let i = 0; i < 12; i++) mountains.push({ x: i * (w/5), h: 25 + Math.random()*60, w: 50 + Math.random()*90 });
+  const treeBG = [];
+  for (let i = 0; i < 20; i++) treeBG.push({ x: i * (w/8) + Math.random()*20, h: 12 + Math.random()*28, w: 8 + Math.random()*12 });
+
+  function groundY(lane, halfH) { return halfH - GROUND_H - 10; }
 
   function generateSegments(lane, halfH) {
     const gY = groundY(lane, halfH);
@@ -452,81 +464,67 @@ function initPixelRun(area, setStatus) {
       const difficulty = Math.min(1, (GAME_DUR - timer) / GAME_DUR);
       const r = Math.random();
       let seg;
-      if (lane.segments.length < 3 || r < 0.55 - difficulty * 0.15) {
-        // Ground run (2-4 segments wide)
+      if (lane.segments.length < 3 || r < 0.5 - difficulty * 0.15) {
         const count = 2 + Math.floor(Math.random() * 3);
         seg = { type: SEG_GROUND, x: lane.nextSegX, w: SEGMENT_W * count, y: gY };
-        // Add coins on ground
         for (let ci = 0; ci < count; ci++) {
-          if (Math.random() < 0.4) {
-            lane.coins.push({ x: lane.nextSegX + ci * SEGMENT_W + SEGMENT_W / 2, y: gY - 30, value: 1, pulse: Math.random() * Math.PI * 2 });
-          }
+          if (Math.random() < 0.45) lane.coins.push({ x: lane.nextSegX + ci * SEGMENT_W + SEGMENT_W/2, y: gY - 30, value: 1, pulse: Math.random()*Math.PI*2 });
         }
-        // Add enemies on ground
-        if (difficulty > 0.15 && Math.random() < 0.25 + difficulty * 0.3) {
-          const ex = lane.nextSegX + SEGMENT_W * (1 + Math.floor(Math.random() * (count - 1)));
+        if (Math.random() < 0.07 + difficulty * 0.06) {
+          const type = ITEM_TYPES[Math.floor(Math.random() * ITEM_TYPES.length)];
+          lane.items.push({ x: lane.nextSegX + SEGMENT_W*(0.5 + Math.random()*(count-1)), y: gY - 55, type, pulse: 0 });
+        }
+        if (difficulty > 0.12 && Math.random() < 0.3 + difficulty * 0.3) {
+          const ex = lane.nextSegX + SEGMENT_W * (1 + Math.floor(Math.random()*(count-1)));
           lane.enemies.push({ x: ex, y: gY, w: 14, h: 14, type: Math.random() < 0.5 ? 'spike' : 'cube', alive: true });
         }
         lane.nextSegX += seg.w;
-      } else if (r < 0.75) {
-        // Gap
-        const gapW = 40 + difficulty * 50 + Math.random() * 30;
+      } else if (r < 0.72) {
+        const gapW = 45 + difficulty * 55 + Math.random() * 30;
         seg = { type: SEG_GAP, x: lane.nextSegX, w: gapW, y: gY };
         lane.nextSegX += gapW;
-        // Ground after gap
-        const afterW = SEGMENT_W * (2 + Math.floor(Math.random() * 2));
+        const afterW = SEGMENT_W * (2 + Math.floor(Math.random()*2));
         lane.segments.push(seg);
         seg = { type: SEG_GROUND, x: lane.nextSegX, w: afterW, y: gY };
         lane.nextSegX += afterW;
       } else {
-        // Gap with floating platform
-        const gapW = 60 + difficulty * 40;
+        const gapW = 65 + difficulty * 45;
         seg = { type: SEG_GAP, x: lane.nextSegX, w: gapW, y: gY };
         lane.segments.push(seg);
-        // Floating platform in the middle of gap
         const platX = lane.nextSegX + gapW * 0.3;
         const platW = 50 + Math.random() * 30;
         const platY = gY - 45 - Math.random() * 25;
         lane.segments.push({ type: SEG_PLATFORM, x: platX, w: platW, y: platY });
-        // High coins on platform (worth more)
-        lane.coins.push({ x: platX + platW / 2, y: platY - 25, value: 3, pulse: Math.random() * Math.PI * 2 });
+        lane.coins.push({ x: platX + platW/2, y: platY - 25, value: 3, pulse: Math.random()*Math.PI*2 });
         lane.nextSegX += gapW;
-        // Ground after
         const afterW = SEGMENT_W * 2;
         lane.segments.push({ type: SEG_GROUND, x: lane.nextSegX, w: afterW, y: gY });
         lane.nextSegX += afterW;
       }
       lane.segments.push(seg);
     }
-    // Cleanup old segments/coins/enemies
     lane.segments = lane.segments.filter(s => s.x + s.w > lane.scrollX - 100);
     lane.coins = lane.coins.filter(c => c.x > lane.scrollX - 50);
     lane.enemies = lane.enemies.filter(e => e.x > lane.scrollX - 50);
+    lane.items = lane.items.filter(it => it.x > lane.scrollX - 50);
   }
 
   function initLane(lane, halfH) {
-    lane.segments = [];
-    lane.coins = [];
-    lane.enemies = [];
-    lane.scrollX = 0;
-    lane.nextSegX = 0;
-    // Start with solid ground
+    lane.segments = []; lane.coins = []; lane.enemies = []; lane.items = [];
+    lane.scrollX = 0; lane.nextSegX = 0;
     const gY = groundY(lane, halfH);
     lane.segments.push({ type: SEG_GROUND, x: 0, w: SEGMENT_W * 5, y: gY });
     lane.nextSegX = SEGMENT_W * 5;
-    lane.y = 0;
-    lane.vy = 0;
-    lane.onGround = true;
-    lane.hasDoubleJump = true;
-    lane.score = 0;
-    lane.invincible = 0;
+    lane.y = 0; lane.vy = 0; lane.onGround = true; lane.hasDoubleJump = true;
+    lane.score = 0; lane.invincible = 0;
+    lane.combo = 0; lane.comboTimer = 0;
+    lane.fxSpeed = 0; lane.fxQuake = 0; lane.fxBlind = 0; lane.fxShield = 0;
+    lane.scarfPts = [];
     generateSegments(lane, halfH);
   }
 
-  initLane(p1, HALF);
-  initLane(p2, HALF);
+  initLane(p1, HALF); initLane(p2, HALF);
 
-  // Touch controls: tap top half = P1 jump, tap bottom half = P2 jump
   canvas.addEventListener('touchstart', e => {
     e.preventDefault();
     if (gameOver) return;
@@ -534,8 +532,7 @@ function initPixelRun(area, setStatus) {
     const rect = canvas.getBoundingClientRect();
     for (const t of e.changedTouches) {
       const y = (t.clientY - rect.top) / rect.height * h;
-      if (y < HALF) doJump(p1);
-      else doJump(p2);
+      if (y < HALF) doJump(p1); else doJump(p2);
     }
   });
   canvas.addEventListener('mousedown', e => {
@@ -543,52 +540,62 @@ function initPixelRun(area, setStatus) {
     if (!started) started = true;
     const rect = canvas.getBoundingClientRect();
     const y = (e.clientY - rect.top) / rect.height * h;
-    if (y < HALF) doJump(p1);
-    else doJump(p2);
+    if (y < HALF) doJump(p1); else doJump(p2);
   });
 
   function doJump(lane) {
+    const gY = groundY(lane, HALF);
     if (lane.onGround) {
-      lane.vy = JUMP_V;
-      lane.onGround = false;
-      lane.hasDoubleJump = true;
+      lane.vy = JUMP_V; lane.onGround = false; lane.hasDoubleJump = true;
       SND.pop();
+      for (let i = 0; i < 5; i++) particles.push({ x: lane.x + (Math.random()-0.5)*12, y: gY, vx: (Math.random()-0.5)*3-1, vy: -Math.random()*2-0.5, life: 15, maxLife: 15, color: '#a09070', laneIdx: lane.idx });
     } else if (lane.hasDoubleJump) {
-      lane.vy = DOUBLE_JUMP_V;
-      lane.hasDoubleJump = false;
+      lane.vy = DOUBLE_JUMP_V; lane.hasDoubleJump = false;
       SND.click();
+      for (let i = 0; i < 6; i++) {
+        const a = (i/6)*Math.PI*2;
+        particles.push({ x: lane.x, y: gY + lane.y, vx: Math.cos(a)*2.5, vy: Math.sin(a)*2.5, life: 12, maxLife: 12, color: '#fff', laneIdx: lane.idx });
+      }
     }
   }
 
-  function getGroundAt(lane, px, halfH) {
-    const gY = groundY(lane, halfH);
+  function getGroundAt(lane, px) {
     for (const seg of lane.segments) {
       if (seg.type === SEG_GAP) continue;
-      if (px >= seg.x - lane.scrollX && px <= seg.x + seg.w - lane.scrollX) {
-        return seg.y;
-      }
+      if (px >= seg.x - lane.scrollX && px <= seg.x + seg.w - lane.scrollX) return seg.y;
     }
-    return null; // over a gap
+    return null;
+  }
+
+  function applyItem(lane, opponent, item) {
+    const t = item.type;
+    if (t.name === 'SPEED') opponent.fxSpeed = 180;
+    else if (t.name === 'QUAKE') opponent.fxQuake = 180;
+    else if (t.name === 'BLIND') opponent.fxBlind = 180;
+    else if (t.name === 'SHIELD') { lane.fxShield = 240; lane.invincible = Math.max(lane.invincible, 240); }
+    SND.chime();
+    const gY = groundY(lane, HALF);
+    scorePopups.push({ x: lane.x, y: gY + lane.y - 35, text: t.name + '!', life: 50, maxLife: 50, color: t.color, laneIdx: lane.idx });
+    for (let i = 0; i < 10; i++) {
+      const a = (i/10)*Math.PI*2;
+      particles.push({ x: item.x - lane.scrollX, y: item.y, vx: Math.cos(a)*3.5, vy: Math.sin(a)*3.5, life: 20, maxLife: 20, color: t.color, laneIdx: lane.idx });
+    }
   }
 
   let raf;
-
   function update() {
     frameCount++;
     if (!started) { draw(); raf = requestAnimationFrame(update); return; }
     if (gameOver) { draw(); return; }
 
-    // Speed ramp: 3 → 8 over 90 seconds
     const elapsed = GAME_DUR - timer;
-    speed = 3 + (elapsed / GAME_DUR) * 5;
+    speed = 3.5 + (elapsed / GAME_DUR) * 5.5;
 
-    // Timer
     if (frameCount - lastTimerTick >= 60) {
       lastTimerTick = frameCount;
       timer--;
       if (timer <= 0) {
-        timer = 0;
-        gameOver = true;
+        timer = 0; gameOver = true;
         const msg = p1.score > p2.score ? 'P1 Wins!' : p2.score > p1.score ? 'P2 Wins!' : 'Draw!';
         SND.win();
         setStatus(`${msg} P1:${p1.score} P2:${p2.score}`);
@@ -597,28 +604,29 @@ function initPixelRun(area, setStatus) {
       }
     }
 
-    for (const [lane, halfH] of [[p1, HALF], [p2, HALF]]) {
-      lane.scrollX += speed;
+    for (const [lane, opponent] of [[p1, p2], [p2, p1]]) {
+      const halfH = HALF;
+      const laneSpeed = speed * (lane.fxSpeed > 0 ? 1.5 : 1);
+      lane.scrollX += laneSpeed;
       lane.invincible = Math.max(0, lane.invincible - 1);
+      if (lane.fxSpeed > 0) lane.fxSpeed--;
+      if (lane.fxQuake > 0) lane.fxQuake--;
+      if (lane.fxBlind > 0) lane.fxBlind--;
+      if (lane.fxShield > 0) lane.fxShield--;
+      if (lane.comboTimer > 0) lane.comboTimer--; else lane.combo = 0;
+
       generateSegments(lane, halfH);
 
-      // Physics
       lane.vy += GRAVITY;
       lane.y += lane.vy;
 
-      // Check ground collision
       const charScreenX = lane.x;
-      const gnd = getGroundAt(lane, charScreenX, halfH);
+      const gnd = getGroundAt(lane, charScreenX);
       if (gnd !== null) {
-        const relGnd = 0; // ground is at y=0 relative
-        if (lane.y >= relGnd && lane.vy >= 0) {
-          lane.y = relGnd;
-          lane.vy = 0;
-          lane.onGround = true;
-          lane.hasDoubleJump = true;
+        if (lane.y >= 0 && lane.vy >= 0) {
+          lane.y = 0; lane.vy = 0; lane.onGround = true; lane.hasDoubleJump = true;
         }
       } else {
-        // Over a gap - check platforms
         let onPlat = false;
         for (const seg of lane.segments) {
           if (seg.type !== SEG_PLATFORM) continue;
@@ -626,271 +634,386 @@ function initPixelRun(area, setStatus) {
           if (charScreenX >= sx && charScreenX <= sx + seg.w) {
             const platRelY = seg.y - groundY(lane, halfH);
             if (lane.y >= platRelY && lane.y - lane.vy < platRelY + 5 && lane.vy >= 0) {
-              lane.y = platRelY;
-              lane.vy = 0;
-              lane.onGround = true;
-              lane.hasDoubleJump = true;
-              onPlat = true;
-              break;
+              lane.y = platRelY; lane.vy = 0; lane.onGround = true; lane.hasDoubleJump = true;
+              onPlat = true; break;
             }
           }
         }
-        // Fell into pit
         if (!onPlat && lane.y > HALF + 20) {
-          // Respawn above next ground segment
-          lane.y = -60;
-          lane.vy = 0;
-          lane.onGround = false;
-          lane.hasDoubleJump = true;
-          lane.invincible = 60;
-          // Advance scroll a bit to skip the gap
-          lane.scrollX += 80;
+          lane.y = -60; lane.vy = 0; lane.onGround = false; lane.hasDoubleJump = true;
+          lane.invincible = 60; lane.combo = 0; lane.scrollX += 80;
         }
       }
 
-      // Also check platform landing when not over gap
       for (const seg of lane.segments) {
         if (seg.type !== SEG_PLATFORM) continue;
         const sx = seg.x - lane.scrollX;
         if (charScreenX >= sx && charScreenX <= sx + seg.w) {
           const platRelY = seg.y - groundY(lane, halfH);
           if (lane.y >= platRelY && lane.y - lane.vy < platRelY + 5 && lane.vy >= 0) {
-            lane.y = platRelY;
-            lane.vy = 0;
-            lane.onGround = true;
-            lane.hasDoubleJump = true;
-            break;
+            lane.y = platRelY; lane.vy = 0; lane.onGround = true; lane.hasDoubleJump = true; break;
           }
         }
       }
 
-      // Leg animation
-      if (lane.onGround) lane.legPhase += speed * 0.12;
+      if (lane.onGround) {
+        lane.legPhase += laneSpeed * 0.12;
+        lane.dustTimer++;
+        if (lane.dustTimer % 5 === 0) {
+          const gY = groundY(lane, halfH);
+          particles.push({ x: lane.x - 6, y: gY + 4, vx: -Math.random()*1.5-0.5, vy: -Math.random()*0.8, life: 14, maxLife: 14, color: '#9e8e7e', laneIdx: lane.idx });
+        }
+      }
 
-      // Coin collection
-      const charWorldX = lane.scrollX + charScreenX;
       const gY = groundY(lane, halfH);
+      lane.scarfPts.unshift({ x: lane.x - 10, y: gY + lane.y - 18 });
+      if (lane.scarfPts.length > 7) lane.scarfPts.pop();
+
       for (let i = lane.coins.length - 1; i >= 0; i--) {
         const c = lane.coins[i];
         const cx = c.x - lane.scrollX;
-        const cy = c.y - gY + lane.y; // approximate
-        if (Math.abs(charScreenX - cx) < 18 && Math.abs(lane.y - (c.y - gY)) < 28) {
-          lane.score += c.value;
+        if (Math.abs(charScreenX - cx) < 20 && Math.abs(lane.y - (c.y - gY)) < 30) {
+          const mult = Math.min(4, 1 + Math.floor(lane.combo / 3));
+          lane.score += c.value * mult;
+          lane.combo++; lane.comboTimer = 90;
           SND.chime();
+          const txt = mult > 1 ? '+' + c.value + 'x' + mult : '+' + c.value;
+          scorePopups.push({ x: cx, y: c.y, text: txt, life: 40, maxLife: 40, color: c.value >= 3 ? '#FFD700' : '#FFC107', laneIdx: lane.idx });
+          for (let j = 0; j < 5; j++) particles.push({ x: cx, y: c.y, vx: (Math.random()-0.5)*4, vy: -Math.random()*3, life: 15, maxLife: 15, color: '#ffd700', laneIdx: lane.idx });
           lane.coins.splice(i, 1);
         }
       }
 
-      // Enemy collision
+      for (let i = lane.items.length - 1; i >= 0; i--) {
+        const it = lane.items[i];
+        const ix = it.x - lane.scrollX;
+        if (Math.abs(charScreenX - ix) < 22 && Math.abs(lane.y - (it.y - gY)) < 32) {
+          applyItem(lane, opponent, it);
+          lane.items.splice(i, 1);
+        }
+      }
+
       for (let i = lane.enemies.length - 1; i >= 0; i--) {
         const e = lane.enemies[i];
         if (!e.alive) continue;
         const ex = e.x - lane.scrollX;
-        const eRelY = 0; // enemies sit on ground
-        if (Math.abs(charScreenX - ex) < 16 && Math.abs(lane.y - eRelY) < 22) {
-          if (lane.invincible > 0) continue;
-          // Check if stomping (coming from above)
-          if (lane.vy > 0 && lane.y < eRelY) {
-            e.alive = false;
-            lane.score += 5;
-            lane.vy = JUMP_V * 0.6; // bounce
-            SND.score();
+        if (Math.abs(charScreenX - ex) < 16 && Math.abs(lane.y) < 22) {
+          if (lane.invincible > 0) {
+            e.alive = false; lane.score += 3; SND.score();
+            for (let j = 0; j < 6; j++) particles.push({ x: ex, y: gY-5, vx: (Math.random()-0.5)*5, vy: -Math.random()*4, life: 18, maxLife: 18, color: '#ff6644', laneIdx: lane.idx });
+            continue;
+          }
+          if (lane.vy > 0 && lane.y < 0) {
+            e.alive = false; lane.score += 5; lane.vy = JUMP_V * 0.6; SND.score();
+            for (let j = 0; j < 6; j++) particles.push({ x: ex, y: gY-5, vx: (Math.random()-0.5)*5, vy: -Math.random()*4, life: 18, maxLife: 18, color: '#cc44cc', laneIdx: lane.idx });
           } else {
-            // Side hit — respawn with invincibility
-            lane.y = -60;
-            lane.vy = 0;
-            lane.onGround = false;
-            lane.hasDoubleJump = true;
-            lane.invincible = 60;
-            SND.buzz();
+            lane.y = -60; lane.vy = 0; lane.onGround = false; lane.hasDoubleJump = true;
+            lane.invincible = 60; lane.combo = 0; SND.buzz();
           }
         }
       }
     }
 
+    particles = particles.filter(p => { p.x += p.vx; p.y += p.vy; p.vy += 0.04; p.life--; return p.life > 0; });
+    scorePopups = scorePopups.filter(p => { p.y -= 1.2; p.life--; return p.life > 0; });
+
     const m = Math.floor(timer / 60), s = timer % 60;
-    setStatus(`${m}:${s.toString().padStart(2,'0')} | P1:${p1.score} P2:${p2.score}`);
+    setStatus(m + ':' + s.toString().padStart(2,'0') + ' | P1:' + p1.score + ' P2:' + p2.score);
     draw();
     raf = requestAnimationFrame(update);
   }
 
-  function drawChar(x, y, color, legPhase, invincible, facingRight) {
-    if (invincible > 0 && frameCount % 6 < 3) return; // flash
-    const bodyW = CHAR_W, bodyH = 14, headR = 7;
-    ctx.fillStyle = color;
-    // Body (square)
-    ctx.fillRect(x - bodyW / 2, y - bodyH, bodyW, bodyH);
-    // Head (round)
-    ctx.beginPath();
-    ctx.arc(x, y - bodyH - headR + 2, headR, 0, Math.PI * 2);
-    ctx.fill();
-    // Eyes (looking right)
-    ctx.fillStyle = '#fff';
-    ctx.beginPath(); ctx.arc(x + 2, y - bodyH - headR + 1, 2.5, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#111';
-    ctx.beginPath(); ctx.arc(x + 3, y - bodyH - headR + 1, 1.3, 0, Math.PI * 2); ctx.fill();
-    // Stick legs
-    ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
-    const legSwing = Math.sin(legPhase) * 6;
-    ctx.beginPath(); ctx.moveTo(x - 4, y); ctx.lineTo(x - 4 + legSwing, y + 10); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(x + 4, y); ctx.lineTo(x + 4 - legSwing, y + 10); ctx.stroke();
-    // Shadow on ground
-    ctx.fillStyle = 'rgba(0,0,0,0.15)';
-    ctx.beginPath(); ctx.ellipse(x, y + 12, 10, 3, 0, 0, Math.PI * 2); ctx.fill();
+  function lerpColor(a, b, t) {
+    const ah = parseInt(a.slice(1), 16), bh = parseInt(b.slice(1), 16);
+    const ar = (ah >> 16) & 0xff, ag = (ah >> 8) & 0xff, ab = ah & 0xff;
+    const br = (bh >> 16) & 0xff, bg = (bh >> 8) & 0xff, bb = bh & 0xff;
+    return 'rgb(' + Math.round(ar+(br-ar)*t) + ',' + Math.round(ag+(bg-ag)*t) + ',' + Math.round(ab+(bb-ab)*t) + ')';
   }
 
-  function drawLaneContent(lane, yOffset, halfH) {
+  function drawChar(lane, gY) {
+    const x = lane.x, y = gY + lane.y;
+    if (lane.invincible > 0 && frameCount % 6 < 3) return;
+    if (lane.fxShield > 0) {
+      ctx.strokeStyle = 'rgba(76,175,80,' + (0.4 + Math.sin(frameCount*0.1)*0.2) + ')';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(x, y - 8, 24, 0, Math.PI*2); ctx.stroke();
+      ctx.fillStyle = 'rgba(76,175,80,0.06)';
+      ctx.beginPath(); ctx.arc(x, y - 8, 24, 0, Math.PI*2); ctx.fill();
+    }
+    const scarfColor = lane.color === '#E53935' ? '#FF8A80' : '#82B1FF';
+    if (lane.scarfPts.length > 1) {
+      for (let i = 1; i < lane.scarfPts.length; i++) {
+        ctx.globalAlpha = (1 - i / lane.scarfPts.length) * 0.7;
+        ctx.strokeStyle = scarfColor; ctx.lineWidth = 3.5 - i*0.4; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(lane.scarfPts[i-1].x, lane.scarfPts[i-1].y);
+        ctx.lineTo(lane.scarfPts[i].x, lane.scarfPts[i].y); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+    const bodyW = CHAR_W, bodyH = 14, headR = 7;
+    ctx.fillStyle = lane.color;
+    ctx.beginPath(); ctx.roundRect(x - bodyW/2, y - bodyH, bodyW, bodyH, 3); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y - bodyH - headR + 2, headR, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(x + 2, y - bodyH - headR + 1, 2.5, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#111';
+    ctx.beginPath(); ctx.arc(x + 3.2, y - bodyH - headR + 1, 1.2, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = lane.color; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+    const armSwing = Math.sin(lane.legPhase + Math.PI*0.5) * 5;
+    ctx.beginPath(); ctx.moveTo(x - bodyW/2, y - bodyH + 4); ctx.lineTo(x - bodyW/2 - 5 + armSwing, y - 3); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x + bodyW/2, y - bodyH + 4); ctx.lineTo(x + bodyW/2 + 5 - armSwing, y - 3); ctx.stroke();
+    const legSwing = Math.sin(lane.legPhase) * 6;
+    ctx.beginPath(); ctx.moveTo(x - 4, y); ctx.lineTo(x - 4 + legSwing, y + 10); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x + 4, y); ctx.lineTo(x + 4 - legSwing, y + 10); ctx.stroke();
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.beginPath(); ctx.ellipse(x, gY + 12, 10, 3, 0, 0, Math.PI*2); ctx.fill();
+    if (lane.combo >= 3) {
+      const intensity = Math.min(1, lane.combo / 12);
+      const colors = lane.combo >= 9 ? ['#FF1744','#FF5252','#FF8A80'] : lane.combo >= 6 ? ['#FF9100','#FFB74D','#FFE0B2'] : ['#FFD600','#FFEE58','#FFF9C4'];
+      for (let i = 0; i < 3 + intensity*3; i++) {
+        const fx = x + (Math.random()-0.5)*10, fy = y - bodyH - headR*2 + 3 - Math.random()*(8 + intensity*6);
+        ctx.globalAlpha = 0.5 + Math.random()*0.3;
+        ctx.fillStyle = colors[Math.floor(Math.random()*colors.length)];
+        ctx.beginPath(); ctx.arc(fx, fy, 2 + Math.random()*4*intensity, 0, Math.PI*2); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      const mult = Math.min(4, 1 + Math.floor(lane.combo / 3));
+      ctx.fillStyle = colors[0]; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('x' + mult, x, y - bodyH - headR*2 - 5);
+      ctx.textAlign = 'left';
+    }
+  }
+
+  function drawLaneContent(lane, halfH) {
     const gY = groundY(lane, halfH);
+    const progress = 1 - timer / GAME_DUR;
 
-    // Sky gradient
-    const grad = ctx.createLinearGradient(0, 0, 0, halfH);
-    grad.addColorStop(0, '#1a1a3e');
-    grad.addColorStop(0.6, '#2d2d5e');
-    grad.addColorStop(1, '#0d0d1e');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, w, halfH);
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, halfH);
+    if (progress < 0.3) {
+      skyGrad.addColorStop(0, '#0a0a2e'); skyGrad.addColorStop(0.5, '#1a1a4e'); skyGrad.addColorStop(1, '#0d0d28');
+    } else if (progress < 0.6) {
+      const t = (progress - 0.3) / 0.3;
+      skyGrad.addColorStop(0, lerpColor('#0a0a2e','#1a1040',t));
+      skyGrad.addColorStop(0.5, lerpColor('#1a1a4e','#4a2060',t));
+      skyGrad.addColorStop(0.85, lerpColor('#0d0d28','#c04030',t));
+      skyGrad.addColorStop(1, lerpColor('#0d0d28','#e08040',t));
+    } else {
+      const t = (progress - 0.6) / 0.4;
+      skyGrad.addColorStop(0, lerpColor('#1a1040','#2060a0',t));
+      skyGrad.addColorStop(0.5, lerpColor('#4a2060','#4090c0',t));
+      skyGrad.addColorStop(0.85, lerpColor('#c04030','#80c0e0',t));
+      skyGrad.addColorStop(1, lerpColor('#e08040','#e0d090',t));
+    }
+    ctx.fillStyle = skyGrad; ctx.fillRect(0, 0, w, halfH);
 
-    // Stars (parallax)
-    ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    for (let i = 0; i < 20; i++) {
-      const sx = ((i * 137 + 50) % w + w - (lane.scrollX * 0.1) % w) % w;
-      const sy = (i * 89) % (halfH * 0.5);
-      ctx.fillRect(sx, sy, 1.5, 1.5);
+    if (progress < 0.7) {
+      const starAlpha = Math.max(0, 1 - progress/0.7) * 0.5;
+      ctx.fillStyle = 'rgba(255,255,255,' + starAlpha + ')';
+      for (let i = 0; i < 25; i++) {
+        const sx = ((i*137+50) % w + w - (lane.scrollX*0.03) % w) % w;
+        const sy = (i*89 + i*i*13) % (halfH*0.55);
+        ctx.fillRect(sx, sy, 1 + (i%3)*0.5, 1 + (i%3)*0.5);
+      }
     }
 
-    // Draw ground segments
+    ctx.fillStyle = progress < 0.5 ? 'rgba(30,30,60,0.6)' : 'rgba(60,80,100,0.4)';
+    for (const m of mountains) {
+      const mx = ((m.x - lane.scrollX*0.04) % (w*1.5) + w*1.5) % (w*1.5) - w*0.25;
+      ctx.beginPath(); ctx.moveTo(mx - m.w/2, gY+5); ctx.lineTo(mx, gY - m.h); ctx.lineTo(mx + m.w/2, gY+5); ctx.fill();
+    }
+
+    ctx.fillStyle = progress < 0.5 ? 'rgba(20,50,30,0.5)' : 'rgba(40,90,50,0.4)';
+    for (const t of treeBG) {
+      const tx = ((t.x - lane.scrollX*0.12) % (w*1.2) + w*1.2) % (w*1.2) - w*0.1;
+      ctx.beginPath(); ctx.moveTo(tx - t.w/2, gY+3); ctx.lineTo(tx, gY - t.h); ctx.lineTo(tx + t.w/2, gY+3); ctx.fill();
+    }
+
     for (const seg of lane.segments) {
       const sx = seg.x - lane.scrollX;
       if (sx > w + 10 || sx + seg.w < -10) continue;
       if (seg.type === SEG_GROUND) {
-        ctx.fillStyle = '#2E7D32';
-        ctx.fillRect(sx, gY, seg.w, GROUND_H + 20);
-        ctx.fillStyle = '#388E3C';
-        ctx.fillRect(sx, gY, seg.w, 4);
-        // Grass tufts
-        ctx.fillStyle = '#43A047';
-        for (let gx = sx; gx < sx + seg.w; gx += 15) {
-          ctx.fillRect(gx, gY - 2, 3, 4);
+        ctx.fillStyle = '#3E2723'; ctx.fillRect(sx, gY + 6, seg.w, GROUND_H + 20);
+        ctx.fillStyle = '#4E342E'; ctx.fillRect(sx, gY + 3, seg.w, 6);
+        ctx.fillStyle = '#2E7D32'; ctx.fillRect(sx, gY, seg.w, 5);
+        ctx.fillStyle = '#43A047'; ctx.fillRect(sx, gY - 1, seg.w, 3);
+        ctx.fillStyle = '#66BB6A';
+        for (let gx = sx; gx < sx + seg.w; gx += 8) {
+          const gh = 3 + Math.sin(gx*0.3 + frameCount*0.05)*1.5;
+          ctx.fillRect(gx, gY - gh, 2, gh + 1);
         }
       } else if (seg.type === SEG_PLATFORM) {
         ctx.fillStyle = '#5D4037';
-        ctx.fillRect(sx, seg.y, seg.w, 8);
-        ctx.fillStyle = '#795548';
-        ctx.fillRect(sx, seg.y, seg.w, 3);
+        ctx.beginPath(); ctx.roundRect(sx, seg.y, seg.w, 8, 3); ctx.fill();
+        ctx.fillStyle = '#795548'; ctx.fillRect(sx + 2, seg.y + 1, seg.w - 4, 3);
+        ctx.fillStyle = '#4E342E';
+        ctx.fillRect(sx + 5, seg.y + 8, 3, gY - seg.y - 8);
+        ctx.fillRect(sx + seg.w - 8, seg.y + 8, 3, gY - seg.y - 8);
       }
     }
 
-    // Draw coins
+    for (const it of lane.items) {
+      const ix = it.x - lane.scrollX;
+      if (ix < -30 || ix > w + 30) continue;
+      it.pulse += 0.08;
+      const bob = Math.sin(it.pulse) * 4;
+      const iy = it.y + bob;
+      ctx.fillStyle = it.type.color + '22';
+      ctx.beginPath(); ctx.arc(ix, iy, 22, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = it.type.color;
+      ctx.save(); ctx.translate(ix, iy); ctx.rotate(Math.PI/4);
+      ctx.beginPath(); ctx.roundRect(-7, -7, 14, 14, 3); ctx.fill();
+      ctx.restore();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(it.type.label, ix, iy);
+      ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    }
+
     for (const c of lane.coins) {
       const cx = c.x - lane.scrollX;
       if (cx < -20 || cx > w + 20) continue;
       c.pulse += 0.08;
-      const r = 6 + Math.sin(c.pulse) * 1.5;
+      const r = 6 + Math.sin(c.pulse)*1.5;
       ctx.fillStyle = c.value >= 3 ? '#FFD700' : '#FFC107';
-      ctx.beginPath(); ctx.arc(cx, c.y, r, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.4)';
-      ctx.beginPath(); ctx.arc(cx - 1.5, c.y - 1.5, r * 0.4, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx, c.y, r, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.beginPath(); ctx.arc(cx - 1.5, c.y - 1.5, r*0.35, 0, Math.PI*2); ctx.fill();
       if (c.value >= 3) {
-        // Pulse glow for high-value
-        ctx.strokeStyle = `rgba(255,215,0,${0.3 + Math.sin(c.pulse) * 0.2})`;
+        ctx.strokeStyle = 'rgba(255,215,0,' + (0.3 + Math.sin(c.pulse)*0.2) + ')';
         ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(cx, c.y, r + 4, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(cx, c.y, r + 4, 0, Math.PI*2); ctx.stroke();
       }
     }
 
-    // Draw enemies
     for (const e of lane.enemies) {
       if (!e.alive) continue;
       const ex = e.x - lane.scrollX;
       if (ex < -20 || ex > w + 20) continue;
       if (e.type === 'spike') {
-        // Spiky ball
         ctx.fillStyle = '#E53935';
-        ctx.beginPath(); ctx.arc(ex, gY - 8, 8, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(ex, gY - 8, 8, 0, Math.PI*2); ctx.fill();
         for (let a = 0; a < 8; a++) {
-          const angle = (a / 8) * Math.PI * 2 + frameCount * 0.05;
+          const angle = (a/8)*Math.PI*2 + frameCount*0.05;
           ctx.strokeStyle = '#B71C1C'; ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.moveTo(ex + Math.cos(angle) * 8, gY - 8 + Math.sin(angle) * 8);
-          ctx.lineTo(ex + Math.cos(angle) * 13, gY - 8 + Math.sin(angle) * 13);
-          ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(ex + Math.cos(angle)*8, gY - 8 + Math.sin(angle)*8);
+          ctx.lineTo(ex + Math.cos(angle)*13, gY - 8 + Math.sin(angle)*13); ctx.stroke();
         }
+        ctx.fillStyle = 'rgba(229,57,53,0.15)';
+        ctx.beginPath(); ctx.arc(ex, gY - 8, 16, 0, Math.PI*2); ctx.fill();
       } else {
-        // Angry cube
         ctx.fillStyle = '#7B1FA2';
-        ctx.fillRect(ex - 7, gY - 15, 14, 14);
-        // Angry eyes
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(ex - 4, gY - 12, 3, 3);
-        ctx.fillRect(ex + 1, gY - 12, 3, 3);
-        ctx.fillStyle = '#E53935';
-        ctx.fillRect(ex - 3, gY - 11, 2, 2);
-        ctx.fillRect(ex + 2, gY - 11, 2, 2);
-        // Angry eyebrows
+        ctx.beginPath(); ctx.roundRect(ex - 7, gY - 15, 14, 14, 2); ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.fillRect(ex - 4, gY - 12, 3, 3); ctx.fillRect(ex + 1, gY - 12, 3, 3);
+        ctx.fillStyle = '#E53935'; ctx.fillRect(ex - 3, gY - 11, 2, 2); ctx.fillRect(ex + 2, gY - 11, 2, 2);
         ctx.strokeStyle = '#E53935'; ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.moveTo(ex - 5, gY - 14); ctx.lineTo(ex - 1, gY - 13); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(ex + 5, gY - 14); ctx.lineTo(ex + 1, gY - 13); ctx.stroke();
       }
     }
 
-    // Draw character
-    drawChar(lane.x, gY + lane.y, lane.color, lane.legPhase, lane.invincible, true);
+    for (const p of particles) {
+      if (p.laneIdx !== lane.idx) continue;
+      ctx.globalAlpha = p.life / p.maxLife;
+      ctx.fillStyle = p.color;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 2.5, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    for (const p of scorePopups) {
+      if (p.laneIdx !== lane.idx) continue;
+      ctx.globalAlpha = Math.min(1, p.life / (p.maxLife * 0.4));
+      ctx.fillStyle = p.color; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(p.text, p.x, p.y); ctx.textAlign = 'left';
+    }
+    ctx.globalAlpha = 1;
+
+    drawChar(lane, gY);
+
+    if (lane.fxSpeed > 0) {
+      ctx.strokeStyle = 'rgba(255,152,0,' + (0.2 + Math.sin(frameCount*0.2)*0.1) + ')';
+      ctx.lineWidth = 1.5;
+      for (let i = 0; i < 6; i++) {
+        const ly = Math.random()*halfH, lx = Math.random()*w;
+        ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(lx - 30 - Math.random()*20, ly); ctx.stroke();
+      }
+    }
+
+    if (lane.fxBlind > 0) {
+      const blindAlpha = Math.min(0.7, lane.fxBlind / 60);
+      const fogGrad = ctx.createRadialGradient(lane.x, gY + lane.y, 30, lane.x, gY + lane.y, halfH*0.7);
+      fogGrad.addColorStop(0, 'rgba(20,0,40,0)');
+      fogGrad.addColorStop(0.3, 'rgba(20,0,40,' + blindAlpha*0.3 + ')');
+      fogGrad.addColorStop(1, 'rgba(20,0,40,' + blindAlpha + ')');
+      ctx.fillStyle = fogGrad; ctx.fillRect(0, 0, w, halfH);
+    }
   }
 
   function draw() {
-    ctx.fillStyle = '#0a0a1e';
-    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#0a0a1e'; ctx.fillRect(0, 0, w, h);
 
-    // P1 lane (top)
     ctx.save();
-    ctx.beginPath(); ctx.rect(0, 0, w, HALF - DIVIDER / 2); ctx.clip();
-    drawLaneContent(p1, 0, HALF);
-    ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.font = 'bold 12px sans-serif';
-    ctx.fillText(`P1: ${p1.score}`, 8, 16);
+    ctx.beginPath(); ctx.rect(0, 0, w, HALF - DIVIDER/2); ctx.clip();
+    if (p1.fxQuake > 0) ctx.translate((Math.random()-0.5)*8, (Math.random()-0.5)*6);
+    drawLaneContent(p1, HALF);
+    ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.font = 'bold 12px sans-serif';
+    ctx.fillText('P1: ' + p1.score, 8, 16);
     ctx.restore();
 
-    // P2 lane (bottom)
     ctx.save();
-    ctx.beginPath(); ctx.rect(0, HALF + DIVIDER / 2, w, HALF); ctx.clip();
-    ctx.translate(0, HALF + DIVIDER / 2);
-    drawLaneContent(p2, HALF, HALF - DIVIDER / 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.font = 'bold 12px sans-serif';
-    ctx.fillText(`P2: ${p2.score}`, 8, 16);
+    ctx.beginPath(); ctx.rect(0, HALF + DIVIDER/2, w, HALF); ctx.clip();
+    ctx.translate(0, HALF + DIVIDER/2);
+    if (p2.fxQuake > 0) ctx.translate((Math.random()-0.5)*8, (Math.random()-0.5)*6);
+    drawLaneContent(p2, HALF - DIVIDER/2);
+    ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.font = 'bold 12px sans-serif';
+    ctx.fillText('P2: ' + p2.score, 8, 16);
     ctx.restore();
 
-    // Divider
-    ctx.fillStyle = '#1a1a2e';
-    ctx.fillRect(0, HALF - DIVIDER, w, DIVIDER * 2);
+    const divGrad = ctx.createLinearGradient(0, HALF - DIVIDER, 0, HALF + DIVIDER);
+    divGrad.addColorStop(0, '#1a1a3e'); divGrad.addColorStop(0.5, '#2a2a4e'); divGrad.addColorStop(1, '#1a1a3e');
+    ctx.fillStyle = divGrad; ctx.fillRect(0, HALF - DIVIDER, w, DIVIDER*2);
 
-    // Timer at top center
+    const diff = p1.score - p2.score;
+    if (diff !== 0 && started) {
+      const leaderColor = diff > 0 ? '#E53935' : '#1E88E5';
+      ctx.fillStyle = leaderColor; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText((diff > 0 ? '\u25B2 P1 +' : '\u25BC P2 +') + Math.abs(diff), w/2, HALF + 4);
+      ctx.textAlign = 'left';
+    }
+
     const m = Math.floor(timer / 60), s = timer % 60;
     ctx.fillStyle = timer <= 10 ? '#E53935' : '#FFD54F';
-    ctx.font = 'bold 18px sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText(`${m}:${s.toString().padStart(2, '0')}`, w / 2, HALF);
+    ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'right';
+    ctx.fillText(m + ':' + s.toString().padStart(2,'0'), w - 8, HALF + 5);
     ctx.textAlign = 'left';
 
-    // Speed indicator
-    ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.font = '10px sans-serif'; ctx.textAlign = 'right';
-    ctx.fillText(`Speed: ${speed.toFixed(1)}`, w - 8, HALF - 8);
-    ctx.textAlign = 'left';
+    ctx.font = '9px sans-serif';
+    if (p1.fxSpeed > 0) { ctx.fillStyle = '#FF9800'; ctx.fillText('\u26A1 SPEED!', 6, 14); }
+    if (p1.fxQuake > 0) { ctx.fillStyle = '#F44336'; ctx.fillText('~ QUAKE!', 6, 26); }
+    if (p1.fxBlind > 0) { ctx.fillStyle = '#9C27B0'; ctx.fillText('\u25C9 BLIND!', 6, 38); }
+    if (p1.fxShield > 0) { ctx.fillStyle = '#4CAF50'; ctx.fillText('\u2605 SHIELD', 6, 50); }
+    if (p2.fxSpeed > 0) { ctx.fillStyle = '#FF9800'; ctx.fillText('\u26A1 SPEED!', 6, HALF + DIVIDER + 14); }
+    if (p2.fxQuake > 0) { ctx.fillStyle = '#F44336'; ctx.fillText('~ QUAKE!', 6, HALF + DIVIDER + 26); }
+    if (p2.fxBlind > 0) { ctx.fillStyle = '#9C27B0'; ctx.fillText('\u25C9 BLIND!', 6, HALF + DIVIDER + 38); }
+    if (p2.fxShield > 0) { ctx.fillStyle = '#4CAF50'; ctx.fillText('\u2605 SHIELD', 6, HALF + DIVIDER + 50); }
 
     if (!started && !gameOver) {
-      ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, w, h);
-      ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.font = 'bold 22px sans-serif';
-      ctx.fillText('PIXEL RUN', w / 2, HALF - 25);
-      ctx.font = '14px sans-serif';
-      ctx.fillText('Tap your half to jump (tap again = double jump)', w / 2, HALF + 5);
+      ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.font = 'bold 24px sans-serif';
+      ctx.fillText('PIXEL RUN', w/2, HALF - 35);
+      ctx.font = '13px sans-serif'; ctx.fillStyle = '#ddd';
+      ctx.fillText('Tap your half to jump (double-tap = double jump)', w/2, HALF - 10);
       ctx.font = '12px sans-serif'; ctx.fillStyle = '#aaa';
-      ctx.fillText('Collect coins, stomp enemies, survive 90 seconds!', w / 2, HALF + 28);
+      ctx.fillText('Collect coins, stomp enemies, grab items!', w/2, HALF + 12);
+      ctx.font = '11px sans-serif'; ctx.fillStyle = '#FF9800';
+      ctx.fillText('\u25C6 Items sabotage your opponent!', w/2, HALF + 32);
       ctx.textAlign = 'left';
     }
   }
 
   function restart() {
-    initLane(p1, HALF);
-    initLane(p2, HALF);
-    speed = 3; timer = GAME_DUR; gameOver = false; started = false;
+    initLane(p1, HALF); initLane(p2, HALF);
+    speed = 3.5; timer = GAME_DUR; gameOver = false; started = false;
     frameCount = 0; lastTimerTick = 0;
+    particles = []; scorePopups = [];
     setStatus('Tap to start!');
     raf = requestAnimationFrame(update);
   }
@@ -899,6 +1022,7 @@ function initPixelRun(area, setStatus) {
   raf = requestAnimationFrame(update);
   return () => cancelAnimationFrame(raf);
 }
+
 
 // ==================== 4 IN A ROW ====================
 function initFourInARow(area, setStatus, online) {

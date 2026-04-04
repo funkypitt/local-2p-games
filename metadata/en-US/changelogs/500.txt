@@ -1,0 +1,11 @@
+v1.4 — Pixel Run Overhaul
+
+- Pixel Run: sabotage items (Speed, Quake, Blind, Shield) that affect your opponent
+- Pixel Run: combo system — chain coins for x2, x3, x4 score multipliers with fire effects
+- Pixel Run: dynamic sky shifting from night to dawn to day as time progresses
+- Pixel Run: parallax mountain and tree backgrounds
+- Pixel Run: characters now have arms, flowing scarves, and shield glows
+- Pixel Run: particle effects (dust, sparkles, stomp bursts)
+- Pixel Run: floating score popups on coin collection
+- Pixel Run: lead indicator showing who's ahead
+- Pixel Run: 60-second matches (was 90) with faster speed ramp
