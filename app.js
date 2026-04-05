@@ -16,10 +16,12 @@ function createCanvas(area) {
 function showOverlay(area, msg, btnText, cb) {
   const o = document.createElement('div');
   o.className = 'overlay';
-  o.innerHTML = `<div style="font-size:1.3em;font-weight:bold;text-align:center">${msg}</div>` +
+  o.innerHTML = `<button style="position:absolute;top:12px;right:16px;background:none;border:none;color:#fff;font-size:2em;cursor:pointer;line-height:1;opacity:0.7" id="ov-x">&times;</button>` +
+    `<div style="font-size:1.3em;font-weight:bold;text-align:center">${msg}</div>` +
     (btnText ? `<button class="btn">${btnText}</button>` : '');
+  o.querySelector('#ov-x').onclick = () => { o.remove(); };
   if (btnText && cb) o.querySelector('.btn').onclick = () => { o.remove(); cb(); };
-  else if (cb) o.onclick = () => { o.remove(); cb(); };
+  else if (cb) o.onclick = e => { if (e.target === o) { o.remove(); cb(); } };
   area.appendChild(o);
   return o;
 }
@@ -1048,6 +1050,11 @@ function initFourInARow(area, setStatus, online) {
     grid.appendChild(cell);
     cells.push(cell);
   }
+  function restart() {
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) { board[r][c] = 0; cells[r * COLS + c].style.background = '#0a0a1a'; }
+    turn = 1; gameOver = false;
+    setStatus(online ? (online.playerId === 0 ? "Your turn (Red)" : "Opponent's turn") : "Red's turn");
+  }
   setStatus(online ? (online.playerId === 0 ? "Your turn (Red)" : "Opponent's turn") : "Red's turn");
   function execDrop(c) {
     if (gameOver) return;
@@ -1056,8 +1063,8 @@ function initFourInARow(area, setStatus, online) {
     if (r < 0) return;
     board[r][c] = turn; SND.drop();
     cells[r * COLS + c].style.background = turn === 1 ? '#F44336' : '#FFEB3B';
-    if (checkWin(r, c)) { SND.win(); setStatus(online ? (turn === online.playerId + 1 ? 'You win!' : 'You lose!') : `${turn===1?'Red':'Yellow'} wins!`); gameOver = true; return; }
-    if (board[0].every(v => v)) { setStatus('Draw!'); gameOver = true; return; }
+    if (checkWin(r, c)) { SND.win(); const m = online ? (turn === online.playerId + 1 ? 'You win!' : 'You lose!') : `${turn===1?'Red':'Yellow'} wins!`; setStatus(m); gameOver = true; setTimeout(() => showOverlay(area, m, 'Rematch', restart), 600); return; }
+    if (board[0].every(v => v)) { setStatus('Draw!'); gameOver = true; setTimeout(() => showOverlay(area, 'Draw!', 'Rematch', restart), 600); return; }
     turn = 3 - turn;
     setStatus(online ? (turn === online.playerId + 1 ? 'Your turn' : "Opponent's turn") : `${turn===1?'Red':'Yellow'}'s turn`);
   }
@@ -1106,6 +1113,14 @@ function initMemory(area, setStatus, online) {
     grid.appendChild(el);
     cardEls.push(el);
   }
+  function restart() {
+    cards = [...symbols, ...symbols];
+    const rf = online ? online.rng : Math.random;
+    for (let i = cards.length - 1; i > 0; i--) { const j = Math.floor(rf()*(i+1)); [cards[i],cards[j]]=[cards[j],cards[i]]; }
+    matched = Array(TOTAL).fill(false); first = -1; second = -1; busy = false; turn = 1; scores = [0, 0];
+    for (let i = 0; i < TOTAL; i++) { cardEls[i].textContent = ''; cardEls[i].style.background = '#2a2a4a'; }
+    updateStatus();
+  }
   updateStatus();
   function updateStatus() {
     if (online) setStatus(`You: ${scores[online.playerId]}  Opp: ${scores[1-online.playerId]} — ${turn === online.playerId+1 ? 'Your turn' : "Opponent's turn"}`);
@@ -1121,7 +1136,7 @@ function initMemory(area, setStatus, online) {
       matched[first] = matched[second] = true;
       scores[turn - 1]++; SND.chime();
       first = second = -1; busy = false;
-      if (matched.every(v => v)) { SND.win(); setStatus(online ? (scores[online.playerId] > scores[1-online.playerId] ? 'You win!' : scores[online.playerId] < scores[1-online.playerId] ? 'You lose!' : 'Draw!') : (scores[0] > scores[1] ? 'P1 wins!' : scores[1] > scores[0] ? 'P2 wins!' : 'Draw!')); return; }
+      if (matched.every(v => v)) { SND.win(); const m = online ? (scores[online.playerId] > scores[1-online.playerId] ? 'You win!' : scores[online.playerId] < scores[1-online.playerId] ? 'You lose!' : 'Draw!') : (scores[0] > scores[1] ? 'P1 wins!' : scores[1] > scores[0] ? 'P2 wins!' : 'Draw!'); setStatus(m); setTimeout(() => showOverlay(area, `${m}<br>P1: ${scores[0]} | P2: ${scores[1]}`, 'Rematch', restart), 600); return; }
       updateStatus();
     } else {
       SND.buzz();
@@ -1189,8 +1204,9 @@ function initAwale(area, setStatus, online) {
       };
     });
     if (gameOver) {
-      if (online) setStatus(scores[online.playerId]>scores[1-online.playerId]?'You win!':scores[online.playerId]<scores[1-online.playerId]?'You lose!':'Draw!');
-      else setStatus(scores[0]>scores[1]?'P1 wins!':scores[1]>scores[0]?'P2 wins!':'Draw!');
+      const m = online ? (scores[online.playerId]>scores[1-online.playerId]?'You win!':scores[online.playerId]<scores[1-online.playerId]?'You lose!':'Draw!') : (scores[0]>scores[1]?'P1 wins!':scores[1]>scores[0]?'P2 wins!':'Draw!');
+      setStatus(m);
+      setTimeout(() => showOverlay(area, `${m}<br>P1: ${scores[0]} | P2: ${scores[1]}`, 'Rematch', () => { board = Array(12).fill(4); scores = [0,0]; turn = 0; gameOver = false; render(); }), 600);
     } else {
       setStatus(online ? (turn===online.playerId?'Your turn':"Opponent's turn") : `P${turn+1}'s turn`);
     }
@@ -1236,6 +1252,7 @@ function initMastermind(area, setStatus, online) {
   const PEGS = 4, MAX_GUESS = 10;
   let secret = [], guesses = [], feedback = [];
   let currentGuess = [], phase = 'set', turn = 0;
+  function mmRestart() { secret = []; guesses = []; feedback = []; currentGuess = []; phase = 'set'; turn = 0; render(); }
   const wrap = document.createElement('div');
   wrap.className = 'board-game';
   wrap.style.overflow = 'auto';
@@ -1349,8 +1366,8 @@ function initMastermind(area, setStatus, online) {
       const fb = calcFeedback(currentGuess, secret); SND.click();
       guesses.push([...currentGuess]); feedback.push(fb);
       if (online) online.sendMove({guess: currentGuess});
-      if (fb.exact === PEGS) { phase = 'done'; SND.win(); setStatus(online ? (online.playerId === 1 ? 'You cracked the code!' : 'Opponent cracked your code!') : 'P2 cracked the code!'); }
-      else if (guesses.length >= MAX_GUESS) { phase = 'done'; SND.buzz(); setStatus(online ? (online.playerId === 0 ? 'You win! Code unbroken.' : 'You lose! Code unbroken.') : 'P1 wins! Code unbroken.'); }
+      if (fb.exact === PEGS) { phase = 'done'; SND.win(); const m = online ? (online.playerId === 1 ? 'You cracked the code!' : 'Opponent cracked your code!') : 'P2 cracked the code!'; setStatus(m); currentGuess = []; render(); setTimeout(() => showOverlay(area, m, 'Rematch', mmRestart), 600); return; }
+      else if (guesses.length >= MAX_GUESS) { phase = 'done'; SND.buzz(); const m = online ? (online.playerId === 0 ? 'You win! Code unbroken.' : 'You lose! Code unbroken.') : 'P1 wins! Code unbroken.'; setStatus(m); currentGuess = []; render(); setTimeout(() => showOverlay(area, m, 'Rematch', mmRestart), 600); return; }
       currentGuess = []; render();
     };
     if (phase === 'set') setStatus(online ? 'Set your secret code' : 'P1: Set code');
@@ -1364,8 +1381,8 @@ function initMastermind(area, setStatus, online) {
       const guess = data.guess;
       const fb = calcFeedback(guess, secret);
       guesses.push(guess); feedback.push(fb);
-      if (fb.exact === PEGS) { phase = 'done'; SND.win(); setStatus('Opponent cracked your code!'); }
-      else if (guesses.length >= MAX_GUESS) { phase = 'done'; SND.buzz(); setStatus('You win! Code unbroken.'); }
+      if (fb.exact === PEGS) { phase = 'done'; SND.win(); setStatus('Opponent cracked your code!'); render(); setTimeout(() => showOverlay(area, 'Opponent cracked your code!', 'Rematch', mmRestart), 600); return; }
+      else if (guesses.length >= MAX_GUESS) { phase = 'done'; SND.buzz(); setStatus('You win! Code unbroken.'); render(); setTimeout(() => showOverlay(area, 'You win! Code unbroken.', 'Rematch', mmRestart), 600); return; }
       render();
     });
   }
@@ -1962,7 +1979,7 @@ function initTennis(area, setStatus) {
     // Score
     if (by < 0) { s1++; SND.score(); resetBall(-1); }
     if (by > h) { s2++; SND.score(); resetBall(1); }
-    if (s1 >= 5 || s2 >= 5) { SND.win(); setStatus(s1>=5?'P1 wins!':'P2 wins!'); draw(); return; }
+    if (s1 >= 5 || s2 >= 5) { SND.win(); const m = s1>=5?'P1 wins!':'P2 wins!'; setStatus(m); draw(); setTimeout(() => showOverlay(area, `${m}<br>P1: ${s1} | P2: ${s2}`, 'Rematch', () => { s1 = 0; s2 = 0; serving = true; resetBall(1); frameCount = 0; powerup = null; for (const k in fx) fx[k] = 0; raf = requestAnimationFrame(update); }), 600); return; }
     setStatus(`P2: ${s2}  |  P1: ${s1}`);
     draw();
     raf = requestAnimationFrame(update);
@@ -1971,6 +1988,21 @@ function initTennis(area, setStatus) {
   function draw() {
     ctx.fillStyle = '#0a1628';
     ctx.fillRect(0, 0, w, h);
+
+    // Slide-here control zones
+    const CTRL_H = 60;
+    ctx.fillStyle = 'rgba(239,83,80,0.10)';
+    ctx.fillRect(0, h - CTRL_H, w, CTRL_H);
+    ctx.fillStyle = 'rgba(66,165,245,0.10)';
+    ctx.fillRect(0, 0, w, CTRL_H);
+    ctx.strokeStyle = 'rgba(239,83,80,0.18)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, h - CTRL_H); ctx.lineTo(w, h - CTRL_H); ctx.stroke();
+    ctx.strokeStyle = 'rgba(66,165,245,0.18)';
+    ctx.beginPath(); ctx.moveTo(0, CTRL_H); ctx.lineTo(w, CTRL_H); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.13)'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('slide here', w/2, h - CTRL_H/2 + 5);
+    ctx.fillText('slide here', w/2, CTRL_H/2 + 5);
+
     // Center line
     ctx.setLineDash([8, 8]); ctx.strokeStyle = '#334';
     ctx.beginPath(); ctx.moveTo(0, h/2); ctx.lineTo(w, h/2); ctx.stroke(); ctx.setLineDash([]);
@@ -2119,7 +2151,7 @@ function initAirHockey(area, setStatus) {
         puck.y = m.y + ny * (MR + PR + 1);
       }
     }
-    if (s1>=7||s2>=7) { setStatus(s1>=7?'P1 wins!':'P2 wins!'); draw(); return; }
+    if (s1>=7||s2>=7) { const m = s1>=7?'P1 wins!':'P2 wins!'; setStatus(m); draw(); setTimeout(() => showOverlay(area, `${m}<br>P1: ${s1} | P2: ${s2}`, 'Rematch', () => { s1 = 0; s2 = 0; m1 = {x:w/2,y:h*0.82}; m2 = {x:w/2,y:h*0.18}; resetPuck(); raf = requestAnimationFrame(update); }), 600); return; }
     setStatus(`P2: ${s2}  |  P1: ${s1}`);
     draw();
     raf = requestAnimationFrame(update);
@@ -2226,8 +2258,14 @@ function initSnakes(area, setStatus) {
     while (foods.length < 2) foods.push(spawnFood());
     if (!alive[0] || !alive[1]) {
       clearInterval(interval); SND.buzz();
-      if (!alive[0] && !alive[1]) setStatus('Draw!');
-      else setStatus(alive[0] ? 'P1 wins!' : 'P2 wins!');
+      const m = (!alive[0] && !alive[1]) ? 'Draw!' : (alive[0] ? 'P1 wins!' : 'P2 wins!');
+      setStatus(m);
+      setTimeout(() => showOverlay(area, `${m}<br>P1: ${scores[0]} | P2: ${scores[1]}`, 'Rematch', () => {
+        s1 = [{x:4,y:midY},{x:3,y:midY},{x:2,y:midY},{x:1,y:midY}]; d1 = {x:1,y:0}; nd1 = {x:1,y:0};
+        s2 = [{x:COLS-5,y:midY},{x:COLS-4,y:midY},{x:COLS-3,y:midY},{x:COLS-2,y:midY}]; d2 = {x:-1,y:0}; nd2 = {x:-1,y:0};
+        foods = [spawnFood(), spawnFood()]; alive = [true, true]; scores = [0, 0]; speed = 250; totalEaten = 0;
+        interval = setInterval(step, speed); draw();
+      }), 600);
     } else {
       setStatus(`P1: ${scores[0]}  P2: ${scores[1]}`);
     }
@@ -2388,8 +2426,6 @@ function initTankWars(area, setStatus, online) {
       return;
     }
     turn = 1 - turn;
-    wind += (rng() - 0.5) * 10;
-    wind = Math.max(-25, Math.min(25, wind));
     state = 'aim';
     const windStr = `Wind: ${wind > 0 ? '→' : '←'} ${Math.abs(wind).toFixed(0)}`;
     setStatus(online ? (turn === online.playerId ? `Your turn | ${windStr}` : `Opponent's turn | ${windStr}`) : `P${turn+1}'s turn | ${windStr}`);
@@ -2698,8 +2734,10 @@ function initShipBattle(area, setStatus, online) {
     for (let rr=0;rr<SZ;rr++) for (let cc=0;cc<SZ;cc++) if (grids[target][rr][cc] && shots[turn][rr][cc] !== 1) allHit = false;
     if (allHit) {
       gameOver = true; SND.win();
-      setStatus(online ? (turn === online.playerId ? 'You win!' : 'You lose!') : `P${turn+1} wins!`);
-      render(); return;
+      const m = online ? (turn === online.playerId ? 'You win!' : 'You lose!') : `P${turn+1} wins!`;
+      setStatus(m); render();
+      setTimeout(() => showOverlay(area, m), 600);
+      return;
     }
     const prevTurn = turn;
     render();
@@ -2833,7 +2871,8 @@ function initPool(area, setStatus) {
           const myBalls = assigned[turn]==='solid'?balls.filter(b=>b.num>=1&&b.num<=7):balls.filter(b=>b.num>=9&&b.num<=15);
           const allMine = myBalls.every(b=>!b.active);
           gameOver = true;
-          setStatus(allMine?`P${turn+1} wins!`:`P${turn+1} pocketed 8-ball early! P${2-turn} wins!`);
+          const m = allMine?`P${turn+1} wins!`:`P${turn+1} pocketed 8-ball early! P${2-turn} wins!`;
+          setStatus(m); setTimeout(() => showOverlay(area, m), 600);
         }
         // Reset cue ball if pocketed
         if (cuePocketed) {
@@ -2979,7 +3018,9 @@ function initMiniGolf(area, setStatus) {
         } else {
           gameEnd = true;
           const t1 = playerScores[0].reduce((a,b)=>a+b,0), t2 = playerScores[1].reduce((a,b)=>a+b,0);
-          setStatus(`P1: ${t1} strokes, P2: ${t2} — ${t1<t2?'P1 wins!':t2<t1?'P2 wins!':'Draw!'}`);
+          const m = t1<t2?'P1 wins!':t2<t1?'P2 wins!':'Draw!';
+          setStatus(`P1: ${t1} strokes, P2: ${t2} — ${m}`);
+          setTimeout(() => showOverlay(area, `${m}<br>P1: ${t1} | P2: ${t2} strokes`), 600);
         }
       }
       if (Math.abs(bvx)+Math.abs(bvy) < 0.1) { bvx=bvy=0; moving=false; }

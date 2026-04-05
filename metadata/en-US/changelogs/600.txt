@@ -1,0 +1,6 @@
+v1.5 — Winner overlays, Tennis touch zones, Tank Wars fixed wind
+
+- All games: winner announcement overlay at end of game with rematch button and X to close
+- Tennis: "slide here" visual zones behind paddles (like Star Clash)
+- Tank Wars: wind now stays constant throughout each game instead of changing every turn
+- Online multiplayer: fixed Firebase database connectivity
