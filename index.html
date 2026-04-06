@@ -7,23 +7,27 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100%;overflow:hidden;font-family:system-ui,sans-serif;background:#0f0f1a;color:#f0f0f0;touch-action:none;user-select:none;-webkit-user-select:none}
-#menu{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:12px;height:100vh;overflow-y:auto;align-content:start}
-#menu h1{grid-column:1/-1;text-align:center;font-size:1.3em;padding:8px 0;color:#fff}
-.card{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px 8px;border-radius:14px;cursor:pointer;min-height:80px;transition:transform .1s;-webkit-tap-highlight-color:transparent}
+#menu{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;padding:12px;padding-top:8px;height:100vh;overflow-y:auto;align-content:start}
+#menu h1{grid-column:1/-1;text-align:center;font-size:1.5em;letter-spacing:.5px;padding:10px 0;margin-bottom:4px;color:#fff}
+.card{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px 8px;border-radius:14px;cursor:pointer;min-height:90px;box-shadow:0 4px 12px rgba(0,0,0,.35);text-shadow:0 1px 3px rgba(0,0,0,.4);transition:transform .2s,box-shadow .2s;-webkit-tap-highlight-color:transparent;position:relative}
 .card:active{transform:scale(.95)}
+@media(hover:hover){.card:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(255,255,255,.12)}}
 .card .icon{font-size:2em;margin-bottom:4px}
 .card .name{font-size:.85em;font-weight:600;text-align:center}
+.card .online-dot{position:absolute;top:8px;right:8px;width:8px;height:8px;border-radius:50%;background:#69F0AE;box-shadow:0 0 6px #69F0AE}
 #game{display:none;flex-direction:column;height:100vh;width:100vw}
-#game-header{display:flex;align-items:center;padding:8px 12px;background:#1a1a2e;gap:10px;min-height:52px;z-index:10}
-#back-btn{background:none;border:none;color:#f0f0f0;font-size:1.5em;cursor:pointer;padding:4px 8px}
+#game-header{display:flex;align-items:center;padding:10px 14px;background:#1a1a2e;border-bottom:1px solid rgba(255,255,255,.08);gap:10px;min-height:52px;z-index:10}
+#back-btn{background:none;border:none;color:#f0f0f0;font-size:1.5em;cursor:pointer;padding:6px 10px;min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center}
 #game-title{font-weight:700;font-size:1.15em;flex:1}
-#game-status{font-size:1.1em;color:#FFD54F;font-weight:700}
+#game-status{font-size:1.1em;color:#FFD54F;font-weight:700;text-shadow:0 1px 4px rgba(0,0,0,.5)}
 #game-area{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;background:#0f0f1a}
 #game-area canvas{display:block}
 .board-game{display:flex;flex-direction:column;align-items:center;gap:8px;padding:8px;width:100%;height:100%;justify-content:center}
-.btn{background:#2a2a4a;color:#f0f0f0;border:none;border-radius:8px;padding:8px 16px;font-size:.9em;cursor:pointer;-webkit-tap-highlight-color:transparent}
-.btn:active{background:#3a3a5a}
-.overlay{position:absolute;inset:0;background:rgba(15,15,26,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:20;gap:12px;font-size:1.1em}
+.btn{background:#2a2a4a;color:#f0f0f0;border:none;border-radius:8px;padding:8px 16px;font-size:.9em;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.3);transition:background .2s,transform .15s;-webkit-tap-highlight-color:transparent}
+.btn:active{background:#3a3a5a;transform:scale(.97)}
+@media(hover:hover){.btn:hover{background:#3a3a5a}}
+.overlay{position:absolute;inset:0;background:rgba(15,15,26,.92);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:20;gap:12px;font-size:1.1em;animation:fadeIn .2s ease-out}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 .overlay .btn{font-size:1em;padding:10px 24px}
 </style>
 </head>

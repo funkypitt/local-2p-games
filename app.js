@@ -13,10 +13,18 @@ function createCanvas(area) {
   return { canvas: c, ctx, w: r.width, h: r.height };
 }
 
+function darkenColor(hex, amt) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.max(0, (n >> 16) - Math.round(255 * amt));
+  const g = Math.max(0, ((n >> 8) & 0xff) - Math.round(255 * amt));
+  const b = Math.max(0, (n & 0xff) - Math.round(255 * amt));
+  return `rgb(${r},${g},${b})`;
+}
+
 function showOverlay(area, msg, btnText, cb) {
   const o = document.createElement('div');
   o.className = 'overlay';
-  o.innerHTML = `<button style="position:absolute;top:12px;right:16px;background:none;border:none;color:#fff;font-size:2em;cursor:pointer;line-height:1;opacity:0.7" id="ov-x">&times;</button>` +
+  o.innerHTML = `<button style="position:absolute;top:12px;right:16px;background:none;border:none;color:#fff;font-size:2em;cursor:pointer;line-height:1;opacity:0.85" id="ov-x">&times;</button>` +
     `<div style="font-size:1.3em;font-weight:bold;text-align:center">${msg}</div>` +
     (btnText ? `<button class="btn">${btnText}</button>` : '');
   o.querySelector('#ov-x').onclick = () => { o.remove(); };
@@ -336,7 +344,7 @@ const GAMES = [
   {id:'ships',name:'Ship Battle',icon:'🚢',color:'#1565C0',init:initShipBattle,online:true},
   {id:'golf',name:'Mini Golf',icon:'⛳',color:'#00796B',init:initMiniGolf},
   {id:'starclash',name:'Star Clash',icon:'👾',color:'#C62828',init:initStarClash},
-  {id:'caro',name:'Caro',icon:'⚫',color:'#4E342E',init:initCaro,online:true},
+  {id:'caro',name:'Caro',icon:'⚫',color:'#37474F',init:initCaro,online:true},
   {id:'awale',name:'Awalé',icon:'🥜',color:'#4E342E',init:initAwale,online:true},
   {id:'master',name:'Mastermonde',icon:'🔮',color:'#AD1457',init:initMastermind,online:true},
   {id:'hangman',name:'Wheel of Funktune',icon:'🎡',color:'#4A148C',init:initHangman},
@@ -351,8 +359,8 @@ function buildMenu() {
   GAMES.forEach(g => {
     const card = document.createElement('div');
     card.className = 'card';
-    card.style.background = g.color;
-    card.innerHTML = `<span class="icon">${g.icon}</span><span class="name">${g.name}</span>`;
+    card.style.background = `linear-gradient(135deg,${g.color},${darkenColor(g.color,.18)})`;
+    card.innerHTML = `<span class="icon">${g.icon}</span><span class="name">${g.name}</span>${g.online?'<span class="online-dot"></span>':''}`;
     card.onclick = () => startGame(g);
     menu.appendChild(card);
   });
