@@ -1,0 +1,6 @@
+v1.10 — Word Clash compact grid (WOW-style)
+
+- Word Clash: compact crossword grid (max 7 words) matching Words of Wonders layout
+- Word Clash: bigger cells (up to 48px) for readability
+- Word Clash: shuffle button moved to wheel center (WOW-style)
+- Word Clash: balanced word mix — short and medium words for easier discovery

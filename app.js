@@ -1957,26 +1957,26 @@ function initWordClash(area, setStatus, online) {
       }
     }
 
-    // Build balanced candidate pool — mix of word lengths for variety
+    // Build compact candidate pool — like WOW: ~6-7 words total
     const pool = [];
-    const tiers = [{min:6,max:7,n:3},{min:5,max:5,n:3},{min:4,max:4,n:4},{min:3,max:3,n:4}];
+    const tiers = [{min:5,max:6,n:1},{min:4,max:4,n:3},{min:3,max:3,n:3}];
     tiers.forEach(t => {
       for (let len = t.max; len >= t.min; len--) {
         if (byLen[len]) pool.push(...byLen[len].slice(0, t.n));
       }
     });
 
-    // Try to place from balanced pool
-    for (let wi = 0; wi < pool.length && placed.length < 12; wi++) {
+    // Try to place from pool — cap at 7 total (anchor + 6)
+    for (let wi = 0; wi < pool.length && placed.length < 7; wi++) {
       tryPlace(pool[wi]);
     }
 
-    // If under 6 words placed, try more from all remaining
-    if (placed.length < 6) {
+    // If under 4 words placed, try more from all remaining
+    if (placed.length < 4) {
       const placedSet = new Set(placed.map(p => p.word));
       const remaining = others.filter(w => !placedSet.has(w));
       remaining.sort((a, b) => b.length - a.length);
-      for (let i = 0; i < remaining.length && placed.length < 8; i++) {
+      for (let i = 0; i < remaining.length && placed.length < 6; i++) {
         tryPlace(remaining[i]);
       }
     }
@@ -2190,41 +2190,49 @@ function initWordClash(area, setStatus, online) {
     if (destroyed) return;
     let h = '';
     // Score bar
-    h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;margin-bottom:6px">';
+    h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;margin-bottom:4px">';
     h += '<div style="font-size:' + (turn === 0 ? '1.5em' : '0.95em') + ';font-weight:bold;color:' + P_COLORS[0] + (turn === 0 ? ';text-shadow:0 0 10px ' + P_COLORS[0] + ',0 0 24px ' + P_COLORS[0] : ';opacity:0.4') + ';transition:all 0.3s">P1: ' + scores[0] + '</div>';
     h += '<div id="wc-timer" style="font-size:1.6em;font-weight:bold;color:' + (timeLeft <= 5 ? '#F44336' : '#FFD54F') + '">' + timeLeft + 's</div>';
     h += '<div style="font-size:' + (turn === 1 ? '1.5em' : '0.95em') + ';font-weight:bold;color:' + P_COLORS[1] + (turn === 1 ? ';text-shadow:0 0 10px ' + P_COLORS[1] + ',0 0 24px ' + P_COLORS[1] : ';opacity:0.4') + ';transition:all 0.3s">P2: ' + scores[1] + '</div>';
     h += '</div>';
 
-    // Crossword grid
-    const cellSize = Math.min(Math.floor((Math.min(window.innerWidth * 0.95, 460)) / Math.max(gridCols, 1)), 44);
+    // Crossword grid — size cells to fit nicely
+    const maxGridW = Math.min(window.innerWidth * 0.92, 440);
+    const cellSize = Math.min(Math.floor(maxGridW / Math.max(gridCols, 1)) - 3, 48);
+    const fs = Math.max(14, cellSize * 0.55);
     h += '<div style="display:flex;justify-content:center;margin:6px 0">';
-    h += '<div style="display:grid;grid-template-columns:repeat(' + gridCols + ',' + cellSize + 'px);grid-template-rows:repeat(' + gridRows + ',' + cellSize + 'px);gap:2px">';
+    h += '<div style="display:grid;grid-template-columns:repeat(' + gridCols + ',' + cellSize + 'px);grid-template-rows:repeat(' + gridRows + ',' + cellSize + 'px);gap:3px">';
     for (let r = 0; r < gridRows; r++) {
       for (let c = 0; c < gridCols; c++) {
         const cell = gridCells[r + ',' + c];
         if (!cell) {
           h += '<div></div>';
         } else if (cell.foundBy >= 0) {
-          h += '<div style="background:' + P_BG[cell.foundBy] + ';border:2px solid ' + P_COLORS[cell.foundBy] + ';border-radius:4px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:' + Math.max(13, cellSize * 0.55) + 'px;color:#fff">' + cell.letter + '</div>';
+          h += '<div style="background:' + P_BG[cell.foundBy] + ';border:2px solid ' + P_COLORS[cell.foundBy] + ';border-radius:5px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:' + fs + 'px;color:#fff">' + cell.letter + '</div>';
         } else if (hinted.has(r + ',' + c)) {
-          h += '<div style="background:rgba(128,203,196,0.15);border:2px solid #4DB6AC;border-radius:4px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:' + Math.max(13, cellSize * 0.55) + 'px;color:#80CBC4">' + cell.letter + '</div>';
+          h += '<div style="background:rgba(128,203,196,0.15);border:2px solid #4DB6AC;border-radius:5px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:' + fs + 'px;color:#80CBC4">' + cell.letter + '</div>';
         } else {
-          h += '<div style="background:#1a1a2e;border:2px solid #333;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:' + Math.max(10, cellSize * 0.4) + 'px;color:#444">\u2022</div>';
+          h += '<div style="background:#1e1e3a;border:2px solid #3a3a5c;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:' + Math.max(10, cellSize * 0.35) + 'px;color:#555">\u2022</div>';
         }
       }
     }
     h += '</div></div>';
 
+    // Grid word count + debug toggle
+    const totalGrid = gridWords.length;
+    const foundCount = gridWords.filter(g => g.foundBy >= 0).length;
+    h += '<div style="text-align:center;margin:2px 0;font-size:0.8em;color:#555">' + foundCount + '/' + totalGrid + ' words';
+    h += '</div>';
+
     // Selection preview
     const selWord = selection.map(i => wheelLetters[i]).join('');
-    h += '<div style="text-align:center;margin:8px 0;font-size:1.6em;font-weight:bold;letter-spacing:5px;color:#FFD54F;min-height:1.8em">' + (selWord || '&nbsp;') + '</div>';
+    h += '<div style="text-align:center;margin:6px 0;font-size:1.7em;font-weight:bold;letter-spacing:6px;color:#FFD54F;min-height:1.8em">' + (selWord || '&nbsp;') + '</div>';
 
-    // Letter wheel
-    const wheelR = 78, lcSize = 44;
-    const svgW = 2 * (wheelR + lcSize / 2) + 20, svgH = 2 * (wheelR + lcSize / 2) + 20;
+    // Letter wheel with shuffle button in center
+    const wheelR = 76, lcSize = 46;
+    const svgW = 2 * (wheelR + lcSize / 2) + 16, svgH = 2 * (wheelR + lcSize / 2) + 16;
     const wheelCx = svgW / 2, wheelCy = svgH / 2;
-    h += '<div style="display:flex;justify-content:center;margin:6px 0">';
+    h += '<div style="display:flex;justify-content:center;margin:2px 0">';
     h += '<div id="wc-wheel" style="position:relative;width:' + svgW + 'px;height:' + svgH + 'px;touch-action:none">';
     // SVG for connection lines
     h += '<svg id="wc-svg" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none" viewBox="0 0 ' + svgW + ' ' + svgH + '">';
@@ -2243,28 +2251,26 @@ function initWordClash(area, setStatus, online) {
       const lx = wheelCx + wheelR * Math.cos(angle) - lcSize / 2;
       const ly = wheelCy + wheelR * Math.sin(angle) - lcSize / 2;
       const isSel = selection.includes(i);
-      h += '<div data-widx="' + i + '" style="position:absolute;left:' + lx + 'px;top:' + ly + 'px;width:' + lcSize + 'px;height:' + lcSize + 'px;border-radius:50%;background:' + (isSel ? P_COLORS[turn] : '#2a2a4a') + ';border:2px solid ' + (isSel ? '#fff' : '#555') + ';display:flex;align-items:center;justify-content:center;font-size:1.3em;font-weight:bold;color:#fff;cursor:pointer;transition:background 0.1s">' + wheelLetters[i] + '</div>';
+      h += '<div data-widx="' + i + '" style="position:absolute;left:' + lx + 'px;top:' + ly + 'px;width:' + lcSize + 'px;height:' + lcSize + 'px;border-radius:50%;background:' + (isSel ? P_COLORS[turn] : '#2a2a4a') + ';border:2px solid ' + (isSel ? '#fff' : '#555') + ';display:flex;align-items:center;justify-content:center;font-size:1.4em;font-weight:bold;color:#fff;cursor:pointer;transition:background 0.1s">' + wheelLetters[i] + '</div>';
     }
+    // Shuffle button in center of wheel (like WOW)
+    h += '<div id="wc-shuffle" style="position:absolute;left:' + (wheelCx - 20) + 'px;top:' + (wheelCy - 20) + 'px;width:40px;height:40px;border-radius:50%;background:#37474F;border:1.5px solid #546E7A;display:flex;align-items:center;justify-content:center;font-size:1.2em;cursor:pointer;color:#B0BEC5">\u21BB</div>';
     h += '</div></div>';
 
-    // Shuffle & Hint buttons
+    // Hint button (below wheel) — only show when it's your turn
     if (!gameOver) {
       const canAct = !online || turn === online.playerId;
-      h += '<div style="display:flex;justify-content:center;gap:14px;margin:8px 0">';
-      h += '<button id="wc-shuffle" style="padding:8px 18px;font-size:1em;background:#37474F;border:1.5px solid #546E7A;border-radius:8px;color:#B0BEC5;cursor:pointer">Shuffle</button>';
-      if (canAct) h += '<button id="wc-reveal" style="padding:8px 18px;font-size:1em;background:#37474F;border:1.5px solid #546E7A;border-radius:8px;color:#B0BEC5;cursor:pointer">Hint</button>';
-      h += '</div>';
+      if (canAct) {
+        h += '<div style="display:flex;justify-content:center;margin:4px 0">';
+        h += '<button id="wc-reveal" style="padding:6px 20px;font-size:0.95em;background:#37474F;border:1.5px solid #546E7A;border-radius:8px;color:#B0BEC5;cursor:pointer">Hint (skip turn)</button>';
+        h += '</div>';
+      }
     }
 
     // Bonus words found
     if (foundBonus.size > 0) {
-      h += '<div style="text-align:center;margin:6px 0;font-size:0.9em;color:#80CBC4">Bonus: ' + [...foundBonus].join(', ') + '</div>';
+      h += '<div style="text-align:center;margin:4px 0;font-size:0.85em;color:#80CBC4">Bonus: ' + [...foundBonus].join(', ') + '</div>';
     }
-
-    // Words found count
-    const totalGrid = gridWords.length;
-    const foundCount = gridWords.filter(g => g.foundBy >= 0).length;
-    h += '<div style="text-align:center;margin:3px 0;font-size:0.85em;color:#666">Grid: ' + foundCount + '/' + totalGrid + '</div>';
 
     cont.innerHTML = h;
     bindWheel();
