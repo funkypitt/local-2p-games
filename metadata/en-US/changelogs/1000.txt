@@ -1,0 +1,8 @@
+v1.9 — Word Clash polish + visual turn indicators
+
+- Word Clash: dictionary-verified word data (EN + FR) — zero invalid words
+- Word Clash: balanced crossword grid with mix of short and long words
+- Word Clash: Shuffle button to rearrange wheel letters
+- Word Clash: Hint button reveals a random letter on the grid (costs your turn)
+- Word Clash: bigger UI — larger cells, wheel, and fonts
+- Improved active player indicator with glow effect in Word Clash, Awalé, and Wheel of Fortune
