@@ -1,0 +1,9 @@
+v1.8 — Word Clash + French Hangman
+
+- New game: Word Clash replaces Snake — competitive 2P word puzzle with letter wheel and crossword grid
+- Word Clash: swipe letters on a circular wheel to form words, fill the shared crossword in your color
+- Word Clash: grid words score by length, bonus words (valid but not on grid) score 1 point
+- Word Clash: 30-second turns, 18 English puzzles and 8 French puzzles
+- Word Clash: supports online multiplayer
+- Word Clash: language picker (English / Français) with auto-detection
+- Hangman (Wheel of Funktune): 48 French words added, auto-selected based on device language
