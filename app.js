@@ -338,7 +338,7 @@ const RULES = {
   four: 'Classic Connect 4. Tap a column to drop your disc. Get 4 in a row (horizontal, vertical, or diagonal) to win. Red goes first.',
   pool: '8-ball pool. Drag from the cue ball to aim and set power, then release to shoot. Sink all your balls (stripes or solids, assigned on first pot) then the 8-ball to win. Potting the cue ball is a foul — opponent gets ball-in-hand.',
   memory: 'Flip 2 cards per turn. If they match, you keep them and go again. If not, they flip back and it\'s the opponent\'s turn. The player with the most pairs wins.',
-  snakes: '2 snakes on one board. Swipe on the LEFT half to steer P1 (green), swipe on the RIGHT half to steer P2 (blue). Eat food to grow. Running into the other snake kills you. Snakes wrap around the edges.',
+  wordclash: 'Word puzzle duel. Both players share a crossword grid built from one set of scrambled letters. Take turns swiping letters on the wheel to form words. Grid words fill in your color and score = word length. Bonus words (valid but not on grid) score 1 point. 30 seconds per turn. Game ends when the grid is complete — highest score wins.',
   hockey: 'Air hockey. Drag your mallet (bottom = P1, top = P2) to hit the puck into the opponent\'s goal. First to 7 wins.',
   tanks: 'Artillery duel. On your turn, drag to adjust angle and power, then tap FIRE. Wind affects the shot. Damage depends on how close the shell lands. Destroy the opponent\'s tank to win.',
   ships: 'Battleship. Place your ships on the grid, then take turns tapping squares to fire at the opponent\'s fleet. Hit all segments of every ship to win. Ships: Carrier (5), Battleship (4), Cruiser (3), Submarine (3), Destroyer (2).',
@@ -358,7 +358,7 @@ const GAMES = [
   {id:'four',name:'4 in a Row',icon:'🔴',color:'#D32F2F',init:initFourInARow,online:true},
   {id:'pool',name:'Pool',icon:'🎱',color:'#1B5E20',init:initPool},
   {id:'memory',name:'Memory',icon:'🃏',color:'#7B1FA2',init:initMemory,online:true},
-  {id:'snakes',name:'Snakes',icon:'🐍',color:'#689F38',init:initSnakes},
+  {id:'wordclash',name:'Word Clash',icon:'📝',color:'#00897B',init:initWordClash,online:true},
   {id:'hockey',name:'Air Hockey',icon:'🏒',color:'#0097A7',init:initAirHockey},
   {id:'tanks',name:'Tank Wars',icon:'💣',color:'#F57F17',init:initTankWars,online:true},
   {id:'ships',name:'Ship Battle',icon:'🚢',color:'#1565C0',init:initShipBattle,online:true},
@@ -1789,135 +1789,499 @@ function initAirHockey(area, setStatus) {
   return () => cancelAnimationFrame(raf);
 }
 
-// ==================== SNAKES ====================
-function initSnakes(area, setStatus) {
-  const {canvas, ctx, w, h} = createCanvas(area);
-  const COLS = 20, ROWS = Math.floor(h / (w / COLS));
-  const CS = w / COLS;
-  const midY = Math.floor(ROWS/2);
-  let s1 = [{x:4,y:midY},{x:3,y:midY},{x:2,y:midY},{x:1,y:midY}], d1 = {x:1, y:0}, nd1 = {x:1, y:0};
-  let s2 = [{x:COLS-5,y:midY},{x:COLS-4,y:midY},{x:COLS-3,y:midY},{x:COLS-2,y:midY}], d2 = {x:-1, y:0}, nd2 = {x:-1, y:0};
-  let foods = [];
-  let alive = [true, true], scores = [0, 0], speed = 250, totalEaten = 0;
-  function spawnFood() {
-    let f, tries = 0;
-    do { f = {x:Math.floor(Math.random()*COLS), y:Math.floor(Math.random()*ROWS)}; tries++; }
-    while (tries < 200 && (s1.some(s=>s.x===f.x&&s.y===f.y) || s2.some(s=>s.x===f.x&&s.y===f.y) || foods.some(fd=>fd.x===f.x&&fd.y===f.y)));
-    return f;
-  }
-  foods.push(spawnFood()); foods.push(spawnFood());
-  // Swipe controls — left half = P1, right half = P2
-  const swipes = {};
-  canvas.addEventListener('touchstart', e => {
-    e.preventDefault();
-    const rect = canvas.getBoundingClientRect();
-    for (const t of e.changedTouches) {
-      const x = (t.clientX - rect.left) / rect.width * w;
-      const y = (t.clientY - rect.top) / rect.height * h;
-      swipes[t.identifier] = {sx: x, sy: y, player: x < w / 2 ? 0 : 1};
+// ==================== WORD CLASH ====================
+const WORD_DATA = {
+  en: [
+    {anchor:'BLASTED',words:['BLASTED','BLEATS','STABLE','TABLES','SLATED','LASTED','SALTED','BLADES','DELTAS','BLAST','BLADE','LEAST','STALE','STEAL','TALES','DEALS','DATES','LEADS','DELTA','TABLE','BASTE','BEATS','BEAST','BALES','BEADS','BELTS','ABLE','BADE','BALD','BALE','BEAD','BEAT','BELT','BEST','DALE','DATE','DEAL','EAST','LAST','LATE','LEAD','SALE','SEAL','SLAB','SLAT','SLED','STAB','TALE','TEAL','DEBT','SALT','SEAT','SATE','ALE','ATE','BAD','BAT','BED','BET','DAB','EAT','LAB','LAD','LED','LET','SAD','SAT','SET','TAB','TAD','TEA','SEA']},
+    {anchor:'THREADS',words:['THREADS','DEARTH','THREAD','TRADES','TREADS','DEATHS','HATERS','HEARTS','SHARED','SACRED','STARED','HATRED','DATERS','HEART','EARTH','HASTE','SHADE','SHARE','SHARD','STARE','DATES','DARTS','DEATH','HEADS','HEARD','READS','TRADE','TREAD','TEARS','SHRED','RATED','HATED','TRASH','HATER','DARE','DART','DASH','DATE','DEAR','EARS','EAST','HARD','HARE','HART','HATE','HEAD','HEAR','HEAT','HERD','RASH','RATE','READ','REST','SHED','STAR','TEAR','ARTS','REDS','RATS','SHAD','ADS','ARE','ART','ATE','EAR','EAT','ERA','HAD','HAS','HAT','HER','RED','SAD','SAT','SET','SHE','TAR','TEA','THE','ASH','TAD']},
+    {anchor:'PAINTER',words:['REPAINT','PAINTER','PIRATE','RETAIN','PAINT','TRAIN','IRATE','INERT','TAPER','PRINT','PATER','REPIN','PINTA','INTER','REIGN','TRIPE','PAIN','PAIR','PANT','PART','PINT','PINE','RAIN','RANT','RATE','REIN','RENT','TAPE','TIER','TIRE','TRAP','TRIP','PANE','PIER','PEAR','NEAR','NEAT','EARN','PARE','RIPE','AIR','ANT','APE','ATE','EAR','EAT','ERA','IRE','NAP','NET','NIT','PAN','PAT','PEA','PEN','PET','PIE','PIN','PIT','RAN','RAP','RAT','RIP','TAN','TAP','TAR','TEA','TEN','TIN','TIP']},
+    {anchor:'STRANGE',words:['STRANGE','GARNETS','GRANTS','AGENTS','RANGES','ANGERS','GARNET','GRATES','GREATS','GRANT','RANGE','ANGER','GRATE','GREAT','GATES','STAGE','STARE','GEARS','STERN','RANTS','EARNS','TEARS','NEARS','RATES','ANTES','RANG','RANT','RAGE','RATE','EARN','GATE','GEAR','GNAT','NEAR','NEST','NETS','REST','SAGE','SANE','SANG','SEAR','SENT','STAR','TANG','TARN','TEAR','TENS','TERN','RENT','ARTS','RAGS','TAGS','AGE','ANT','ATE','ARE','ART','EAR','EAT','ERA','GAS','NAG','NET','RAG','RAN','RAT','SAG','SAT','SET','TAN','TAR','TEA','TEN']},
+    {anchor:'CLOTHES',words:['CLOTHES','CLOSET','CLOTHE','HOTELS','CLOSE','CLOTH','THOSE','HOTEL','HOLES','CHOSE','CHEST','CLOTS','STOLE','ETHOS','COLT','CLOT','COST','ECHO','HOSE','HOST','HOLE','LEST','LOSE','LOST','LOTS','SLOT','SOLE','TOES','SHOE','SECT','ETCH','COLS','COTS','COT','HOE','HOT','LET','LOT','SET','SHE','THE','TOE']},
+    {anchor:'CLAIMED',words:['CLAIMED','DECLAIM','MALICE','MEDIAL','MAILED','CLAIM','DECAL','IDEAL','MEDAL','MEDIA','LACED','AIMED','MALIC','ACID','AIDE','CALM','CLAD','DALE','DAME','DEAL','DICE','DIME','IDEA','LACE','LAID','LAME','LEAD','LIED','LIME','MACE','MADE','MAID','MALE','MEAL','MICE','MILD','MILE','ICED','DIAL','AMID','DELI','CLAM','ACE','AID','AIM','ALE','DAM','DIM','ICE','LAD','LID','MAD','MID']},
+    {anchor:'STORAGE',words:['STORAGE','GATORS','GRATES','GREATS','GROATS','ERGOTS','STAGER','GATES','GEARS','GOATS','GRATE','GREAT','STORE','STARE','STAGE','RATES','OGRES','GOERS','GORES','ASTER','OATER','AGES','ARTS','EARS','EAST','ERGO','GATE','GEAR','GOAT','GOES','GORE','OARS','OATS','RAGE','RAGS','RATE','RATS','REST','ROTE','SAGE','SEAR','SOAR','SORE','SORT','STAR','TAGS','TARE','TARS','TEAR','TOES','TOGA','TORE','AGE','AGO','ATE','ARE','ART','EAR','EAT','EGO','ERA','GAS','GOT','OAR','OAT','ORE','RAG','RAT','ROT','SAG','SAT','SET','TAR','TEA','TOE']},
+    {anchor:'DETAILS',words:['DETAILS','DILATES','DETAIL','DILATE','SAILED','TAILED','SALTED','SLATED','LISTED','IDEALS','LADIES','AISLE','DATES','DEALS','DELTA','DIETS','IDEAS','IDEAL','LEAST','SLIDE','STALE','STEAL','TALES','TIDAL','TIDES','TILES','ISLET','EDITS','STAID','LEADS','SLATE','AIDE','AIDS','DALE','DATE','DEAL','DIET','DELI','EDIT','IDEA','ISLE','LAID','LAST','LATE','LEAD','LIED','LIST','LITE','SAID','SAIL','SALE','SALT','SEAL','SILT','SLAT','SLED','SLID','SLIT','TAIL','TALE','TEAL','TIDE','TIED','TILE','DIAL','IDLE','LETS','ADS','AID','ALE','ATE','EAT','ITS','LAD','LET','LID','LIT','SAD','SAT','SET','SIT','TEA','TIE']},
+    {anchor:'POINTED',words:['POINTED','POINTE','OPINED','POINT','NOTED','TONED','OPINE','TEPID','PINED','DEPOT','PINTO','OPTED','TOPED','DINE','DONE','DOTE','EDIT','INTO','NODE','NOTE','OPEN','PINE','PINT','POET','POND','TIDE','TIED','TINE','TONE','TEND','DENT','NOPE','DOPE','PIED','DIET','DEN','DIN','DIP','DOE','DON','DOT','END','ION','NET','NIT','NOD','NOT','ODE','ONE','OPT','PEN','PET','PIE','PIN','PIT','POD','POT','TEN','TIE','TIN','TIP','TOE','TON','TOP']},
+    {anchor:'CRASHED',words:['CRASHED','CHASED','ARCHED','CASHED','SEARCH','SHARED','SACRED','ARCHES','SCARED','CRASH','CHASE','SHARE','SHARD','SHADE','REACH','ACHED','CARED','DARES','HEADS','HEARD','READS','SHRED','CEDAR','RACES','ACRES','SCARE','CHARS','ACHES','RACED','HARES','ACHE','ACRE','ARCH','ARCS','CARD','CARE','CARS','CASE','CASH','CHAR','DARE','DASH','EACH','EARS','HARD','HARE','HERD','RACE','RASH','READ','REDS','SCAR','SEAR','SHED','SHAD','HEAD','DEAR','HEAR','ACE','ARC','ARE','ASH','CAR','EAR','ERA','HAD','HAS','HER','RED','SAD','SEA','SHE']},
+    {anchor:'PLANETS',words:['PLANETS','PLANET','PLATES','PLANTS','STAPLE','PANELS','PETALS','PLEATS','PASTEL','PANEL','PETAL','PLANE','PLANT','PLATE','PLEAT','SLANT','STALE','STEAL','TALES','LEAPT','LEAST','SPENT','PANTS','PASTE','LEAPS','LANES','PLANS','SLATE','PENAL','LANE','LEAN','LEAP','LENT','NEST','NETS','PALE','PANE','PANT','PAST','PEAL','PENS','PEST','PLAN','PLEA','SALE','SALT','SANE','SEAL','SENT','SLAP','SLAT','SNAP','SPAN','STEP','TALE','TAPS','TEAL','TENS','LAST','LATE','NEAT','PATS','LETS','LAPS','PELT','TAPE','ALE','ANT','APE','ATE','EAT','LET','NAP','NET','PAL','PAN','PAT','PEA','PEN','PET','SAT','SET','TAN','TAP','TEA','TEN','SPA','LAP']},
+    {anchor:'MONSTER',words:['MONSTER','MENTORS','MENTOR','STONER','SERMON','TONERS','MOTES','STERN','STONE','STORE','STORM','TONES','NORMS','NOTES','METRO','TERMS','SNORE','TERNS','MORES','OMENS','ONSET','SENOR','OMEN','MORE','MORN','MOST','NEST','NETS','NORM','NOSE','NOTE','ONES','RENT','REST','ROTE','SOME','SORE','SORT','STEM','TENS','TERM','TERN','TOES','TONE','TORE','TORN','ROTS','MEN','MET','NET','NOR','NOT','ONE','ORE','ROT','SET','SON','TEN','TOE','TON']},
+    {anchor:'WANDERS',words:['WANDERS','WANDER','WARNED','SANDER','SNARED','WARDEN','WADER','DRAWN','EARNS','SANER','WADES','WANDS','WARNS','NEARS','DARES','READS','RENDS','WANED','DEANS','SEDAN','SNARE','DAWN','DANE','DARE','DEAN','DENS','DRAW','EARN','NEAR','SAND','SANE','SAWN','SEAR','SEND','WAND','WANE','WARD','WARN','WARS','WEND','DREW','REDS','REND','SEWN','WREN','AWED','NEWS','ANEW','DARN','ENDS','AND','ARE','AWE','DEN','DEW','EAR','END','ERA','NEW','RAN','RAW','RED','SAD','SAW','SEA','SEW','WAD','WAN','WAR']},
+    {anchor:'SALTIER',words:['SALTIER','REALIST','RETAILS','RETAIL','SERIAL','TAILER','TRAILS','TRIALS','LISTER','LITERS','ARISE','ASTER','IRATE','LEAST','RAILS','RAISE','RATES','STALE','STARE','STEAL','TALES','TIRES','TRAIL','TRIAL','TILES','TAILS','LITRE','ALTER','LATER','ALERT','STAIR','TEARS','REALS','AILS','AIRS','ALES','ARTS','ISLE','LAIR','LAST','LATE','LEST','LIAR','LIES','LIST','LITE','RAIL','RATE','REST','RILE','RISE','SAIL','SALE','SALT','SEAL','SILT','SIRE','SLIT','SLAT','STAR','STIR','TAIL','TALE','TARE','TARS','TEAL','TEAR','TIER','TIES','TILE','TIRE','AIL','AIR','ALE','ATE','ARE','ART','EAR','EAT','ERA','IRE','ITS','LET','LIE','LIT','RAT','SAT','SET','SIR','SIT','TAR','TEA','TIE']},
+    {anchor:'PLASTER',words:['PLASTER','PSALTER','PLATES','STAPLE','PASTER','REPAST','PEARLS','PLEATS','PETALS','PASTEL','PALEST','ALERT','ALTER','ASTER','LATER','LEAPT','LEAST','PASTE','PEARL','PETAL','PLATE','PLEAT','STALE','STARE','STEAL','TALES','TAPES','TEARS','REAPS','SPARE','SPEAR','PARSE','PEARS','PARTS','TRAPS','LAPS','APES','ARTS','EARS','EAST','EATS','LAPS','LAST','LATE','LEAP','LEST','LETS','PALS','PARE','PART','PAST','PATS','PEAL','PEAR','PELT','PEST','PETS','PLEA','RAPS','RASP','RATE','RATS','REAL','REAP','REST','SALE','SALT','SEAL','SEAR','SEAT','SLAP','SLAT','STAR','STEP','TALE','TAPS','TARP','TARS','TEAL','TEAR','ALE','APE','ATE','ARE','ART','EAR','EAT','ERA','LAP','LET','PAL','PAT','PEA','PER','PET','RAP','RAT','SAP','SAT','SET','SPA','TAP','TAR','TEA']},
+    {anchor:'TRAILED',words:['TRAILED','DILATER','DETAIL','RETAIL','TAILED','DIALER','RAILED','DILATE','TIRADE','REDIAL','TRAIL','TRIED','TIDAL','TIRED','IRATE','IDEAL','LATER','ALTER','ALERT','RATED','TILED','DELTA','TRADE','TREAD','AIDER','LITRE','LITER','AIDE','ARID','DALE','DARE','DATE','DEAL','DEAR','DELI','DIAL','DIRE','DIRT','EDIT','IDEA','IDLE','LAID','LAIR','LARD','LATE','LEAD','LIED','LITE','RAID','RAIL','RATE','READ','RIDE','RILE','RITE','TAIL','TALE','TARE','TEAL','TEAR','TIDE','TIED','TIER','TILE','TIRE','AID','AIL','AIR','ALE','ATE','ARE','ART','EAR','EAT','ERA','IRE','LAD','LET','LID','LIE','LIT','RAD','RAT','RED','RID','TAD','TEA','TIE']},
+    {anchor:'READING',words:['READING','GRADINE','DANGER','GARDEN','GAINED','GANDER','RANGED','RAINED','DARING','ANGER','DRAIN','GRAIN','GRADE','GRAND','RANGE','RIDGE','DINER','RAGED','AIRED','NADIR','DEIGN','GRIND','AIDER','REIGN','AGED','AIDE','ARID','DANE','DARE','DEAN','DEAR','DINE','DIRE','DRAG','EARN','GAIN','GEAR','GIRD','GRAD','GRID','GRIN','IDEA','NEAR','NERD','RAGE','RAID','RAIN','RANG','READ','REIN','REND','RIDE','RING','RIND','DANG','AGE','AID','DEN','DIG','DIN','EAR','END','ERA','GIN','IRE','NAG','RAG','RAN','RED','RIG','RID']},
+    {anchor:'SMOTHER',words:['SMOTHER','MOTHERS','THERMOS','MOTHER','OTHERS','METROS','THERMO','MOTHS','STORM','STORE','SHORE','OTHER','HORSE','TERMS','MOTES','THOSE','HOMES','METRO','SHORT','TOMES','THERM','HOMER','HERMS','MOTH','MORE','MOST','HOSE','HOST','HERO','HERM','HOME','SOME','SORE','SORT','STEM','THEM','TOES','TORE','TERM','TORN','ROTS','MESH','REST','ROTE','SHOE','SHOT','MOTH','MET','HER','HOT','ORE','ROT','SET','SHE','THE','TOE','TOR']},
+  ],
+  fr: [
+    {anchor:'PORTAIL',words:['PORTAIL','PATOIR','POLIRA','PARLOT','PILOTR','PILOTA','PORTAL','PLAITR','PATIO','PILON','POLIT','POLAR','TRAIL','PILOT','RAPT','PORT','PART','PAOL','PLAT','POLI','TRIO','TROP','RAIL','ORAL','NOIR','POIL','PARI','LOTI','RIOT','ATOP','PAIR','PROT','OIL','POT','PAR','ROT','RAT','AIR','LOT','LIT','TIR','RIT','ORT','ART','POI']},
+    {anchor:'SARDINE',words:['SARDINE','SANDIER','DINARS','DRAINS','RADINE','DINERS','NADIR','DRAIN','DINAR','RADIN','AIDER','AIDES','RAIDE','DINER','REINS','RIDES','SERIN','RAIDS','RINDS','NIDS','AIDE','AINE','DIRE','DINE','IRES','NIER','REIN','RIDE','RAID','RIND','DANS','RASE','RASE','SIED','NIDS','AIR','ANE','DIS','IRE','NID','RAS','RIS','SIR','DIN','RAN','NIS','ANI']},
+    {anchor:'CRAINTE',words:['CRAINTE','CERTAIN','CRIANTE','CERNAIT','CENTRAI','RECIT','CRANE','RANCE','ANCRE','CITER','NACRE','RIANT','TRAIN','INTER','ECRIT','RINCE','TIARE','RIANT','NIERA','TARIN','CRAN','NIER','AINE','RACE','CARE','RITE','CIRE','REIN','NAIT','INCA','ACNE','CITE','AIRE','RANI','TARE','RANI','AIR','ANE','IRE','CRI','ARC','NID','RAS','ANI','RIT','NIS','AIT']},
+    {anchor:'PLANTES',words:['PLANTES','PLATENS','PLANEST','PLANTE','PLATES','SANTAL','NAPPES','PLANTE','PELANT','PANEL','PLATS','PLANS','PALES','PALET','LEANT','PELAS','SANTE','TAPES','PANSE','PLENA','PLAN','PALE','PALS','NAPPE','TAPE','PANE','SENT','LEST','NETS','PANS','SAPE','SALE','PEAN','SEPT','ELNA','ALE','ANE','PAS','SAT','SET','TAS','PAN','NET','PEL','LAS','PAT','NAP','TEN']},
+    {anchor:'TOMATES',words:['TOMATES','TOMATES','MATOTES','TOMATE','MOTTES','METTES','TOTEM','MOTET','TOAST','TOMES','MOTTE','MATOS','TOMES','MATTE','ATOME','STOME','TOTA','TOME','MATE','METS','MOTS','TOIT','TOTE','SOME','AMES','ETAT','OMET','ATOM','MATE','MISE','MAIS','MET','MOT','SOT','TAS','MAS','AME','OTE']},
+    {anchor:'ETOILES',words:['ETOILES','TOILES','ETOILE','ILOTES','SOLITE','SOTILE','TOILE','ISOLE','OSTEL','LIOTE','ETIOL','TOILE','ILOTS','OLIES','ETOLE','SOLE','SITE','LOTI','LOTS','LIES','OILS','TOLE','ISOL','OSIE','OEIL','LEST','SILO','OIES','ILOT','LITE','LOIS','SOL','OIE','SOI','LIS','EST','ILE','SOT','TES','LES','OLE']},
+    {anchor:'DANSEUR',words:['DANSEUR','ENDURAS','SANDEUR','DANSER','ENDURA','SAUNER','SUNDAE','NUERAS','RENASD','DANSE','RUNES','NARDS','SANER','DUNES','UNDES','RENDS','SANDE','NUERA','SEDAN','DURES','DANS','RUSE','DUNE','NARD','DURS','NUES','REND','RUDE','RUES','SUER','USER','SEAU','DURE','UNES','ANUS','RAND','ANE','RUE','SUR','DUR','NUS','RUS','UNE','DUE','NUE','RAS','AND']},
+    {anchor:'MARINES',words:['MARINES','REMAINS','SEMINAR','MARINE','REMAIN','ANIMER','MANIEE','MINERA','RANIME','RAINES','AMINES','MARIN','MINER','ANIME','REINE','MISER','MINES','RIMES','REINS','AMIES','NAMER','SIREN','NIMES','SERAI','MANIE','MAINS','MINE','MIRE','RIME','REIN','AMIE','AINE','IRES','MISE','NIES','NIER','RAME','ARME','MARE','SIRE','MAIN','AIR','AMI','MIS','MER','ANE','IRE','NIS','RIS','MAS','SIR']},
+  ]
+};
+
+function initWordClash(area, setStatus, online) {
+  const rng = online ? online.rng : Math.random;
+  const defaultLang = navigator.language.startsWith('fr') ? 'fr' : 'en';
+
+  let lang, puzzle, gridWords, bonusWords, foundGrid, foundBonus;
+  let gridRows, gridCols, gridCells;
+  let wheelLetters, selection = [], selectionActive = false;
+  let scores = [0, 0], turn = 0, timeLeft = 30, timerInterval = null;
+  let gameOver = false, destroyed = false;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'board-game';
+  wrap.style.cssText = 'overflow:auto;user-select:none;-webkit-user-select:none';
+  area.appendChild(wrap);
+  const cont = document.createElement('div');
+  cont.style.cssText = 'width:min(95vw,420px);margin:0 auto';
+  wrap.appendChild(cont);
+
+  // --- Language picker ---
+  function showLangPicker() {
+    if (online && online.playerId !== 0) {
+      cont.innerHTML = '<div style="text-align:center;padding:40px;color:#aaa;font-size:1.1em">Waiting for host to pick language...</div>';
+      online.onState('lang', l => { lang = l; beginGame(); });
+      return;
     }
-  });
-  canvas.addEventListener('touchmove', e => {
-    e.preventDefault();
-    const rect = canvas.getBoundingClientRect();
-    for (const t of e.changedTouches) {
-      const st = swipes[t.identifier]; if (!st) continue;
-      const x = (t.clientX - rect.left) / rect.width * w;
-      const y = (t.clientY - rect.top) / rect.height * h;
-      const dx = x - st.sx, dy = y - st.sy;
-      if (Math.sqrt(dx * dx + dy * dy) > 10) {
-        const dir = Math.abs(dx) > Math.abs(dy) ? {x: dx > 0 ? 1 : -1, y: 0} : {x: 0, y: dy > 0 ? 1 : -1};
-        if (st.player === 0) { if (dir.x !== -d1.x || dir.y !== -d1.y) nd1 = dir; }
-        else { if (dir.x !== -d2.x || dir.y !== -d2.y) nd2 = dir; }
-        st.sx = x; st.sy = y;
+    const defFr = defaultLang === 'fr';
+    cont.innerHTML = '<div style="text-align:center;padding:30px">' +
+      '<div style="font-size:1.3em;font-weight:bold;margin-bottom:20px;color:#B2DFDB">Choose Language</div>' +
+      '<button class="btn" id="wc-en" style="margin:8px;padding:12px 28px;font-size:1.05em;background:' + (defFr ? '#37474F' : '#00897B') + '">English</button>' +
+      '<button class="btn" id="wc-fr" style="margin:8px;padding:12px 28px;font-size:1.05em;background:' + (defFr ? '#00897B' : '#37474F') + '">Fran\u00e7ais</button>' +
+      '</div>';
+    const pick = l => { lang = l; if (online) online.setState('lang', l); beginGame(); };
+    cont.querySelector('#wc-en').onclick = () => pick('en');
+    cont.querySelector('#wc-fr').onclick = () => pick('fr');
+  }
+
+  // --- Puzzle generation ---
+  function beginGame() {
+    generatePuzzle();
+    render();
+    startTurn();
+  }
+
+  function letterCounts(w) {
+    const c = {};
+    for (const ch of w) c[ch] = (c[ch] || 0) + 1;
+    return c;
+  }
+
+  function generatePuzzle() {
+    const data = WORD_DATA[lang] || WORD_DATA.en;
+    const idx = Math.floor(rng() * data.length);
+    puzzle = data[idx];
+    // Shuffle anchor letters for wheel
+    wheelLetters = puzzle.anchor.split('');
+    for (let i = wheelLetters.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [wheelLetters[i], wheelLetters[j]] = [wheelLetters[j], wheelLetters[i]];
+    }
+    buildCrossword();
+  }
+
+  function buildCrossword() {
+    // Sort words by length desc (skip anchor itself for initial sort, place longest first)
+    const allWords = puzzle.words.slice().sort((a, b) => b.length - a.length);
+    const placed = []; // {word, row, col, dir:'h'|'v'}
+    const cells = {}; // 'r,c' -> letter
+
+    function addWord(w, row, col, dir) {
+      placed.push({word: w, row, col, dir});
+      for (let i = 0; i < w.length; i++) {
+        const r = dir === 'h' ? row : row + i;
+        const c = dir === 'h' ? col + i : col;
+        cells[r + ',' + c] = w[i];
       }
     }
-  });
-  canvas.addEventListener('touchend', e => { for (const t of e.changedTouches) delete swipes[t.identifier]; });
-  let interval;
-  function step() {
-    if (!alive[0] && !alive[1]) return;
-    // Apply buffered directions
-    d1 = nd1; d2 = nd2;
-    // Move with wrap-around
-    if (alive[0]) { const head = {x:(s1[0].x+d1.x+COLS)%COLS, y:(s1[0].y+d1.y+ROWS)%ROWS}; s1.unshift(head); }
-    if (alive[1]) { const head = {x:(s2[0].x+d2.x+COLS)%COLS, y:(s2[0].y+d2.y+ROWS)%ROWS}; s2.unshift(head); }
-    // Collision: only your head into opponent's body kills you
-    for (let p = 0; p < 2; p++) {
-      const s = p===0?s1:s2, other = p===0?s2:s1;
-      const head = s[0];
-      if (other.some(seg => seg.x===head.x && seg.y===head.y)) alive[p] = false;
+
+    function canPlace(w, row, col, dir) {
+      let crossings = 0;
+      for (let i = 0; i < w.length; i++) {
+        const r = dir === 'h' ? row : row + i;
+        const c = dir === 'h' ? col + i : col;
+        const key = r + ',' + c;
+        if (cells[key]) {
+          if (cells[key] !== w[i]) return false;
+          crossings++;
+        } else {
+          if (dir === 'h') {
+            if (cells[(r - 1) + ',' + c]) return false;
+            if (cells[(r + 1) + ',' + c]) return false;
+          } else {
+            if (cells[r + ',' + (c - 1)]) return false;
+            if (cells[r + ',' + (c + 1)]) return false;
+          }
+        }
+      }
+      if (crossings === 0 && placed.length > 0) return false;
+      // Check endpoints
+      if (dir === 'h') {
+        if (cells[row + ',' + (col - 1)]) return false;
+        if (cells[row + ',' + (col + w.length)]) return false;
+      } else {
+        if (cells[(row - 1) + ',' + col]) return false;
+        if (cells[(row + w.length) + ',' + col]) return false;
+      }
+      return true;
     }
-    // Food check (2 food items)
-    let ateAny = [false, false];
-    for (let p = 0; p < 2; p++) {
-      const s = p===0?s1:s2;
-      if (!alive[p]) continue;
-      const fi = foods.findIndex(f => s[0].x === f.x && s[0].y === f.y);
-      if (fi !== -1) {
-        scores[p]++; ateAny[p] = true; totalEaten++; SND.pop();
-        foods.splice(fi, 1);
-        foods.push(spawnFood());
-        // Speed up gradually (min 80ms)
-        speed = Math.max(80, 250 - totalEaten * 8);
-        clearInterval(interval);
-        interval = setInterval(step, speed);
-      } else { s.pop(); }
+
+    // Place first word horizontally at row 10
+    const first = allWords[0];
+    addWord(first, 10, Math.max(0, Math.floor((14 - first.length) / 2)), 'h');
+
+    // Place remaining words
+    for (let wi = 1; wi < allWords.length && placed.length < 10; wi++) {
+      const w = allWords[wi];
+      let best = null;
+      for (let pi = 0; pi < placed.length && !best; pi++) {
+        const p = placed[pi];
+        for (let pci = 0; pci < p.word.length && !best; pci++) {
+          for (let wci = 0; wci < w.length; wci++) {
+            if (p.word[pci] !== w[wci]) continue;
+            const newDir = p.dir === 'h' ? 'v' : 'h';
+            let nr, nc;
+            if (p.dir === 'h') { nr = p.row - wci; nc = p.col + pci; }
+            else { nr = p.row + pci; nc = p.col - wci; }
+            if (canPlace(w, nr, nc, newDir)) { best = {word: w, row: nr, col: nc, dir: newDir}; break; }
+          }
+        }
+      }
+      if (best) addWord(best.word, best.row, best.col, best.dir);
     }
-    // Ensure always 2 foods
-    while (foods.length < 2) foods.push(spawnFood());
-    if (!alive[0] || !alive[1]) {
-      clearInterval(interval); SND.buzz();
-      const m = (!alive[0] && !alive[1]) ? 'Draw!' : (alive[0] ? 'P1 wins!' : 'P2 wins!');
-      setStatus(m);
-      setTimeout(() => showOverlay(area, `${m}<br>P1: ${scores[0]} | P2: ${scores[1]}`, 'Rematch', () => {
-        s1 = [{x:4,y:midY},{x:3,y:midY},{x:2,y:midY},{x:1,y:midY}]; d1 = {x:1,y:0}; nd1 = {x:1,y:0};
-        s2 = [{x:COLS-5,y:midY},{x:COLS-4,y:midY},{x:COLS-3,y:midY},{x:COLS-2,y:midY}]; d2 = {x:-1,y:0}; nd2 = {x:-1,y:0};
-        foods = [spawnFood(), spawnFood()]; alive = [true, true]; scores = [0, 0]; speed = 250; totalEaten = 0;
-        interval = setInterval(step, speed); draw();
-      }), 600);
+
+    // Normalize coordinates
+    let minR = Infinity, minC = Infinity;
+    placed.forEach(p => {
+      minR = Math.min(minR, p.row);
+      const endR = p.dir === 'v' ? p.row + p.word.length - 1 : p.row;
+      minC = Math.min(minC, p.col);
+    });
+
+    let maxR = 0, maxC = 0;
+    gridWords = placed.map(p => {
+      const gw = {word: p.word, row: p.row - minR, col: p.col - minC, dir: p.dir, foundBy: -1};
+      const er = gw.dir === 'v' ? gw.row + gw.word.length - 1 : gw.row;
+      const ec = gw.dir === 'h' ? gw.col + gw.word.length - 1 : gw.col;
+      maxR = Math.max(maxR, er);
+      maxC = Math.max(maxC, ec);
+      return gw;
+    });
+
+    gridRows = maxR + 1;
+    gridCols = maxC + 1;
+    gridCells = {};
+    gridWords.forEach(gw => {
+      for (let i = 0; i < gw.word.length; i++) {
+        const r = gw.dir === 'h' ? gw.row : gw.row + i;
+        const c = gw.dir === 'h' ? gw.col + i : gw.col;
+        gridCells[r + ',' + c] = {letter: gw.word[i], foundBy: -1};
+      }
+    });
+
+    const gridWordSet = new Set(gridWords.map(gw => gw.word));
+    bonusWords = puzzle.words.filter(w => !gridWordSet.has(w));
+    foundGrid = new Set();
+    foundBonus = new Set();
+  }
+
+  // --- Timer ---
+  function startTurn() {
+    timeLeft = 30;
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+      if (destroyed || gameOver) { clearInterval(timerInterval); return; }
+      timeLeft--;
+      render();
+      if (timeLeft <= 0) {
+        clearInterval(timerInterval);
+        SND.buzz();
+        if (online) online.sendMove({word: '', type: 'timeout'});
+        switchTurn();
+      }
+    }, 1000);
+    if (online) {
+      setStatus(turn === online.playerId ? 'Your turn' : "Opponent's turn");
     } else {
-      setStatus(`P1: ${scores[0]}  P2: ${scores[1]}`);
+      setStatus('P' + (turn + 1) + "'s turn");
     }
-    draw();
+    render();
   }
-  function draw() {
-    ctx.fillStyle = '#0a1a0a'; ctx.fillRect(0, 0, w, h);
-    // Grid
-    ctx.strokeStyle = '#1a2a1a'; ctx.lineWidth = 0.5;
-    for (let x=0;x<=COLS;x++){ctx.beginPath();ctx.moveTo(x*CS,0);ctx.lineTo(x*CS,ROWS*CS);ctx.stroke();}
-    for (let y=0;y<=ROWS;y++){ctx.beginPath();ctx.moveTo(0,y*CS);ctx.lineTo(COLS*CS,y*CS);ctx.stroke();}
-    // Swipe zone divider
-    ctx.setLineDash([4,6]); ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(w/2, 0); ctx.lineTo(w/2, ROWS*CS); ctx.stroke(); ctx.setLineDash([]);
-    // Zone labels (subtle)
-    ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText('← P1 swipe', w*0.25, ROWS*CS - 6);
-    ctx.fillText('P2 swipe →', w*0.75, ROWS*CS - 6);
-    // Foods (2 items, different colors)
-    const foodColors = ['#F44336','#FF9800'];
-    foods.forEach((f, i) => {
-      ctx.fillStyle = foodColors[i % 2];
-      ctx.beginPath(); ctx.arc(f.x*CS+CS/2, f.y*CS+CS/2, CS*0.4, 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.3)';
-      ctx.beginPath(); ctx.arc(f.x*CS+CS/2-2, f.y*CS+CS/2-2, CS*0.15, 0, Math.PI*2); ctx.fill();
-    });
-    // Snakes with rounded heads
-    s1.forEach((s,i) => {
-      ctx.fillStyle = i===0?'#66BB6A':'#4CAF50';
-      if (i===0) { ctx.beginPath(); ctx.arc(s.x*CS+CS/2, s.y*CS+CS/2, CS/2-1, 0, Math.PI*2); ctx.fill(); }
-      else ctx.fillRect(s.x*CS+1,s.y*CS+1,CS-2,CS-2);
-    });
-    s2.forEach((s,i) => {
-      ctx.fillStyle = i===0?'#42A5F5':'#2196F3';
-      if (i===0) { ctx.beginPath(); ctx.arc(s.x*CS+CS/2, s.y*CS+CS/2, CS/2-1, 0, Math.PI*2); ctx.fill(); }
-      else ctx.fillRect(s.x*CS+1,s.y*CS+1,CS-2,CS-2);
+
+  function switchTurn() {
+    turn = 1 - turn;
+    if (checkEnd()) return;
+    startTurn();
+  }
+
+  function checkEnd() {
+    const allFound = gridWords.every(gw => gw.foundBy >= 0);
+    if (!allFound) return false;
+    gameOver = true;
+    if (timerInterval) clearInterval(timerInterval);
+    SND.win();
+    const w = scores[0] > scores[1] ? 'P1 wins!' : scores[1] > scores[0] ? 'P2 wins!' : "It's a tie!";
+    const msg = online
+      ? (scores[online.playerId] > scores[1 - online.playerId] ? 'You win!' : scores[online.playerId] < scores[1 - online.playerId] ? 'You lose!' : "It's a tie!")
+      : w;
+    setStatus(msg);
+    render();
+    setTimeout(() => showOverlay(area, msg + '<br>P1: ' + scores[0] + ' | P2: ' + scores[1], 'Rematch', restart), 700);
+    return true;
+  }
+
+  function restart() {
+    scores = [0, 0]; turn = 0; gameOver = false; selection = [];
+    generatePuzzle();
+    render();
+    startTurn();
+  }
+
+  // --- Word submission ---
+  function submitWord(word) {
+    if (gameOver) return;
+    if (online && turn !== online.playerId) return;
+    if (word.length < 3) return;
+
+    // Check grid words
+    const gw = gridWords.find(g => g.word === word && g.foundBy < 0);
+    if (gw) {
+      gw.foundBy = turn;
+      foundGrid.add(word);
+      scores[turn] += word.length;
+      // Mark cells
+      for (let i = 0; i < gw.word.length; i++) {
+        const r = gw.dir === 'h' ? gw.row : gw.row + i;
+        const c = gw.dir === 'h' ? gw.col + i : gw.col;
+        const cell = gridCells[r + ',' + c];
+        if (cell) cell.foundBy = turn;
+      }
+      SND.chime();
+      if (online) online.sendMove({word: word, type: 'grid'});
+      if (timerInterval) clearInterval(timerInterval);
+      render();
+      setTimeout(() => switchTurn(), 400);
+      return;
+    }
+
+    // Check bonus words
+    if (bonusWords.includes(word) && !foundBonus.has(word)) {
+      foundBonus.add(word);
+      scores[turn] += 1;
+      SND.pop();
+      if (online) online.sendMove({word: word, type: 'bonus'});
+      if (timerInterval) clearInterval(timerInterval);
+      render();
+      setTimeout(() => switchTurn(), 400);
+      return;
+    }
+
+    // Already found or invalid
+    SND.buzz();
+  }
+
+  function applyOpponentMove(data) {
+    if (data.type === 'timeout') {
+      switchTurn();
+      return;
+    }
+    const word = data.word;
+    if (data.type === 'grid') {
+      const gw = gridWords.find(g => g.word === word && g.foundBy < 0);
+      if (gw) {
+        gw.foundBy = turn;
+        foundGrid.add(word);
+        scores[turn] += word.length;
+        for (let i = 0; i < gw.word.length; i++) {
+          const r = gw.dir === 'h' ? gw.row : gw.row + i;
+          const c = gw.dir === 'h' ? gw.col + i : gw.col;
+          const cell = gridCells[r + ',' + c];
+          if (cell) cell.foundBy = turn;
+        }
+        SND.chime();
+      }
+    } else if (data.type === 'bonus') {
+      if (!foundBonus.has(word)) {
+        foundBonus.add(word);
+        scores[turn] += 1;
+        SND.pop();
+      }
+    }
+    if (timerInterval) clearInterval(timerInterval);
+    render();
+    setTimeout(() => switchTurn(), 400);
+  }
+
+  // --- Render ---
+  const P_COLORS = ['#E53935', '#42A5F5'];
+  const P_BG = ['rgba(229,57,53,0.25)', 'rgba(66,165,245,0.25)'];
+
+  function render() {
+    if (destroyed) return;
+    let h = '';
+    // Score bar
+    h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;margin-bottom:4px">';
+    h += '<div style="font-weight:bold;color:' + P_COLORS[0] + (turn === 0 ? ';text-shadow:0 0 8px ' + P_COLORS[0] : '') + '">P1: ' + scores[0] + '</div>';
+    h += '<div style="font-size:1.4em;font-weight:bold;color:' + (timeLeft <= 5 ? '#F44336' : '#FFD54F') + '">' + timeLeft + 's</div>';
+    h += '<div style="font-weight:bold;color:' + P_COLORS[1] + (turn === 1 ? ';text-shadow:0 0 8px ' + P_COLORS[1] : '') + '">P2: ' + scores[1] + '</div>';
+    h += '</div>';
+
+    // Crossword grid
+    const cellSize = Math.min(Math.floor((Math.min(window.innerWidth * 0.9, 400)) / Math.max(gridCols, 1)), 36);
+    const gw = gridCols * cellSize, gh = gridRows * cellSize;
+    h += '<div style="display:flex;justify-content:center;margin:4px 0">';
+    h += '<div style="display:grid;grid-template-columns:repeat(' + gridCols + ',' + cellSize + 'px);grid-template-rows:repeat(' + gridRows + ',' + cellSize + 'px);gap:2px">';
+    for (let r = 0; r < gridRows; r++) {
+      for (let c = 0; c < gridCols; c++) {
+        const cell = gridCells[r + ',' + c];
+        if (!cell) {
+          h += '<div></div>';
+        } else if (cell.foundBy >= 0) {
+          h += '<div style="background:' + P_BG[cell.foundBy] + ';border:2px solid ' + P_COLORS[cell.foundBy] + ';border-radius:4px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:' + Math.max(10, cellSize * 0.5) + 'px;color:#fff">' + cell.letter + '</div>';
+        } else {
+          h += '<div style="background:#1a1a2e;border:2px solid #333;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:' + Math.max(8, cellSize * 0.35) + 'px;color:#444">\u2022</div>';
+        }
+      }
+    }
+    h += '</div></div>';
+
+    // Selection preview
+    const selWord = selection.map(i => wheelLetters[i]).join('');
+    h += '<div style="text-align:center;margin:6px 0;font-size:1.3em;font-weight:bold;letter-spacing:4px;color:#FFD54F;min-height:1.6em">' + (selWord || '&nbsp;') + '</div>';
+
+    // Letter wheel
+    const wheelR = 62, wheelCx = 100, wheelCy = 72;
+    const svgW = 200, svgH = 150;
+    h += '<div style="display:flex;justify-content:center;margin:4px 0">';
+    h += '<div id="wc-wheel" style="position:relative;width:' + svgW + 'px;height:' + svgH + 'px;touch-action:none">';
+    // SVG for connection lines
+    h += '<svg id="wc-svg" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none" viewBox="0 0 ' + svgW + ' ' + svgH + '">';
+    if (selection.length > 1) {
+      let pts = '';
+      selection.forEach(idx => {
+        const a = (idx / wheelLetters.length) * Math.PI * 2 - Math.PI / 2;
+        pts += (wheelCx + wheelR * Math.cos(a)) + ',' + (wheelCy + wheelR * Math.sin(a)) + ' ';
+      });
+      h += '<polyline points="' + pts.trim() + '" fill="none" stroke="' + P_COLORS[turn] + '" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>';
+    }
+    h += '</svg>';
+    // Letter circles
+    for (let i = 0; i < wheelLetters.length; i++) {
+      const angle = (i / wheelLetters.length) * Math.PI * 2 - Math.PI / 2;
+      const lx = wheelCx + wheelR * Math.cos(angle) - 18;
+      const ly = wheelCy + wheelR * Math.sin(angle) - 18;
+      const isSel = selection.includes(i);
+      h += '<div data-widx="' + i + '" style="position:absolute;left:' + lx + 'px;top:' + ly + 'px;width:36px;height:36px;border-radius:50%;background:' + (isSel ? P_COLORS[turn] : '#2a2a4a') + ';border:2px solid ' + (isSel ? '#fff' : '#555') + ';display:flex;align-items:center;justify-content:center;font-size:1.1em;font-weight:bold;color:#fff;cursor:pointer;transition:background 0.1s">' + wheelLetters[i] + '</div>';
+    }
+    h += '</div></div>';
+
+    // Bonus words found
+    if (foundBonus.size > 0) {
+      h += '<div style="text-align:center;margin:4px 0;font-size:0.8em;color:#80CBC4">Bonus: ' + [...foundBonus].join(', ') + '</div>';
+    }
+
+    // Words found count
+    const totalGrid = gridWords.length;
+    const foundCount = gridWords.filter(g => g.foundBy >= 0).length;
+    h += '<div style="text-align:center;margin:2px 0;font-size:0.75em;color:#666">Grid: ' + foundCount + '/' + totalGrid + '</div>';
+
+    cont.innerHTML = h;
+    bindWheel();
+  }
+
+  // --- Wheel interaction ---
+  function bindWheel() {
+    const wheel = cont.querySelector('#wc-wheel');
+    if (!wheel) return;
+
+    function getLetterIdx(x, y) {
+      const el = document.elementFromPoint(x, y);
+      if (el && el.dataset && el.dataset.widx !== undefined) return parseInt(el.dataset.widx);
+      return -1;
+    }
+
+    function canInteract() {
+      if (gameOver) return false;
+      if (online && turn !== online.playerId) return false;
+      return true;
+    }
+
+    function startSel(x, y) {
+      if (!canInteract()) return;
+      const idx = getLetterIdx(x, y);
+      if (idx < 0) return;
+      selection = [idx];
+      selectionActive = true;
+      SND.click();
+      render();
+    }
+
+    function moveSel(x, y) {
+      if (!selectionActive) return;
+      const idx = getLetterIdx(x, y);
+      if (idx < 0) return;
+      // Backtrack: if returning to previous letter, pop last
+      if (selection.length >= 2 && idx === selection[selection.length - 2]) {
+        selection.pop();
+        SND.click();
+        render();
+        return;
+      }
+      // Don't re-add already selected letter
+      if (selection.includes(idx)) return;
+      selection.push(idx);
+      SND.click();
+      render();
+    }
+
+    function endSel() {
+      if (!selectionActive) return;
+      selectionActive = false;
+      if (selection.length >= 3) {
+        const word = selection.map(i => wheelLetters[i]).join('');
+        submitWord(word);
+      }
+      selection = [];
+      render();
+    }
+
+    wheel.addEventListener('mousedown', e => { e.preventDefault(); startSel(e.clientX, e.clientY); });
+    wheel.addEventListener('mousemove', e => { if (selectionActive) { e.preventDefault(); moveSel(e.clientX, e.clientY); } });
+    wheel.addEventListener('mouseup', e => { endSel(); });
+    wheel.addEventListener('mouseleave', e => { endSel(); });
+
+    wheel.addEventListener('touchstart', e => { e.preventDefault(); const t = e.touches[0]; startSel(t.clientX, t.clientY); }, {passive: false});
+    wheel.addEventListener('touchmove', e => { e.preventDefault(); const t = e.touches[0]; moveSel(t.clientX, t.clientY); }, {passive: false});
+    wheel.addEventListener('touchend', e => { e.preventDefault(); endSel(); }, {passive: false});
+    wheel.addEventListener('touchcancel', e => { endSel(); });
+  }
+
+  // --- Online sync ---
+  if (online) {
+    online.listenMoves(data => applyOpponentMove(data));
+    online.onOpponentDisconnect(() => {
+      if (!gameOver) {
+        gameOver = true;
+        if (timerInterval) clearInterval(timerInterval);
+        setStatus('Opponent disconnected');
+        render();
+      }
     });
   }
-  draw();
-  interval = setInterval(step, speed);
-  setStatus('P1: 0  P2: 0');
-  return () => { clearInterval(interval); };
+
+  // --- Start ---
+  showLangPicker();
+
+  return () => {
+    destroyed = true;
+    if (timerInterval) clearInterval(timerInterval);
+    if (online) online.cleanup();
+  };
 }
 
 // ==================== TANK WARS ====================
@@ -2855,10 +3219,20 @@ function initHangman(area, setStatus) {
     'THINKING','UNIVERSE','VALUABLE','WITHDRAW','YOURSELF','BUILDING','CALENDAR','DECEMBER',
     'EUROPEAN','FINISHED','GRATEFUL','HYDROGEN','INTEGRAL','JUDGMENT','KILOWATT','LIFETIME'
   ];
+  const WORDS_FR = [
+    'AVENTURE','BATIMENT','BONHEUR','BOUTEILLE','CAMPING','CHAPELLE','CHOCOLAT','CINEMAS',
+    'COMBINER','COSTUMER','DANSEUSE','DOMICILE','ELEPHANT','ESCALIER','FABRIQUE','FANTOME',
+    'FOOTBALL','FROMAGER','GARDERIE','GUITARES','HABITANT','HISTOIRES','HUMORISTE','IMAGINER',
+    'JARDINER','KEYBOARD','LANTERNE','LIMONADES','MAGAZINE','MERVEILLE','NOISETTES','OBSTACLE',
+    'PARADOXE','PLASTIQUE','QUELQUES','REFLEXION','SANDWICH','SURPRISE','TANGIBLE','TEMOIGNER',
+    'UNIVERSEL','VAISSELLE','VICTOIRE','VOITURES','XYLOPHONE','ZOOLOGIE','DIALOGUE','MYSTIQUE'
+  ];
+  const isFrHm = navigator.language.startsWith('fr');
+  const wordList = isFrHm ? WORDS_FR : WORDS;
   const SEGMENTS = [100,200,300,400,500,600,700,800,900,1000,300,500,200,400,600,800,0,0]; // 0 = lose turn
   const SEG_COLORS = ['#E53935','#1E88E5','#43A047','#FDD835','#8E24AA','#FF6F00','#00ACC1','#D81B60','#7CB342','#FF5722','#5C6BC0','#26A69A','#F4511E','#AB47BC','#42A5F5','#66BB6A','#424242','#757575'];
 
-  let word = WORDS[Math.floor(Math.random() * WORDS.length)];
+  let word = wordList[Math.floor(Math.random() * wordList.length)];
   let revealed = Array(word.length).fill(false);
   let guessed = new Set();
   let scores = [0, 0], turn = 0, spinResult = -1, phase = 'spin', gameOver = false;
@@ -3005,7 +3379,7 @@ function initHangman(area, setStatus) {
         setTimeout(() => {
           const winner = scores[0] > scores[1] ? 'P1' : scores[1] > scores[0] ? 'P2' : 'Tie';
           showOverlay(area, `Word: ${word}<br>${winner === 'Tie' ? "It's a tie!" : winner + ' wins!'}`, 'New Game', () => {
-            word = WORDS[Math.floor(Math.random() * WORDS.length)];
+            word = wordList[Math.floor(Math.random() * wordList.length)];
             revealed = Array(word.length).fill(false);
             guessed = new Set(); scores = [0, 0]; turn = 0; wrongCount = [0, 0];
             phase = 'spin'; gameOver = false; render();
@@ -3023,7 +3397,7 @@ function initHangman(area, setStatus) {
         render();
         setTimeout(() => {
           showOverlay(area, `Word was: ${word}<br>P1:$${scores[0]} P2:$${scores[1]}`, 'New Game', () => {
-            word = WORDS[Math.floor(Math.random() * WORDS.length)];
+            word = wordList[Math.floor(Math.random() * wordList.length)];
             revealed = Array(word.length).fill(false);
             guessed = new Set(); scores = [0, 0]; turn = 0; wrongCount = [0, 0];
             phase = 'spin'; gameOver = false; render();
