@@ -849,15 +849,25 @@ function initAwale(area, setStatus, online) {
   wrap.className = 'board-game';
   area.appendChild(wrap);
   const cont = document.createElement('div');
-  cont.style.cssText = 'width:min(92vw,400px)';
   wrap.appendChild(cont);
+  function applyOrientation(){
+    const r=area.getBoundingClientRect(),aw=r.width,ah=r.height;
+    if(ah>aw){
+      wrap.style.cssText='display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:8px;position:absolute;width:'+ah+'px;height:'+aw+'px;top:50%;left:50%;margin-top:-'+(aw/2)+'px;margin-left:-'+(ah/2)+'px;transform:rotate(90deg)';
+      cont.style.cssText='width:min(85%,700px)';
+    } else {
+      wrap.style.cssText='display:flex;flex-direction:column;align-items:center;gap:8px;padding:8px;width:100%;height:100%;justify-content:center';
+      cont.style.cssText='width:min(85%,700px)';
+    }
+  }
+  applyOrientation();window.addEventListener('resize',applyOrientation);
   function renderBeans(count, active) {
     if (count === 0) return '';
     const BEAN_COLORS = ['#8B4513','#A0522D','#6B3410','#7B3F00','#5C3317','#D2691E'];
-    let h = '<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:2px;padding:2px">';
+    let h = '<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:3px;padding:3px">';
     for (let b = 0; b < Math.min(count, 12); b++) {
       const col = BEAN_COLORS[b % BEAN_COLORS.length];
-      h += `<div style="width:10px;height:13px;border-radius:50%;background:${col};box-shadow:inset -1px -1px 2px rgba(0,0,0,.4),inset 1px 1px 1px rgba(255,255,255,.2)"></div>`;
+      h += `<div style="width:13px;height:16px;border-radius:50%;background:${col};box-shadow:inset -1px -1px 2px rgba(0,0,0,.4),inset 1px 1px 1px rgba(255,255,255,.2)"></div>`;
     }
     if (count > 12) h += `<div style="font-size:.6em;color:#ddd;width:100%;text-align:center">+${count-12}</div>`;
     h += '</div>';
@@ -865,17 +875,17 @@ function initAwale(area, setStatus, online) {
   }
   function render() {
     let h = `<div style="text-align:center;margin-bottom:6px;font-weight:bold;font-size:${turn===1?'1.3em':'0.95em'};color:${turn===1?'#fff':'#666'};${turn===1?'text-shadow:0 0 10px rgba(255,255,255,0.6),0 0 20px rgba(255,255,255,0.3)':'opacity:0.5'};transition:all 0.3s">▲ ${online ? (online.playerId===1?'You':'Opp') : 'P2'}: ${scores[1]}</div>`;
-    h += '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-bottom:4px">';
+    h += '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:6px">';
     for (let i = 11; i >= 6; i--) {
       const a = turn===1 && board[i]>0 && !gameOver && (!online || online.playerId===1);
-      h += `<div data-pit="${i}" style="background:${a?'#6D4C41':'#3E2723'};padding:6px 3px;border-radius:12px;text-align:center;cursor:${a?'pointer':'default'};min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative">`;
+      h += `<div data-pit="${i}" style="background:${a?'#6D4C41':'#3E2723'};padding:8px 4px;border-radius:12px;text-align:center;cursor:${a?'pointer':'default'};min-height:70px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative">`;
       h += renderBeans(board[i], a);
       h += `<div style="font-size:.65em;color:#aaa;margin-top:1px">${board[i]}</div></div>`;
     }
-    h += '</div><div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px">';
+    h += '</div><div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px">';
     for (let i = 0; i <= 5; i++) {
       const a = turn===0 && board[i]>0 && !gameOver && (!online || online.playerId===0);
-      h += `<div data-pit="${i}" style="background:${a?'#6D4C41':'#3E2723'};padding:6px 3px;border-radius:12px;text-align:center;cursor:${a?'pointer':'default'};min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative">`;
+      h += `<div data-pit="${i}" style="background:${a?'#6D4C41':'#3E2723'};padding:8px 4px;border-radius:12px;text-align:center;cursor:${a?'pointer':'default'};min-height:70px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative">`;
       h += renderBeans(board[i], a);
       h += `<div style="font-size:.65em;color:#aaa;margin-top:1px">${board[i]}</div></div>`;
     }
@@ -928,7 +938,7 @@ function initAwale(area, setStatus, online) {
     online.onOpponentDisconnect(() => { if (!gameOver) { gameOver = true; setStatus('Opponent disconnected'); } });
   }
   render();
-  return () => { if (online) online.cleanup(); };
+  return () => { window.removeEventListener('resize',applyOrientation); if (online) online.cleanup(); };
 }
 
 // ==================== BULLS & COWS ====================
@@ -1125,20 +1135,20 @@ function initMastermind(area, setStatus, online) {
 // ==================== STAR CLASH (Galaga-style 2P) ====================
 function initStarClash(area, setStatus) {
   const {canvas, ctx, w, h} = createCanvas(area);
-  const PW = 28, PH = 20, BULLET_SPD = 7, ALIEN_BULLET_SPD = 3.5;
+  const PW = 40, PH = 28, BULLET_SPD = 7, ALIEN_BULLET_SPD = 3.5;
   const SHIELD_ROWS = 3, SHIELD_COLS = 8, SHIELD_BLOCK = 6;
   const MID = h / 2;
   const CTRL_H = 50; // control zone height
-  const P1_SHIP_Y = h - CTRL_H - 25; // P1 ship center (above control zone)
-  const P2_SHIP_Y = CTRL_H + 25;     // P2 ship center (below control zone)
+  const P1_SHIP_Y = h - CTRL_H - 30; // P1 ship center (above control zone)
+  const P2_SHIP_Y = CTRL_H + 30;     // P2 ship center (below control zone)
 
   function sfxShoot() { SND.shoot(); }
   function sfxHit() { SND.boom(); }
   function sfxAlienDie() { SND.alienDie(); }
 
   // Players: P1 at bottom, P2 at top (inverted)
-  let p1 = {x: w/2, hp: 3, score: 0, cooldown: 0, alive: true};
-  let p2 = {x: w/2, hp: 3, score: 0, cooldown: 0, alive: true};
+  let p1 = {x: w/2, hp: 3, score: 0, cooldown: 0, alive: true, powerTimer: 0};
+  let p2 = {x: w/2, hp: 3, score: 0, cooldown: 0, alive: true, powerTimer: 0};
   let bullets = []; // {x, y, dy, owner: 0|1|2(alien), color}
   let explosions = []; // {x, y, timer}
   let stars = Array.from({length:60}, () => ({x:Math.random()*w, y:Math.random()*h, s:Math.random()*1.5+0.3}));
@@ -1185,6 +1195,10 @@ function initStarClash(area, setStatus) {
       });
     }
     alienDir = 1; alienSpeed = 0.4 + wave * 0.1;
+    // Mark up to 4 random aliens as special (power-up carriers)
+    const pool = aliens.map((_,i)=>i);
+    for(let i=pool.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]];}
+    for(let i=0;i<Math.min(4,aliens.length);i++) aliens[pool[i]].special=true;
   }
   spawnWave();
 
@@ -1207,11 +1221,18 @@ function initStarClash(area, setStatus) {
     const p = player === 0 ? p1 : p2;
     if (p.cooldown > 0 || !p.alive) return;
     const bx = p.x;
-    const by = player === 0 ? P1_SHIP_Y - 10 : P2_SHIP_Y + 10;
+    const by = player === 0 ? P1_SHIP_Y - 16 : P2_SHIP_Y + 16;
     const dy = player === 0 ? -BULLET_SPD : BULLET_SPD;
-    const col = player === 0 ? '#FF6B6B' : '#64B5F6';
-    bullets.push({x: bx, y: by, dy, owner: player, color: col});
-    p.cooldown = 12;
+    if (p.powerTimer > 0) {
+      bullets.push({x:bx,y:by,dy,owner:player,color:'#FFD700',powered:true});
+      bullets.push({x:bx-8,y:by,dy,owner:player,color:'#FFD700',powered:true});
+      bullets.push({x:bx+8,y:by,dy,owner:player,color:'#FFD700',powered:true});
+      p.cooldown = 6;
+    } else {
+      const col = player === 0 ? '#FF6B6B' : '#64B5F6';
+      bullets.push({x: bx, y: by, dy, owner: player, color: col});
+      p.cooldown = 12;
+    }
     sfxShoot();
   }
 
@@ -1235,6 +1256,8 @@ function initStarClash(area, setStatus) {
     p2.x = Math.max(PW/2, Math.min(w - PW/2, p2.x));
     if (p1.cooldown > 0) p1.cooldown--;
     if (p2.cooldown > 0) p2.cooldown--;
+    if (p1.powerTimer > 0) p1.powerTimer--;
+    if (p2.powerTimer > 0) p2.powerTimer--;
 
     // Auto-fire
     if (autoFireP1 && p1.cooldown <= 0 && p1.alive) shoot(0);
@@ -1254,8 +1277,8 @@ function initStarClash(area, setStatus) {
           a.alive = false;
           bullets.splice(bi, 1);
           explosions.push({x: a.x, y: a.y, timer: 12});
-          if (b.owner === 0) p1.score += a.type.points;
-          else p2.score += a.type.points;
+          if (b.owner === 0) { p1.score += a.type.points; if(a.special) p1.powerTimer=300; }
+          else { p2.score += a.type.points; if(a.special) p2.powerTimer=300; }
           sfxAlienDie();
           break;
         }
@@ -1339,15 +1362,15 @@ function initStarClash(area, setStatus) {
       else msg = 'P1 wins!';
       setStatus(`${msg} P1:${p1.score} P2:${p2.score}`);
       setTimeout(() => showOverlay(area, `${msg}<br>P1: ${p1.score} | P2: ${p2.score}`, 'Rematch', () => {
-        p1 = {x:w/2,hp:3,score:0,cooldown:0,alive:true};
-        p2 = {x:w/2,hp:3,score:0,cooldown:0,alive:true};
+        p1 = {x:w/2,hp:3,score:0,cooldown:0,alive:true,powerTimer:0};
+        p2 = {x:w/2,hp:3,score:0,cooldown:0,alive:true,powerTimer:0};
         bullets = []; explosions = []; wave = 1;
         spawnWave(); initShields(); gameOver = false;
         raf = requestAnimationFrame(loop);
       }), 1000);
     }
 
-    if (!gameOver) setStatus(`P1:${p1.score} ❤${p1.hp} | Wave ${wave} | ❤${p2.hp} P2:${p2.score}`);
+    if (!gameOver) setStatus(`P1:${p1.score} ❤${p1.hp}${p1.powerTimer>0?' ⚡':''} | Wave ${wave} | ${p2.powerTimer>0?'⚡ ':''}❤${p2.hp} P2:${p2.score}`);
   }
 
   function draw() {
@@ -1374,7 +1397,8 @@ function initStarClash(area, setStatus) {
     for (const a of aliens) {
       if (!a.alive) continue;
       const t = a.type, wobble = Math.sin(a.frame * 4) * 2;
-      ctx.fillStyle = t.color;
+      if(a.special){const gp=0.3+Math.sin(a.frame*8)*0.2;ctx.fillStyle=`rgba(255,215,0,${gp})`;ctx.beginPath();ctx.arc(a.x,a.y,14,0,Math.PI*2);ctx.fill();ctx.fillStyle='#FFD700';}
+      else ctx.fillStyle = t.color;
       // Body
       ctx.beginPath();
       ctx.moveTo(a.x - t.w/2, a.y + t.h/2);
@@ -1396,45 +1420,75 @@ function initStarClash(area, setStatus) {
       ctx.fillRect(a.x + 2, a.y - 1, 2, 2);
     }
 
+    // Power-up ship glow
+    if(p1.alive&&p1.powerTimer>0){const gp=0.25+Math.sin(Date.now()*0.008)*0.15;ctx.fillStyle=`rgba(255,215,0,${gp})`;ctx.beginPath();ctx.arc(p1.x,P1_SHIP_Y,26,0,Math.PI*2);ctx.fill();}
+    if(p2.alive&&p2.powerTimer>0){const gp=0.25+Math.sin(Date.now()*0.008)*0.15;ctx.fillStyle=`rgba(255,215,0,${gp})`;ctx.beginPath();ctx.arc(p2.x,P2_SHIP_Y,26,0,Math.PI*2);ctx.fill();}
+
     // Players
     if (p1.alive) {
-      ctx.fillStyle = '#FF4444';
-      // P1 ship (triangle pointing up, above control zone)
-      const p1y = P1_SHIP_Y;
+      const py = P1_SHIP_Y;
+      // Engine glow (always visible, brighter when firing)
+      const eA1 = autoFireP1 ? 0.7+Math.random()*0.3 : 0.2;
+      const eL1 = autoFireP1 ? 18+Math.random()*6 : 8;
+      ctx.fillStyle = `rgba(255,180,50,${eA1})`;
+      ctx.beginPath(); ctx.moveTo(p1.x-7,py+12); ctx.lineTo(p1.x,py+12+eL1); ctx.lineTo(p1.x+7,py+12); ctx.fill();
+      if(autoFireP1){ctx.fillStyle=`rgba(255,255,200,${0.3+Math.random()*0.3})`;ctx.beginPath();ctx.moveTo(p1.x-3,py+12);ctx.lineTo(p1.x,py+12+eL1*0.6);ctx.lineTo(p1.x+3,py+12);ctx.fill();}
+      // Hull shadow
+      ctx.fillStyle = '#8B1A1A';
       ctx.beginPath();
-      ctx.moveTo(p1.x, p1y - 10);
-      ctx.lineTo(p1.x - PW/2, p1y - 10 + PH);
-      ctx.lineTo(p1.x - PW/4, p1y - 10 + PH - 4);
-      ctx.lineTo(p1.x + PW/4, p1y - 10 + PH - 4);
-      ctx.lineTo(p1.x + PW/2, p1y - 10 + PH);
+      ctx.moveTo(p1.x,py-16); ctx.lineTo(p1.x-PW/2,py+10); ctx.lineTo(p1.x-PW/4,py+6);
+      ctx.lineTo(p1.x-3,py+13); ctx.lineTo(p1.x+3,py+13);
+      ctx.lineTo(p1.x+PW/4,py+6); ctx.lineTo(p1.x+PW/2,py+10);
       ctx.closePath(); ctx.fill();
+      // Hull main
+      ctx.fillStyle = '#FF4444';
+      ctx.beginPath();
+      ctx.moveTo(p1.x,py-14); ctx.lineTo(p1.x-PW/2+2,py+8); ctx.lineTo(p1.x-PW/4,py+5);
+      ctx.lineTo(p1.x-3,py+11); ctx.lineTo(p1.x+3,py+11);
+      ctx.lineTo(p1.x+PW/4,py+5); ctx.lineTo(p1.x+PW/2-2,py+8);
+      ctx.closePath(); ctx.fill();
+      // Wing accents
+      ctx.strokeStyle='#FF6666';ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(p1.x-5,py-1);ctx.lineTo(p1.x-PW/2+4,py+7);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(p1.x+5,py-1);ctx.lineTo(p1.x+PW/2-4,py+7);ctx.stroke();
       // Cockpit
       ctx.fillStyle = '#FF8A80';
-      ctx.beginPath(); ctx.arc(p1.x, p1y - 4, 4, 0, Math.PI*2); ctx.fill();
-      // Engines
-      if (autoFireP1) {
-        ctx.fillStyle = `rgba(255,200,50,${0.5+Math.random()*0.5})`;
-        ctx.beginPath(); ctx.moveTo(p1.x-5, p1y+10); ctx.lineTo(p1.x, p1y+16+Math.random()*4); ctx.lineTo(p1.x+5, p1y+10); ctx.fill();
-      }
+      ctx.beginPath(); ctx.arc(p1.x,py-4,5,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.beginPath(); ctx.arc(p1.x-1.5,py-5.5,1.8,0,Math.PI*2); ctx.fill();
     }
 
     if (p2.alive) {
-      ctx.fillStyle = '#4488FF';
-      // P2 ship (triangle pointing down, below control zone)
-      const p2y = P2_SHIP_Y;
+      const py = P2_SHIP_Y;
+      // Engine glow (always visible, brighter when firing)
+      const eA2 = autoFireP2 ? 0.7+Math.random()*0.3 : 0.2;
+      const eL2 = autoFireP2 ? 18+Math.random()*6 : 8;
+      ctx.fillStyle = `rgba(255,180,50,${eA2})`;
+      ctx.beginPath(); ctx.moveTo(p2.x-7,py-12); ctx.lineTo(p2.x,py-12-eL2); ctx.lineTo(p2.x+7,py-12); ctx.fill();
+      if(autoFireP2){ctx.fillStyle=`rgba(255,255,200,${0.3+Math.random()*0.3})`;ctx.beginPath();ctx.moveTo(p2.x-3,py-12);ctx.lineTo(p2.x,py-12-eL2*0.6);ctx.lineTo(p2.x+3,py-12);ctx.fill();}
+      // Hull shadow
+      ctx.fillStyle = '#1A3D8B';
       ctx.beginPath();
-      ctx.moveTo(p2.x, p2y + 10);
-      ctx.lineTo(p2.x - PW/2, p2y + 10 - PH);
-      ctx.lineTo(p2.x - PW/4, p2y + 10 - PH + 4);
-      ctx.lineTo(p2.x + PW/4, p2y + 10 - PH + 4);
-      ctx.lineTo(p2.x + PW/2, p2y + 10 - PH);
+      ctx.moveTo(p2.x,py+16); ctx.lineTo(p2.x-PW/2,py-10); ctx.lineTo(p2.x-PW/4,py-6);
+      ctx.lineTo(p2.x-3,py-13); ctx.lineTo(p2.x+3,py-13);
+      ctx.lineTo(p2.x+PW/4,py-6); ctx.lineTo(p2.x+PW/2,py-10);
       ctx.closePath(); ctx.fill();
+      // Hull main
+      ctx.fillStyle = '#4488FF';
+      ctx.beginPath();
+      ctx.moveTo(p2.x,py+14); ctx.lineTo(p2.x-PW/2+2,py-8); ctx.lineTo(p2.x-PW/4,py-5);
+      ctx.lineTo(p2.x-3,py-11); ctx.lineTo(p2.x+3,py-11);
+      ctx.lineTo(p2.x+PW/4,py-5); ctx.lineTo(p2.x+PW/2-2,py-8);
+      ctx.closePath(); ctx.fill();
+      // Wing accents
+      ctx.strokeStyle='#6699FF';ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(p2.x-5,py+1);ctx.lineTo(p2.x-PW/2+4,py-7);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(p2.x+5,py+1);ctx.lineTo(p2.x+PW/2-4,py-7);ctx.stroke();
+      // Cockpit
       ctx.fillStyle = '#82B1FF';
-      ctx.beginPath(); ctx.arc(p2.x, p2y + 4, 4, 0, Math.PI*2); ctx.fill();
-      if (autoFireP2) {
-        ctx.fillStyle = `rgba(255,200,50,${0.5+Math.random()*0.5})`;
-        ctx.beginPath(); ctx.moveTo(p2.x-5, p2y-10); ctx.lineTo(p2.x, p2y-16-Math.random()*4); ctx.lineTo(p2.x+5, p2y-10); ctx.fill();
-      }
+      ctx.beginPath(); ctx.arc(p2.x,py+4,5,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.beginPath(); ctx.arc(p2.x-1.5,py+5.5,1.8,0,Math.PI*2); ctx.fill();
     }
 
     // Bullets
@@ -1442,6 +1496,10 @@ function initStarClash(area, setStatus) {
       ctx.fillStyle = b.color;
       if (b.owner === 2) {
         ctx.fillRect(b.x - 1.5, b.y - 4, 3, 8);
+      } else if (b.powered) {
+        ctx.fillRect(b.x - 3, b.y - 6, 6, 12);
+        ctx.fillStyle = 'rgba(255,215,0,0.3)';
+        ctx.fillRect(b.x - 5, b.y - 7, 10, 14);
       } else {
         ctx.fillRect(b.x - 1.5, b.y - 5, 3, 10);
       }
@@ -1462,18 +1520,18 @@ function initStarClash(area, setStatus) {
     }
 
     // Control zone strips
-    ctx.fillStyle = 'rgba(255,68,68,0.12)';
+    ctx.fillStyle = 'rgba(255,68,68,0.20)';
     ctx.fillRect(0, h - CTRL_H, w, CTRL_H);
-    ctx.fillStyle = 'rgba(68,136,255,0.12)';
+    ctx.fillStyle = 'rgba(68,136,255,0.20)';
     ctx.fillRect(0, 0, w, CTRL_H);
     // Control zone labels
-    ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.font = '9px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(255,255,255,0.28)'; ctx.font = '9px sans-serif'; ctx.textAlign = 'center';
     ctx.fillText('P1 — slide here', w/2, h - CTRL_H/2 + 3);
     ctx.fillText('P2 — slide here', w/2, CTRL_H/2 + 3);
     // Control zone borders
-    ctx.strokeStyle = 'rgba(255,68,68,0.2)'; ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(255,68,68,0.35)'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(0, h - CTRL_H); ctx.lineTo(w, h - CTRL_H); ctx.stroke();
-    ctx.strokeStyle = 'rgba(68,136,255,0.2)';
+    ctx.strokeStyle = 'rgba(68,136,255,0.35)';
     ctx.beginPath(); ctx.moveTo(0, CTRL_H); ctx.lineTo(w, CTRL_H); ctx.stroke();
 
     // HP indicators
@@ -1506,7 +1564,7 @@ function initStarClash(area, setStatus) {
 function initTennis(area, setStatus) {
   const {canvas, ctx, w, h} = createCanvas(area);
   const BASE_PW = w * 0.16, PH = h * 0.018, BR = Math.min(w,h) * 0.018;
-  let p1y = h - 50, p2y = 50, p1x = w/2, p2x = w/2;
+  let p1y = h - 75, p2y = 75, p1x = w/2, p2x = w/2;
   let bx = w/2, by = h/2, bvx = 0, bvy = 0;
   let s1 = 0, s2 = 0, serving = true;
   let frameCount = 0, lastHitter = 0; // 1=P1, 2=P2
@@ -1677,15 +1735,15 @@ function initTennis(area, setStatus) {
 
     // Slide-here control zones
     const CTRL_H = 60;
-    ctx.fillStyle = 'rgba(239,83,80,0.10)';
+    ctx.fillStyle = 'rgba(239,83,80,0.18)';
     ctx.fillRect(0, h - CTRL_H, w, CTRL_H);
-    ctx.fillStyle = 'rgba(66,165,245,0.10)';
+    ctx.fillStyle = 'rgba(66,165,245,0.18)';
     ctx.fillRect(0, 0, w, CTRL_H);
-    ctx.strokeStyle = 'rgba(239,83,80,0.18)'; ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(239,83,80,0.35)'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(0, h - CTRL_H); ctx.lineTo(w, h - CTRL_H); ctx.stroke();
-    ctx.strokeStyle = 'rgba(66,165,245,0.18)';
+    ctx.strokeStyle = 'rgba(66,165,245,0.35)';
     ctx.beginPath(); ctx.moveTo(0, CTRL_H); ctx.lineTo(w, CTRL_H); ctx.stroke();
-    ctx.fillStyle = 'rgba(255,255,255,0.13)'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(255,255,255,0.25)'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center';
     ctx.fillText('slide here', w/2, h - CTRL_H/2 + 5);
     ctx.fillText('slide here', w/2, CTRL_H/2 + 5);
 
