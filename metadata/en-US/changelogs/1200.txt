@@ -1,0 +1,11 @@
+v1.11 — Visual & audio overhaul
+
+- Word Clash: fixed duplicate words in crossword grid
+- Word Clash: fixed shuffle button (now works on touch)
+- Word Clash: brighter, more vibrant cell and wheel colors
+- Word Clash: removed invalid word "NEUR" from French dictionary
+- Caro (Gomoku): rich warm wood board with darker grid lines
+- Memory: cards auto-size to fill portrait screen (4-col layout)
+- All games: bold pulsing P1/P2 turn indicator in header
+- Richer multi-layered sound effects with reverb
+- New ambient background music with chord pads, walking bass, and hi-hat groove

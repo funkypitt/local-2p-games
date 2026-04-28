@@ -36,16 +36,23 @@ function showOverlay(area, msg, btnText, cb) {
 
 // === GLOBAL AUDIO ENGINE ===
 const SND = {
-  _ctx: null, _musicGain: null, _sfxGain: null,
+  _ctx: null, _musicGain: null, _sfxGain: null, _convolver: null,
   _musicOn: localStorage.getItem('2pg-music') !== 'off',
   _playing: false, _nextTime: 0, _timer: null, _bar: 0,
   init() {
     if (this._ctx) return;
     this._ctx = new (window.AudioContext || window.webkitAudioContext)();
-    this._musicGain = this._ctx.createGain(); this._musicGain.gain.value = 0.1;
+    this._musicGain = this._ctx.createGain(); this._musicGain.gain.value = 0.12;
     this._musicGain.connect(this._ctx.destination);
-    this._sfxGain = this._ctx.createGain(); this._sfxGain.gain.value = 0.3;
+    this._sfxGain = this._ctx.createGain(); this._sfxGain.gain.value = 0.35;
     this._sfxGain.connect(this._ctx.destination);
+    // Simple reverb impulse for SFX richness
+    const sr = this._ctx.sampleRate, len = sr * 0.6;
+    const buf = this._ctx.createBuffer(2, len, sr);
+    for (let ch = 0; ch < 2; ch++) { const d = buf.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.2) * 0.3; }
+    this._convolver = this._ctx.createConvolver(); this._convolver.buffer = buf;
+    this._reverbGain = this._ctx.createGain(); this._reverbGain.gain.value = 0.15;
+    this._convolver.connect(this._reverbGain); this._reverbGain.connect(this._ctx.destination);
   },
   hz(m) { return 440 * Math.pow(2, (m - 69) / 12); },
   _tone(freq, dur, type, vol, t, dest) {
@@ -54,38 +61,72 @@ const SND = {
     g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
     o.connect(g); g.connect(dest); o.start(t); o.stop(t + dur + 0.01);
   },
-  // Calming pentatonic melodies (MIDI: C=60 D=62 E=64 G=67 A=69)
+  _pad(notes, dur, vol, t) {
+    notes.forEach(m => {
+      const f = this.hz(m);
+      ['sine','triangle'].forEach((type, ti) => {
+        const o = this._ctx.createOscillator(), g = this._ctx.createGain();
+        o.type = type; o.frequency.value = f * (ti === 1 ? 1.002 : 1); // slight detune for warmth
+        g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol * (ti === 0 ? 1 : 0.4), t + dur * 0.3);
+        g.gain.setValueAtTime(vol * (ti === 0 ? 0.7 : 0.3), t + dur * 0.7); g.gain.linearRampToValueAtTime(0, t + dur);
+        o.connect(g); g.connect(this._musicGain); o.start(t); o.stop(t + dur + 0.05);
+      });
+    });
+  },
+  _hat(vol, t) {
+    const a = this._ctx, b = a.createBuffer(1, a.sampleRate * 0.04, a.sampleRate), d = b.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 6);
+    const s = a.createBufferSource(); s.buffer = b;
+    const f = a.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 7000;
+    const g = a.createGain(); g.gain.value = vol;
+    s.connect(f); f.connect(g); g.connect(this._musicGain); s.start(t);
+  },
+  // Chord progressions: Am - F - C - G (i-VI-III-VII in A minor)
+  _chords: [[57,60,64],[53,57,60],[48,52,55],[55,59,62], [57,60,64],[53,57,60],[48,52,55],[55,59,62]],
+  // Melodies in A minor pentatonic (A=69 C=72 D=74 E=76 G=79) — more expressive
   _mel: [
-    [64,0,67,0,69,0,67,0, 64,0,62,0,60,0,62,0],
-    [60,0,62,0,64,0,67,0, 69,0,67,0,64,0,62,0],
-    [69,0,72,0,69,0,67,0, 64,0,62,0,60,0,64,0],
-    [67,0,64,0,62,0,60,0, 62,0,64,0,67,0,69,0],
-    [60,0,64,0,67,0,72,0, 69,0,67,0,64,0,60,0],
-    [64,0,69,0,67,0,64,0, 62,0,60,0,62,0,64,0],
-    [72,0,69,0,67,0,69,0, 72,0,74,0,72,0,69,0],
-    [67,0,64,0,62,0,64,0, 67,0,69,0,67,0,64,0],
+    [69,0,72,0,74,0,76,0, 79,0,76,0,74,0,72,0],
+    [76,0,74,0,72,0,69,0, 72,0,74,0,76,0,79,0],
+    [79,0,81,0,79,0,76,0, 74,0,72,0,69,0,72,0],
+    [74,0,0,0,76,0,74,0, 72,0,69,0,67,0,69,0],
+    [69,0,72,0,76,0,79,0, 81,0,79,0,76,0,74,0],
+    [72,0,74,0,76,0,0,0, 74,0,72,0,69,0,67,0],
+    [79,0,76,0,79,0,81,0, 79,0,76,0,74,0,72,0],
+    [69,0,0,0,72,0,74,0, 76,0,79,0,76,0,74,0],
   ],
+  // Walking bass
   _bas: [
-    [48,0,0,0,0,0,0,0, 55,0,0,0,0,0,0,0],
-    [57,0,0,0,0,0,0,0, 48,0,0,0,0,0,0,0],
-    [52,0,0,0,0,0,0,0, 55,0,0,0,0,0,0,0],
-    [48,0,0,0,0,0,0,0, 50,0,0,0,0,0,0,0],
+    [45,0,0,0,48,0,0,0, 45,0,0,0,43,0,0,0],
+    [41,0,0,0,43,0,0,0, 45,0,0,0,48,0,0,0],
+    [36,0,0,0,40,0,0,0, 43,0,0,0,40,0,0,0],
+    [43,0,0,0,47,0,0,0, 50,0,0,0,47,0,0,0],
   ],
-  _arp: [60,64,67,72,69,64,60,55, 57,60,64,69,67,64,60,57],
   _scheduleBar() {
     if (!this._playing) return;
-    const step = 60 / 78 / 2; // 78 BPM, 8th notes
+    const bpm = 82, step = 60 / bpm / 2; // 82 BPM, 8th notes
     const m = this._mel[this._bar % 8], b = this._bas[this._bar % 4];
+    const barDur = 16 * step;
+    // Chord pad — sustained underneath
+    this._pad(this._chords[this._bar % 8], barDur, 0.025, this._nextTime);
     for (let i = 0; i < 16; i++) {
       const t = this._nextTime + i * step;
-      if (m[i]) this._tone(this.hz(m[i]), step * 1.8, 'triangle', 0.06, t, this._musicGain);
-      if (b[i]) this._tone(this.hz(b[i]), step * 4, 'triangle', 0.04, t, this._musicGain);
-      if (i % 2 === 0) this._tone(this.hz(this._arp[(this._bar * 8 + i / 2) % 16] + 12), step * 0.3, 'square', 0.008, t, this._musicGain);
+      // Melody: warm sine + triangle layer
+      if (m[i]) {
+        this._tone(this.hz(m[i]), step * 2.2, 'sine', 0.045, t, this._musicGain);
+        this._tone(this.hz(m[i]) * 1.001, step * 1.8, 'triangle', 0.02, t, this._musicGain);
+      }
+      // Bass: triangle with sub
+      if (b[i]) {
+        this._tone(this.hz(b[i]), step * 3.5, 'triangle', 0.04, t, this._musicGain);
+        this._tone(this.hz(b[i] - 12), step * 2, 'sine', 0.02, t, this._musicGain);
+      }
+      // Hi-hat rhythm: soft on offbeats for groove
+      if (i % 4 === 2) this._hat(0.012, t);
+      if (i % 4 === 0 && i > 0) this._hat(0.006, t);
     }
     this._bar++;
-    const barDur = 16 * step;
     this._nextTime += barDur;
-    this._timer = setTimeout(() => this._scheduleBar(), (barDur - 0.15) * 1000);
+    this._timer = setTimeout(() => this._scheduleBar(), (barDur - 0.2) * 1000);
   },
   musicStart() {
     if (!this._musicOn || this._playing) return;
@@ -102,23 +143,24 @@ const SND = {
     if (this._musicOn) this.musicStart(); else this.musicStop();
     return this._musicOn;
   },
-  // --- SFX Library ---
-  pong() { try { this.init(); const t=this._ctx.currentTime; this._tone(660,0.06,'square',0.18,t,this._sfxGain); } catch(e){} },
-  pop() { try { this.init(); const a=this._ctx,t=a.currentTime,o=a.createOscillator(),g=a.createGain(); o.type='sine'; o.frequency.setValueAtTime(400,t); o.frequency.exponentialRampToValueAtTime(200,t+0.08); g.gain.setValueAtTime(0.18,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.08); o.connect(g); g.connect(this._sfxGain); o.start(t); o.stop(t+0.08); } catch(e){} },
-  score() { try { this.init(); const t=this._ctx.currentTime; [523,659,784].forEach((f,i)=>this._tone(f,0.12,'square',0.12,t+i*0.1,this._sfxGain)); } catch(e){} },
-  drop() { try { this.init(); const a=this._ctx,t=a.currentTime,o=a.createOscillator(),g=a.createGain(); o.type='triangle'; o.frequency.setValueAtTime(300,t); o.frequency.exponentialRampToValueAtTime(100,t+0.15); g.gain.setValueAtTime(0.18,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.15); o.connect(g); g.connect(this._sfxGain); o.start(t); o.stop(t+0.15); } catch(e){} },
-  click() { try { this.init(); this._tone(1000,0.03,'square',0.12,this._ctx.currentTime,this._sfxGain); } catch(e){} },
-  buzz() { try { this.init(); const a=this._ctx,t=a.currentTime,o=a.createOscillator(),g=a.createGain(); o.type='sawtooth'; o.frequency.value=120; g.gain.setValueAtTime(0.12,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.25); o.connect(g); g.connect(this._sfxGain); o.start(t); o.stop(t+0.25); } catch(e){} },
-  win() { try { this.init(); const t=this._ctx.currentTime; [523,659,784,1047].forEach((f,i)=>this._tone(f,0.18,'square',0.1,t+i*0.12,this._sfxGain)); } catch(e){} },
-  boom() { try { this.init(); const a=this._ctx,t=a.currentTime,b=a.createBuffer(1,a.sampleRate*0.5,a.sampleRate),d=b.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,2.5); const s=a.createBufferSource(); s.buffer=b; const g=a.createGain(); g.gain.value=0.35; s.connect(g); g.connect(this._sfxGain); s.start(); } catch(e){} },
-  shoot() { try { this.init(); const a=this._ctx,t=a.currentTime,o=a.createOscillator(),g=a.createGain(); o.type='square'; o.frequency.setValueAtTime(800,t); o.frequency.exponentialRampToValueAtTime(150,t+0.1); g.gain.setValueAtTime(0.1,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.1); o.connect(g); g.connect(this._sfxGain); o.start(t); o.stop(t+0.1); } catch(e){} },
-  clack() { try { this.init(); const t=this._ctx.currentTime; this._tone(800,0.04,'triangle',0.22,t,this._sfxGain); this._tone(1200,0.02,'square',0.08,t+0.01,this._sfxGain); } catch(e){} },
-  chime() { try { this.init(); const t=this._ctx.currentTime; [784,1047].forEach((f,i)=>this._tone(f,0.15,'sine',0.12,t+i*0.08,this._sfxGain)); } catch(e){} },
-  splash() { try { this.init(); const a=this._ctx,t=a.currentTime,b=a.createBuffer(1,a.sampleRate*0.2,a.sampleRate),d=b.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,1)*0.25; const s=a.createBufferSource(),f=a.createBiquadFilter(); f.type='bandpass'; f.frequency.value=2000; f.Q.value=0.5; s.buffer=b; const g=a.createGain(); g.gain.value=0.25; s.connect(f); f.connect(g); g.connect(this._sfxGain); s.start(); } catch(e){} },
-  alienDie() { try { this.init(); const a=this._ctx,t=a.currentTime,o=a.createOscillator(),g=a.createGain(); o.type='sawtooth'; o.frequency.setValueAtTime(500,t); o.frequency.exponentialRampToValueAtTime(60,t+0.25); g.gain.setValueAtTime(0.12,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.25); o.connect(g); g.connect(this._sfxGain); o.start(t); o.stop(t+0.25); } catch(e){} },
-  tick() { try { this.init(); this._tone(900,0.04,'square',0.08,this._ctx.currentTime,this._sfxGain); } catch(e){} },
-  spinTick() { try { this.init(); this._tone(500+Math.random()*500,0.03,'triangle',0.08,this._ctx.currentTime,this._sfxGain); } catch(e){} },
-  gallop() { try { this.init(); const t=this._ctx.currentTime; this._tone(200,0.04,'triangle',0.15,t,this._sfxGain); this._tone(250,0.04,'triangle',0.12,t+0.06,this._sfxGain); } catch(e){} },
+  // --- SFX Library (richer multi-layered sounds) ---
+  _sfx(fn) { try { this.init(); if (this._ctx.state === 'suspended') this._ctx.resume(); fn.call(this); } catch(e){} },
+  pong() { this._sfx(function() { const t=this._ctx.currentTime; this._tone(660,0.06,'square',0.15,t,this._sfxGain); this._tone(990,0.04,'sine',0.05,t,this._sfxGain); }); },
+  pop() { this._sfx(function() { const a=this._ctx,t=a.currentTime; const o=a.createOscillator(),g=a.createGain(); o.type='sine'; o.frequency.setValueAtTime(600,t); o.frequency.exponentialRampToValueAtTime(150,t+0.12); g.gain.setValueAtTime(0.2,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.12); o.connect(g); g.connect(this._sfxGain); o.start(t); o.stop(t+0.13); this._tone(900,0.05,'triangle',0.06,t,this._sfxGain); }); },
+  score() { this._sfx(function() { const t=this._ctx.currentTime; [523,659,784,1047].forEach((f,i) => { this._tone(f,0.15,'sine',0.1,t+i*0.08,this._sfxGain); this._tone(f*1.5,0.1,'triangle',0.03,t+i*0.08,this._sfxGain); }); }); },
+  drop() { this._sfx(function() { const a=this._ctx,t=a.currentTime; this._tone(200,0.12,'triangle',0.2,t,this._sfxGain); this._tone(120,0.18,'sine',0.1,t+0.02,this._sfxGain); const b=a.createBuffer(1,a.sampleRate*0.04,a.sampleRate),d=b.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,4)*0.3; const s=a.createBufferSource(); s.buffer=b; const g=a.createGain(); g.gain.value=0.12; s.connect(g); g.connect(this._sfxGain); s.start(t); }); },
+  click() { this._sfx(function() { const t=this._ctx.currentTime; this._tone(1200,0.025,'square',0.08,t,this._sfxGain); this._tone(800,0.03,'triangle',0.1,t,this._sfxGain); }); },
+  buzz() { this._sfx(function() { const a=this._ctx,t=a.currentTime; [120,180].forEach(f => { const o=a.createOscillator(),g=a.createGain(); o.type='sawtooth'; o.frequency.value=f; g.gain.setValueAtTime(0.08,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.3); o.connect(g); g.connect(this._sfxGain); o.start(t); o.stop(t+0.3); }); this._tone(90,0.25,'square',0.05,t,this._sfxGain); }); },
+  win() { this._sfx(function() { const t=this._ctx.currentTime; const notes = [523,659,784,1047,1319]; notes.forEach((f,i) => { this._tone(f,0.35,'sine',0.1,t+i*0.1,this._sfxGain); this._tone(f*2,0.25,'triangle',0.03,t+i*0.1,this._sfxGain); this._tone(f*0.5,0.4,'triangle',0.04,t+i*0.1,this._sfxGain); }); [523,784,1047].forEach(f => this._tone(f,0.8,'sine',0.04,t+0.5,this._convolver)); }); },
+  boom() { this._sfx(function() { const a=this._ctx,t=a.currentTime; const b=a.createBuffer(1,a.sampleRate*0.6,a.sampleRate),d=b.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,2)*0.5; const s=a.createBufferSource(); s.buffer=b; const f=a.createBiquadFilter(); f.type='lowpass'; f.frequency.setValueAtTime(800,t); f.frequency.exponentialRampToValueAtTime(60,t+0.5); const g=a.createGain(); g.gain.setValueAtTime(0.4,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.6); s.connect(f); f.connect(g); g.connect(this._sfxGain); s.start(t); this._tone(40,0.4,'sine',0.2,t,this._sfxGain); this._tone(60,0.3,'triangle',0.1,t,this._sfxGain); }); },
+  shoot() { this._sfx(function() { const a=this._ctx,t=a.currentTime; const o=a.createOscillator(),g=a.createGain(); o.type='square'; o.frequency.setValueAtTime(900,t); o.frequency.exponentialRampToValueAtTime(100,t+0.12); g.gain.setValueAtTime(0.1,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.12); o.connect(g); g.connect(this._sfxGain); o.start(t); o.stop(t+0.12); const b=a.createBuffer(1,a.sampleRate*0.06,a.sampleRate),d=b.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,3)*0.15; const s=a.createBufferSource(); s.buffer=b; s.connect(this._sfxGain); s.start(t); }); },
+  clack() { this._sfx(function() { const t=this._ctx.currentTime; this._tone(900,0.04,'triangle',0.22,t,this._sfxGain); this._tone(1400,0.025,'sine',0.1,t+0.008,this._sfxGain); this._tone(600,0.03,'square',0.05,t+0.015,this._sfxGain); }); },
+  chime() { this._sfx(function() { const t=this._ctx.currentTime; [784,1047,1319].forEach((f,i) => { this._tone(f,0.25,'sine',0.1,t+i*0.06,this._sfxGain); this._tone(f*2.01,0.18,'sine',0.03,t+i*0.06,this._sfxGain); }); this._tone(784,0.4,'sine',0.04,t,this._convolver); }); },
+  splash() { this._sfx(function() { const a=this._ctx,t=a.currentTime; const b=a.createBuffer(2,a.sampleRate*0.25,a.sampleRate); for(let ch=0;ch<2;ch++) { const d=b.getChannelData(ch); for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,1.3)*0.3; } const s=a.createBufferSource(); s.buffer=b; const f=a.createBiquadFilter(); f.type='bandpass'; f.frequency.value=2500; f.Q.value=0.4; const g=a.createGain(); g.gain.value=0.28; s.connect(f); f.connect(g); g.connect(this._sfxGain); s.start(t); this._tone(200,0.08,'sine',0.06,t,this._sfxGain); }); },
+  alienDie() { this._sfx(function() { const a=this._ctx,t=a.currentTime; const o=a.createOscillator(),g=a.createGain(); o.type='sawtooth'; o.frequency.setValueAtTime(600,t); o.frequency.exponentialRampToValueAtTime(40,t+0.3); g.gain.setValueAtTime(0.12,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.3); o.connect(g); g.connect(this._sfxGain); o.start(t); o.stop(t+0.3); this._tone(300,0.15,'square',0.05,t+0.05,this._sfxGain); }); },
+  tick() { this._sfx(function() { const t=this._ctx.currentTime; this._tone(1100,0.03,'square',0.06,t,this._sfxGain); this._tone(2200,0.015,'sine',0.03,t,this._sfxGain); }); },
+  spinTick() { this._sfx(function() { const f=600+Math.random()*600; const t=this._ctx.currentTime; this._tone(f,0.04,'triangle',0.08,t,this._sfxGain); this._tone(f*1.5,0.02,'sine',0.03,t,this._sfxGain); }); },
+  gallop() { this._sfx(function() { const t=this._ctx.currentTime; this._tone(180,0.05,'triangle',0.15,t,this._sfxGain); this._tone(240,0.05,'triangle',0.12,t+0.05,this._sfxGain); this._tone(300,0.03,'sine',0.04,t+0.03,this._sfxGain); }); },
 };
 
 // === ONLINE MULTIPLAYER MODULE ===
@@ -437,16 +479,34 @@ function startGame(g) {
     ov.innerHTML = '<div style="font-size:1.3em;font-weight:bold;margin-bottom:8px">Play Mode</div>' +
       '<button class="btn" id="pm-local" style="padding:14px 36px;font-size:1.1em">Local</button>' +
       '<button class="btn" id="pm-online" style="padding:14px 36px;font-size:1.1em;background:#1565C0">Online</button>';
-    ov.querySelector('#pm-local').onclick = () => { ov.remove(); currentDestroy = g.init(area, s => status.textContent = s); };
+    function setStatusFn(s) {
+      let h = s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+      h = h.replace(/(P[12])'s turn/g, '<span class="turn-active" style="color:#FFD54F">$1\'s turn</span>');
+      h = h.replace(/Your [Tt]urn/g, '<span class="turn-active" style="color:#69F0AE">Your turn</span>');
+      h = h.replace(/(Opponent's [Tt]urn|Waiting)/g, '<span class="turn-idle">$1</span>');
+      h = h.replace(/(Black's Turn)/g, '<span class="turn-active" style="color:#ccc">$1</span>');
+      h = h.replace(/(White's Turn)/g, '<span class="turn-active" style="color:#fff">$1</span>');
+      status.innerHTML = h;
+    }
+    ov.querySelector('#pm-local').onclick = () => { ov.remove(); currentDestroy = g.init(area, setStatusFn); };
     ov.querySelector('#pm-online').onclick = () => {
       ov.remove();
       ONLINE.showLobby(area, g.id, online => {
-        currentDestroy = g.init(area, s => status.textContent = s, online);
+        currentDestroy = g.init(area, setStatusFn, online);
       }, () => endGame());
     };
     area.appendChild(ov);
   } else {
-    currentDestroy = g.init(area, s => status.textContent = s);
+    function setStatusFn(s) {
+      let h = s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+      h = h.replace(/(P[12])'s turn/g, '<span class="turn-active" style="color:#FFD54F">$1\'s turn</span>');
+      h = h.replace(/Your [Tt]urn/g, '<span class="turn-active" style="color:#69F0AE">Your turn</span>');
+      h = h.replace(/(Opponent's [Tt]urn|Waiting)/g, '<span class="turn-idle">$1</span>');
+      h = h.replace(/(Black's Turn)/g, '<span class="turn-active" style="color:#ccc">$1</span>');
+      h = h.replace(/(White's Turn)/g, '<span class="turn-active" style="color:#fff">$1</span>');
+      status.innerHTML = h;
+    }
+    currentDestroy = g.init(area, setStatusFn);
   }
 }
 
@@ -696,7 +756,7 @@ function initFourInARow(area, setStatus, online) {
 
 // ==================== MEMORY ====================
 function initMemory(area, setStatus, online) {
-  const PAIRS = 16, TOTAL = 32, COLS = 8;
+  const PAIRS = 16, TOTAL = 32;
   const symbols = ['🍎','🍊','🍋','🍇','🍉','🍓','🫐','🥝','🍌','🥭','🍑','🍒','🍍','🥥','🍆','🫑'];
   let cards = [...symbols, ...symbols];
   const rngFn = online ? online.rng : Math.random;
@@ -707,14 +767,30 @@ function initMemory(area, setStatus, online) {
   const wrap = document.createElement('div');
   wrap.className = 'board-game';
   area.appendChild(wrap);
-  const sz = Math.min(area.getBoundingClientRect().width * 0.97, area.getBoundingClientRect().height * 0.82);
+  const areaRect = area.getBoundingClientRect();
+  const availW = areaRect.width * 0.96, availH = areaRect.height * 0.88;
+  const gap = 6;
+  // Pick column count that maximizes card size
+  let bestCols = 8, bestSize = 0;
+  for (const tryC of [4, 5, 6, 8]) {
+    const tryR = Math.ceil(TOTAL / tryC);
+    const cw = (availW - gap * (tryC + 1)) / tryC;
+    const ch = (availH - gap * (tryR + 1)) / tryR;
+    const s = Math.min(cw, ch);
+    if (s > bestSize) { bestSize = s; bestCols = tryC; }
+  }
+  const COLS = bestCols;
+  const rows = Math.ceil(TOTAL / COLS);
+  const cardSz = Math.floor(bestSize);
+  const gridW = COLS * cardSz + (COLS + 1) * gap;
   const grid = document.createElement('div');
-  grid.style.cssText = `display:grid;grid-template-columns:repeat(${COLS},1fr);gap:5px;width:${sz}px;padding:6px`;
+  grid.style.cssText = `display:grid;grid-template-columns:repeat(${COLS},${cardSz}px);gap:${gap}px;padding:${gap}px;justify-content:center`;
   wrap.appendChild(grid);
+  const emojiSz = Math.max(1.2, cardSz / 38);
   const cardEls = [];
   for (let i = 0; i < TOTAL; i++) {
     const el = document.createElement('div');
-    el.style.cssText = 'aspect-ratio:1;background:#2a2a4a;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.5em;cursor:pointer;transition:background .2s';
+    el.style.cssText = 'width:' + cardSz + 'px;height:' + cardSz + 'px;background:#2a2a4a;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:' + emojiSz + 'em;cursor:pointer;transition:background .2s;box-shadow:0 2px 6px rgba(0,0,0,0.3)';
     el.onclick = () => {
       if (online && turn !== online.playerId + 1) return;
       execFlip(i);
@@ -1814,8 +1890,8 @@ const WORD_DATA = {
     {anchor:'CRAINTE',words:['CRAINTE','CARIENT','CENTRAI','CERNAIT','CERTAIN','CRIANTE','ENCRAIT','ACTINE','AIRENT','CANTER','CANTRE','CARNET','CENTRA','CERNAI','CINTRA','CINTRE','CIRANT','CIRENT','CITERA','CRAINT','CRANTE','CRIANT','CRIENT','ENCART','ENCIRA','ENCRAI','ENTRAI','NATICE','NECTAR','RACINE','RAIENT','RANCIE','RANCIT','RATINE','RENTAI','RIANTE','RICANE','TANCER','TANREC','ACIER','ACTER','AIENT','ANCRE','ANTRE','ARIEN','CAIRN','CANER','CARET','CARIE','CARNE','CARTE','CATIE','CATIN','CATIR','CEINT','CERNA','CITER','CRAIE','CRANE','ENCRA','ENTAI','ENTRA','INTER','NACRE','NIERA','NITRA','NITRE','RAINE','RAITE','RANCE','RANCI','RECTA','RENIA','RENTA','RIANT','RIENT','RINCE','TAIRE','TANCE','TARIE','TARIN','TENIR','TERNI','TIARE','TRACE','TRAIE','TRAIN','ACRE','ACTE','AINE','AIRE','ANTE','AREC','CANE','CARI','CART','CATI','CENT','CIRA','CIRE','CITA','CITE','CRAN','CRIA','CRIE','CRIN','ENTA','INCA','INTE','NIER','RACE','RAIE','RAIT','RANI','RATE','REIN','RIEN','RITE','TAIE','TAIN','TARE','TARI','TIAN','TIEN','TIRA','TIRE','TRAC','TRAN','TRIA','TRIC','TRIE','TRIN','ACE','AIE','AIR','AIT','ANI','ANT','ARC','ARE','ART','CAR','CET','CRI','ENC','INC','INT','IRA','IRE','NET','NIA','NIE','RAI','RAT','RIA','RIE','RIT','TAC','TAN','TER','TIC','TIN','TIR','TRI']},
     {anchor:'SARDINE',words:['SARDINE','DRAINES','RADINES','RENDAIS','ANISER','ARIDES','ARSINE','DAINES','DANSER','DARNES','DINARS','DRAIES','DRAINE','DRAINS','ISERAN','NIERAS','RADIES','RADINE','RADINS','RAIDES','RAINES','RENAIS','RENDIS','RENIAS','SANDRE','SERINA','AIDER','AIDES','AINES','AIRES','ANISE','ARIDE','ARIEN','ARISE','ARSIN','DAINE','DANSE','DARNE','DARSE','DIANE','DINAR','DIRAS','DIRES','DRAIE','DRAIN','INDES','ISARD','NADIR','NARDS','NIERA','RADES','RADIE','RADIN','RADIS','RAIDE','RAIDS','RAIES','RAINE','REDAN','REDIS','REINS','RENDS','RENIA','RIDAS','RIDES','RIENS','SAINE','SANIE','SARDE','SERAI','SERIN','AIDE','AIES','AINE','AIRE','AIRS','AISE','ANIS','ANSE','ARES','DAIS','DANS','DIRA','DIRE','DISE','IDES','INDE','IRAS','IRES','NAIS','NARD','NASE','NIAS','NIDS','NIER','NIES','RADE','RADI','RAID','RAIE','RAIS','RANI','RASE','REIN','REIS','REND','RIAS','RIDA','RIDE','RIEN','RIES','SAIE','SAIN','SARI','SEIN','SERA','SIED','SIEN','SIRE','AIE','AIR','AIS','AND','ANI','ANS','ARE','ARS','DAN','DER','DES','DIA','DIS','END','ERS','IDE','INS','IRA','IRE','NIA','NID','NIE','RAD','RAI','RAS','RIA','RIE','RIS','SAD','SEN','SIR']},
     {anchor:'PATINER',words:['PATINER','PARIENT','PINTERA','PRENAIT','PRIANTE','TAPINER','AIRENT','ARPENT','ENTRAI','INAPTE','PAIENT','PANIER','PARENT','PARTIE','PATINE','PATRIE','PINTER','PIRATE','PRIANT','PRIENT','RAIENT','RAPINE','RATINE','RENTAI','RIANTE','RIPANT','RIPENT','TAPINE','AIENT','ANTRE','ARIEN','ENTAI','ENTRA','INTER','NIERA','NITRA','NITRE','PAIRE','PANER','PANTE','PARIE','PARTE','PARTI','PATER','PATIN','PEINA','PEINT','PINTA','PINTE','PITRE','RAINE','RAITE','RAPIN','RENIA','RENTA','RIANT','RIENT','TAIRE','TAPER','TAPIE','TAPIN','TAPIR','TARIE','TARIN','TENIR','TERNI','TIARE','TRAIE','TRAIN','TRIPE','AINE','AIRE','ANTE','APTE','ENTA','INTE','NIER','PAIE','PAIN','PAIR','PANE','PARE','PARI','PART','PIAN','PIRE','PITE','PRIA','PRIE','PRIT','RAIE','RAIT','RANI','RAPT','RATE','REIN','RIEN','RIPA','RIPE','RITE','TAIE','TAIN','TAPE','TAPI','TARE','TARI','TIAN','TIEN','TIRA','TIRE','TRAN','TRAP','TRIA','TRIE','TRIN','TRIP','AIE','AIR','AIT','ANI','ANT','API','ARE','ART','INT','IRA','IRE','NET','NIA','NIE','PAN','PAR','PAT','PET','PIE','PIN','RAI','RAT','RIA','RIE','RIT','TAN','TER','TIN','TIR','TRI']},
-    {anchor:'DANSEUR',words:['DANSEUR','ENDURAS','ARDUES','DANSER','DARNES','ENDURA','NUERAS','RENDUS','RUADES','SANDRE','SAUNER','ARDUE','ARDUS','AUNER','AUNES','DANSE','DARNE','DARSE','DRUES','DUNES','DURAS','DURES','NARDS','NUERA','NURSE','RADES','REDAN','REDUS','RENDS','RENDU','RUADE','RUDES','SARDE','SAUNE','SAURE','SENAU','SUERA','URANE','URNES','USERA','ANSE','ANUS','ARDU','ARES','AUNE','DANS','DRUE','DRUS','DUES','DUNE','DURA','DURE','DURS','NARD','NASE','NEUR','NUAS','NUER','NUES','RADE','RASE','REND','RESU','RUAS','RUDE','RUES','RUSA','RUSE','SAUR','SEAU','SERA','SUER','SURE','UNES','URES','URNE','USER','AND','ANS','ARE','ARS','DAN','DER','DES','DRU','DUE','DUR','DUS','EAU','END','ERS','EUS','NUA','NUE','NUS','RAD','RAS','RUA','RUE','SAD','SEN','SUA','SUD','SUE','SUR','UNE','UNS','URE','USA','USE']},
-    {anchor:'ROUTINE',words:['ROUTINE','ENTOIR','ENTOUR','IOURTE','ORIENT','ROUENT','RUTINE','TOURIE','TOURNE','TURION','INTER','IRONE','IRONT','NITRE','NOIRE','NOTER','NOTRE','NOUER','NUIRE','OIENT','OINTE','ORTIE','OUTER','OUTRE','RIENT','RIOTE','ROTIN','ROUET','ROUIE','ROUIT','ROUTE','RUENT','RUINE','TENIR','TERNI','TONIE','TOUER','TROUE','TRUIE','TUNER','TURNE','URINE','EURO','INTE','ITOU','NEUR','NIER','NOIE','NOIR','NOTE','NOUE','NUER','NUIT','OINT','ORIN','ORNE','REIN','RIEN','RITE','ROTE','ROUE','ROUI','TENU','TIEN','TIRE','TORE','TOUE','TOUR','TRIE','TRIN','TRIO','TROU','TUER','TUNE','UNIE','UNIR','UNIT','URNE','EUT','INT','ION','IRE','NET','NIE','NUE','NUI','OIE','OIT','ONT','OUI','OUT','RIE','RIT','ROI','ROT','RUE','RUT','TER','TIN','TIR','TOI','TON','TRI','TUE','UNE','UNI','URE']}
+    {anchor:'DANSEUR',words:['DANSEUR','ENDURAS','ARDUES','DANSER','DARNES','ENDURA','NUERAS','RENDUS','RUADES','SANDRE','SAUNER','ARDUE','ARDUS','AUNER','AUNES','DANSE','DARNE','DARSE','DRUES','DUNES','DURAS','DURES','NARDS','NUERA','NURSE','RADES','REDAN','REDUS','RENDS','RENDU','RUADE','RUDES','SARDE','SAUNE','SAURE','SENAU','SUERA','URANE','URNES','USERA','ANSE','ANUS','ARDU','ARES','AUNE','DANS','DRUE','DRUS','DUES','DUNE','DURA','DURE','DURS','NARD','NASE','NUAS','NUER','NUES','RADE','RASE','REND','RESU','RUAS','RUDE','RUES','RUSA','RUSE','SAUR','SEAU','SERA','SUER','SURE','UNES','URES','URNE','USER','AND','ANS','ARE','ARS','DAN','DER','DES','DRU','DUE','DUR','DUS','EAU','END','ERS','EUS','NUA','NUE','NUS','RAD','RAS','RUA','RUE','SAD','SEN','SUA','SUD','SUE','SUR','UNE','UNS','URE','USA','USE']},
+    {anchor:'ROUTINE',words:['ROUTINE','ENTOIR','ENTOUR','IOURTE','ORIENT','ROUENT','RUTINE','TOURIE','TOURNE','TURION','INTER','IRONE','IRONT','NITRE','NOIRE','NOTER','NOTRE','NOUER','NUIRE','OIENT','OINTE','ORTIE','OUTER','OUTRE','RIENT','RIOTE','ROTIN','ROUET','ROUIE','ROUIT','ROUTE','RUENT','RUINE','TENIR','TERNI','TONIE','TOUER','TROUE','TRUIE','TUNER','TURNE','URINE','EURO','INTE','ITOU','NIER','NOIE','NOIR','NOTE','NOUE','NUER','NUIT','OINT','ORIN','ORNE','REIN','RIEN','RITE','ROTE','ROUE','ROUI','TENU','TIEN','TIRE','TORE','TOUE','TOUR','TRIE','TRIN','TRIO','TROU','TUER','TUNE','UNIE','UNIR','UNIT','URNE','EUT','INT','ION','IRE','NET','NIE','NUE','NUI','OIE','OIT','ONT','OUI','OUT','RIE','RIT','ROI','ROT','RUE','RUT','TER','TIN','TIR','TOI','TON','TRI','TUE','UNE','UNI','URE']}
   ]
 };
 
@@ -1918,6 +1994,7 @@ function initWordClash(area, setStatus, online) {
     }
 
     function tryPlace(w) {
+      if (placed.some(p => p.word === w)) return false;
       for (let pi = 0; pi < placed.length; pi++) {
         const p = placed[pi];
         for (let pci = 0; pci < p.word.length; pci++) {
@@ -2208,11 +2285,11 @@ function initWordClash(area, setStatus, online) {
         if (!cell) {
           h += '<div></div>';
         } else if (cell.foundBy >= 0) {
-          h += '<div style="background:' + P_BG[cell.foundBy] + ';border:2px solid ' + P_COLORS[cell.foundBy] + ';border-radius:5px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:' + fs + 'px;color:#fff">' + cell.letter + '</div>';
+          h += '<div style="background:' + P_BG[cell.foundBy] + ';border:2px solid ' + P_COLORS[cell.foundBy] + ';border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:' + fs + 'px;color:#fff;box-shadow:0 0 8px ' + P_COLORS[cell.foundBy] + '40">' + cell.letter + '</div>';
         } else if (hinted.has(r + ',' + c)) {
           h += '<div style="background:rgba(128,203,196,0.15);border:2px solid #4DB6AC;border-radius:5px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:' + fs + 'px;color:#80CBC4">' + cell.letter + '</div>';
         } else {
-          h += '<div style="background:#1e1e3a;border:2px solid #3a3a5c;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:' + Math.max(10, cellSize * 0.35) + 'px;color:#555">\u2022</div>';
+          h += '<div style="background:#1a2744;border:2px solid #2e5090;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:' + Math.max(10, cellSize * 0.35) + 'px;color:#4a6fa5;box-shadow:inset 0 1px 4px rgba(0,0,0,0.4)">\u2022</div>';
         }
       }
     }
@@ -2251,7 +2328,7 @@ function initWordClash(area, setStatus, online) {
       const lx = wheelCx + wheelR * Math.cos(angle) - lcSize / 2;
       const ly = wheelCy + wheelR * Math.sin(angle) - lcSize / 2;
       const isSel = selection.includes(i);
-      h += '<div data-widx="' + i + '" style="position:absolute;left:' + lx + 'px;top:' + ly + 'px;width:' + lcSize + 'px;height:' + lcSize + 'px;border-radius:50%;background:' + (isSel ? P_COLORS[turn] : '#2a2a4a') + ';border:2px solid ' + (isSel ? '#fff' : '#555') + ';display:flex;align-items:center;justify-content:center;font-size:1.4em;font-weight:bold;color:#fff;cursor:pointer;transition:background 0.1s">' + wheelLetters[i] + '</div>';
+      h += '<div data-widx="' + i + '" style="position:absolute;left:' + lx + 'px;top:' + ly + 'px;width:' + lcSize + 'px;height:' + lcSize + 'px;border-radius:50%;background:' + (isSel ? P_COLORS[turn] : '#1a2744') + ';border:2.5px solid ' + (isSel ? '#fff' : '#2e5090') + ';display:flex;align-items:center;justify-content:center;font-size:1.4em;font-weight:bold;color:#fff;cursor:pointer;transition:background 0.1s;box-shadow:' + (isSel ? '0 0 12px ' + P_COLORS[turn] : '0 2px 8px rgba(0,0,0,0.4)') + '">' + wheelLetters[i] + '</div>';
     }
     // Shuffle button in center of wheel (like WOW)
     h += '<div id="wc-shuffle" style="position:absolute;left:' + (wheelCx - 20) + 'px;top:' + (wheelCy - 20) + 'px;width:40px;height:40px;border-radius:50%;background:#37474F;border:1.5px solid #546E7A;display:flex;align-items:center;justify-content:center;font-size:1.2em;cursor:pointer;color:#B0BEC5">\u21BB</div>';
@@ -2334,12 +2411,13 @@ function initWordClash(area, setStatus, online) {
       render();
     }
 
-    wheel.addEventListener('mousedown', e => { e.preventDefault(); startSel(e.clientX, e.clientY); });
+    function isShuffleBtn(e) { return e.target.id === 'wc-shuffle' || e.target.closest('#wc-shuffle'); }
+    wheel.addEventListener('mousedown', e => { if (isShuffleBtn(e)) { shuffleWheel(); return; } e.preventDefault(); startSel(e.clientX, e.clientY); });
     wheel.addEventListener('mousemove', e => { if (selectionActive) { e.preventDefault(); moveSel(e.clientX, e.clientY); } });
     wheel.addEventListener('mouseup', e => { endSel(); });
     wheel.addEventListener('mouseleave', e => { endSel(); });
 
-    wheel.addEventListener('touchstart', e => { e.preventDefault(); const t = e.touches[0]; startSel(t.clientX, t.clientY); }, {passive: false});
+    wheel.addEventListener('touchstart', e => { if (isShuffleBtn(e)) { shuffleWheel(); return; } e.preventDefault(); const t = e.touches[0]; startSel(t.clientX, t.clientY); }, {passive: false});
     wheel.addEventListener('touchmove', e => { e.preventDefault(); const t = e.touches[0]; moveSel(t.clientX, t.clientY); }, {passive: false});
     wheel.addEventListener('touchend', e => { e.preventDefault(); endSel(); }, {passive: false});
     wheel.addEventListener('touchcancel', e => { endSel(); });
@@ -3137,21 +3215,21 @@ function initCaro(area, setStatus, online) {
   const gridSz = cellSz * SIZE;
 
   const grid = document.createElement('div');
-  grid.style.cssText = `display:grid;grid-template-columns:repeat(${SIZE},1fr);width:${gridSz}px;height:${gridSz}px;background:#1a1a2e;border-radius:10px;overflow:hidden;border:2px solid #333;box-shadow:0 4px 20px rgba(0,0,0,0.5)`;
+  grid.style.cssText = `display:grid;grid-template-columns:repeat(${SIZE},1fr);width:${gridSz}px;height:${gridSz}px;background:#3a2a10;border-radius:10px;overflow:hidden;border:3px solid #7a5c2e;box-shadow:0 4px 24px rgba(0,0,0,0.5),inset 0 0 30px rgba(0,0,0,0.15)`;
   wrap.appendChild(grid);
 
   const cells = [];
   for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
     const cell = document.createElement('div');
-    cell.style.cssText = `position:relative;aspect-ratio:1;background:#2a1f0e;cursor:pointer;border:1px solid rgba(80,60,30,0.4)`;
+    cell.style.cssText = `position:relative;aspect-ratio:1;background:#c8a24c;cursor:pointer;border:1px solid rgba(90,65,20,0.5)`;
     // Draw board lines via pseudo-style using inner div
     const inner = document.createElement('div');
     inner.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center';
     // Cross-hair lines
     const hLine = document.createElement('div');
-    hLine.style.cssText = 'position:absolute;top:50%;left:0;right:0;height:1px;background:rgba(120,90,40,0.5)';
+    hLine.style.cssText = 'position:absolute;top:50%;left:0;right:0;height:1px;background:rgba(60,40,10,0.6)';
     const vLine = document.createElement('div');
-    vLine.style.cssText = 'position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(120,90,40,0.5)';
+    vLine.style.cssText = 'position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(60,40,10,0.6)';
     inner.appendChild(hLine);
     inner.appendChild(vLine);
     cell.appendChild(inner);
@@ -3173,7 +3251,7 @@ function initCaro(area, setStatus, online) {
   const starPts = [[3,3],[3,9],[6,6],[9,3],[9,9]];
   for (const [sr,sc] of starPts) {
     const dot = document.createElement('div');
-    dot.style.cssText = 'position:absolute;width:6px;height:6px;border-radius:50%;background:rgba(120,90,40,0.7);top:50%;left:50%;transform:translate(-50%,-50%);z-index:1';
+    dot.style.cssText = 'position:absolute;width:7px;height:7px;border-radius:50%;background:rgba(40,25,5,0.8);top:50%;left:50%;transform:translate(-50%,-50%);z-index:1';
     cells[sr * SIZE + sc].inner.appendChild(dot);
   }
 
