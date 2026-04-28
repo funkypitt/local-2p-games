@@ -1,0 +1,16 @@
+{
+  "_doc": "Words that are technically in system dictionaries but unsuitable for a casual word game. Run tools/filter_words.js to apply.",
+  "en": [
+    "EDS", "ESP", "HRS", "HES", "IND", "INT", "LBS", "MES", "MOS",
+    "NATL", "RECD", "RESP", "RPS", "RTE", "TBS", "TSP", "TEL",
+    "LEPT", "TRON", "PRES", "TREAS"
+  ],
+  "fr": [
+    "ENC", "INC", "PSI", "PST", "OIT", "NUA", "SUA",
+    "AREC", "ASPE", "ASTI", "CART", "ENTA", "IMAN", "INTE",
+    "ITOU", "MAIE", "ORIN", "PIAN", "PITE", "RADI", "RAIT",
+    "RESU", "RETS", "RIMA", "RIPA", "RIVA", "RUSA",
+    "SAIE", "SIMA", "TAIN", "TIAN", "TISA", "TISE",
+    "TOUE", "TRAC", "TRAN", "TRIC", "TRIN", "TUNE", "VAIR"
+  ]
+}
