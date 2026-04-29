@@ -2972,7 +2972,7 @@ function initPool(area, setStatus) {
     '#FDD835','#1565C0','#E53935','#6A1B9A','#FF6F00','#2E7D32','#6D4C41'];
   let balls = [];
   let turn = 0, assigned = [null, null]; // 'solid' or 'stripe'
-  let aiming = false, aimStart = null, gameOver = false, moving = false;
+  let aiming = false, aimStart = null, gameOver = false, moving = false, zoomScale = 1;
   function initBalls() {
     balls = [{x:TX+TW*0.25,y:TY+TH/2,vx:0,vy:0,num:0,active:true}]; // cue ball
     const sx = TX+TW*0.72, sy = TY+TH/2;
@@ -2998,8 +2998,19 @@ function initPool(area, setStatus) {
   canvas.addEventListener('touchstart', e => { e.preventDefault(); startAim(getTouch(e)); });
   canvas.addEventListener('touchmove', e => { e.preventDefault(); moveAim(getTouch(e)); });
   canvas.addEventListener('touchend', e => { e.preventDefault(); endAim(aimStart ? {x:aimStart.x,y:aimStart.y} : {x:0,y:0}); });
-  function startAim(p) { if (moving || gameOver) return; const cb = balls[0]; if (!cb.active) return; aiming = true; aimStart = p; }
-  function moveAim(p) { if (aiming) aimStart = p; }
+  function startAim(p) { if (moving || gameOver) return; const cb = balls[0]; if (!cb.active) return; aiming = true; aimStart = p; zoomScale = 1; }
+  function moveAim(p) {
+    if (!aiming) return;
+    const cb = balls[0], cx = w/2, cy = h/2;
+    // Cue ball position on screen with current zoom
+    const cbSX = cx + (cb.x - cx) * zoomScale, cbSY = cy + (cb.y - cy) * zoomScale;
+    const sd = Math.sqrt((p.x - cbSX)**2 + (p.y - cbSY)**2);
+    // Zoom out as drag distance grows (start at 70px, min zoom 0.5)
+    const tgt = sd > 70 ? Math.max(0.5, 1 - (sd - 70) / 280) : 1;
+    zoomScale += (tgt - zoomScale) * 0.25;
+    // Inverse-transform touch position to game coords
+    aimStart = {x: cx + (p.x - cx) / zoomScale, y: cy + (p.y - cy) / zoomScale};
+  }
   function endAim(p) {
     if (!aiming) return; aiming = false;
     const cb = balls[0]; if (!cb.active) return;
@@ -3080,11 +3091,15 @@ function initPool(area, setStatus) {
         pocketed = [];
       }
     }
+    // Smooth zoom back to 1 when not aiming
+    if (!aiming && zoomScale < 1) zoomScale = Math.min(1, zoomScale + 0.03);
     draw();
     raf = requestAnimationFrame(update);
   }
   function draw() {
     ctx.fillStyle = '#0a1a0a'; ctx.fillRect(0, 0, w, h);
+    ctx.save();
+    if (zoomScale < 1) { const cx = w/2, cy = h/2; ctx.translate(cx,cy); ctx.scale(zoomScale,zoomScale); ctx.translate(-cx,-cy); }
     // Table
     ctx.fillStyle = '#1B5E20'; ctx.fillRect(TX, TY, TW, TH);
     ctx.strokeStyle = '#4E342E'; ctx.lineWidth = 6; ctx.strokeRect(TX-3, TY-3, TW+6, TH+6);
@@ -3106,15 +3121,21 @@ function initPool(area, setStatus) {
         ctx.fillText(b.num, b.x, b.y);
       }
     }
-    // Aim line
+    // Aim glow + line
     if (aiming && aimStart && balls[0].active) {
       const cb = balls[0];
+      // Glow around cue ball
+      const grd = ctx.createRadialGradient(cb.x, cb.y, BR, cb.x, cb.y, BR*3);
+      grd.addColorStop(0, 'rgba(255,255,100,0.45)'); grd.addColorStop(1, 'rgba(255,255,100,0)');
+      ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(cb.x, cb.y, BR*3, 0, Math.PI*2); ctx.fill();
+      // Aim line
       ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1;
       ctx.setLineDash([4,4]);
       const dx = cb.x - aimStart.x, dy = cb.y - aimStart.y;
       ctx.beginPath(); ctx.moveTo(cb.x, cb.y); ctx.lineTo(cb.x+dx*2, cb.y+dy*2); ctx.stroke();
       ctx.setLineDash([]);
     }
+    ctx.restore();
   }
   setStatus("P1's shot");
   raf = requestAnimationFrame(update);

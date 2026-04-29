@@ -1,0 +1,4 @@
+v1.13 — Pool zoom-out aiming
+
+- Pool: table zooms out as you drag further from the cue ball, giving full power range even when the ball is near the screen edge
+- Pool: yellow glow highlight on cue ball while aiming
