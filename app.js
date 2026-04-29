@@ -388,7 +388,7 @@ const RULES = {
   starclash: 'Galaga-style co-op/competitive shooter. P1 (bottom, red) and P2 (top, blue) both fight aliens in the middle. Slide your finger in your zone to move and auto-fire. Earn points by destroying aliens. If you get hit 3 times, you\'re out. Survive waves and outscore your opponent!',
   caro: 'Gomoku variant on a 13x13 board. Place stones on intersections. Get exactly 5 in a row (horizontal, vertical, or diagonal) to win. Black goes first.',
   awale: 'West African seed-sowing game. Tap a pit on your side to sow seeds counter-clockwise. If your last seed lands in an opponent\'s pit making it 2 or 3 seeds, you capture them (plus any consecutive 2s or 3s behind). First to capture 25+ seeds wins.',
-  master: 'Code-breaking game. P1 sets a secret 4-color code. P2 has 10 guesses to crack it. After each guess, feedback shows: black dot = right color in right position, white dot = right color in wrong position. Duplicates allowed.',
+  duckchess: 'Duck-Day Chess — asymmetric chess variant with two chaotic ducks! Standard FIDE rules apply, but after each move you place the Yellow Duck (blocks all pieces). A Red Duck teleports randomly and fires a laser every 5 moves, vaporizing an adjacent piece. Kings are sacred — immune to the laser. Checkmate to win!',
   hangman: 'Wheel of Fortune / Hangman. Spin the wheel to get a point value, then guess a letter. If it\'s in the puzzle, you earn points per occurrence. Buy a vowel for 250 points. Solve the puzzle to bank your points. Wrong guesses or Bankrupt lose your turn.',
   dotsboxes: 'Dots & Boxes on a 6x6 grid. Tap between two dots to draw a line. Complete the 4th side of a box to claim it (marked with your color) and take another turn. When all boxes are filled, the player with the most wins.',
   horse: 'Horse racing / jumping. Each player taps their side of the screen to make their horse jump over obstacles. Time your jumps to clear hurdles. The horse that gets furthest or survives longest wins.',
@@ -408,7 +408,7 @@ const GAMES = [
   {id:'starclash',name:'Star Clash',icon:'👾',color:'#C62828',init:initStarClash},
   {id:'caro',name:'Caro',icon:'⚫',color:'#37474F',init:initCaro,online:true},
   {id:'awale',name:'Awalé',icon:'🥜',color:'#4E342E',init:initAwale,online:true},
-  {id:'master',name:'Bulls & Cows',icon:'🔮',color:'#AD1457',init:initMastermind,online:true},
+  {id:'duckchess',name:'Duck-Day Chess',icon:'🦆',color:'#B71C1C',init:initDuckChess,online:true},
   {id:'hangman',name:'Wheel of Funktune',icon:'🎡',color:'#4A148C',init:initHangman},
   {id:'dotsboxes',name:'Dots & Boxes',icon:'🔲',color:'#455A64',init:initDotsAndBoxes,online:true},
   {id:'horse',name:'Horse Jump',icon:'🏇',color:'#8D6E63',init:initHorseJump},
@@ -941,197 +941,492 @@ function initAwale(area, setStatus, online) {
   return () => { window.removeEventListener('resize',applyOrientation); if (online) online.cleanup(); };
 }
 
-// ==================== BULLS & COWS ====================
-function initMastermind(area, setStatus, online) {
-  const COLORS = ['#E53935','#1E88E5','#43A047','#FDD835','#8E24AA','#FF8F00'];
-  const COLOR_NAMES = ['Red','Blue','Green','Yellow','Purple','Orange'];
-  const PEGS = 4, MAX_GUESS = 10;
-  let secret = [], guesses = [], feedback = [];
-  let currentGuess = [], phase = 'set', turn = 0;
-  function mmRestart() { secret = []; guesses = []; feedback = []; currentGuess = []; phase = 'set'; turn = 0; render(); }
+// ==================== DUCK-DAY CHESS ====================
+function initDuckChess(area, setStatus, online) {
+  const SYMS = {wK:'♔',wQ:'♕',wR:'♖',wB:'♗',wN:'♘',wP:'♙',bK:'♚',bQ:'♛',bR:'♜',bB:'♝',bN:'♞',bP:'♟'};
+  const PN = {K:'King',Q:'Queen',R:'Rook',B:'Bishop',N:'Knight',P:'Pawn'};
+  const FL = 'abcdefgh', RK = '87654321';
+
+  let board, turn, phase, sel, legal, moveNum, yd, rd;
+  let castleR, ep, log, promoting, gameOver, lastMv;
+  let laserPh, laserSrc, laserTgt, animTmr;
+  const flipped = online && online.playerId === 1;
+  const rng = online ? online.rng : () => Math.random();
+
+  function restart() {
+    board = [
+      ['bR','bN','bB','bQ','bK','bB','bN','bR'],
+      ['bP','bP','bP','bP','bP','bP','bP','bP'],
+      [null,null,null,null,null,null,null,null],
+      [null,null,null,null,null,null,null,null],
+      [null,null,null,null,null,null,null,null],
+      [null,null,null,null,null,null,null,null],
+      ['wP','wP','wP','wP','wP','wP','wP','wP'],
+      ['wR','wN','wB','wQ','wK','wB','wN','wR'],
+    ];
+    turn = 'w'; phase = 'move'; sel = null; legal = [];
+    moveNum = 0; yd = null; rd = null;
+    castleR = {wK:true,wQ:true,bK:true,bQ:true};
+    ep = null; log = []; promoting = null; gameOver = false;
+    lastMv = null; laserPh = null; laserSrc = null; laserTgt = null;
+    if (animTmr) clearTimeout(animTmr);
+    render();
+  }
+
   const wrap = document.createElement('div');
   wrap.className = 'board-game';
   wrap.style.overflow = 'auto';
   area.appendChild(wrap);
   const cont = document.createElement('div');
-  cont.style.cssText = 'width:min(95vw,400px)';
+  cont.style.cssText = 'width:min(95vw,420px);margin:0 auto;padding:4px 0';
   wrap.appendChild(cont);
-  // Online: P0 sets code, P1 guesses
-  if (online && online.playerId === 1) {
-    // P1 waits for secret from P0
-    phase = 'wait';
-    online.onState('secret', s => {
-      secret = s; phase = 'guess'; render();
-    });
-  }
-  function render() {
-    let h = '';
-    // Title bar
-    const titleCol = phase === 'set' ? '#FF8F00' : '#1E88E5';
-    if (phase === 'wait') {
-      h += `<div style="text-align:center;font-size:1.2em;font-weight:bold;color:#888;padding:40px 0">Waiting for opponent to set code...</div>`;
-    } else if (phase === 'set') {
-      const canEdit = !online || online.playerId === 0;
-      h += `<div style="background:linear-gradient(135deg,#1a1a2e,#2a1a3e);border-radius:12px;padding:12px;margin-bottom:10px">`;
-      h += `<div style="text-align:center;font-size:1.1em;font-weight:bold;color:${titleCol};margin-bottom:8px">${online ? 'Set the secret code' : '🔮 P1: Set the secret code'}</div>`;
-      h += `<div style="text-align:center;font-size:.75em;color:#888;margin-bottom:8px">Choose ${PEGS} colors — ${online ? 'opponent' : 'P2'} will try to crack it</div>`;
-      h += renderPegs(currentGuess, canEdit);
-      if (canEdit) h += renderPalette();
-      if (canEdit && currentGuess.length === PEGS) h += `<div style="text-align:center;margin-top:10px"><button class="btn" id="mm-confirm" style="background:#FF8F00;font-size:1em;padding:10px 28px">✓ Confirm Code</button></div>`;
-      h += `</div>`;
-    } else if (phase === 'waitguess') {
-      // P0 waiting for P1 guesses
-      h += `<div style="text-align:center;font-size:1.1em;font-weight:bold;color:#888;margin-bottom:8px">Waiting for opponent to guess...</div>`;
-      if (guesses.length > 0) {
-        h += `<div style="background:rgba(255,255,255,0.03);border-radius:10px;padding:6px 8px;margin-bottom:8px">`;
-        for (let i = 0; i < guesses.length; i++) {
-          h += `<div style="display:flex;align-items:center;gap:8px;padding:5px 4px">`;
-          h += `<span style="color:#555;font-size:.7em;width:18px;text-align:right">${i+1}.</span>`;
-          h += renderPegsInline(guesses[i]);
-          h += renderFeedbackInline(feedback[i]);
-          h += `</div>`;
-        }
-        h += `</div>`;
-      }
-    } else if (phase === 'guess') {
-      const canGuess = !online || online.playerId === 1;
-      h += `<div style="text-align:center;font-size:1em;font-weight:bold;color:#64B5F6;margin-bottom:6px">${canGuess ? 'Crack' : 'P2: Crack'} the code! (${MAX_GUESS - guesses.length} guesses left)</div>`;
-      // Legend
-      h += `<div style="display:flex;justify-content:center;gap:14px;margin-bottom:8px;font-size:.7em;color:#999">`;
-      h += `<span>⬛ = right color & place</span>`;
-      h += `<span>⬜ = right color, wrong place</span>`;
-      h += `</div>`;
-      // Previous guesses
-      if (guesses.length > 0) {
-        h += `<div style="background:rgba(255,255,255,0.03);border-radius:10px;padding:6px 8px;margin-bottom:8px">`;
-        for (let i = 0; i < guesses.length; i++) {
-          const isLast = i === guesses.length - 1;
-          h += `<div style="display:flex;align-items:center;gap:8px;padding:5px 4px;${isLast ? 'background:rgba(255,255,255,0.04);border-radius:8px' : ''}">`;
-          h += `<span style="color:#555;font-size:.7em;width:18px;text-align:right">${i+1}.</span>`;
-          h += renderPegsInline(guesses[i]);
-          h += renderFeedbackInline(feedback[i]);
-          h += `</div>`;
-        }
-        h += `</div>`;
-      }
-      // Current guess input (only for guesser)
-      if (canGuess) {
-        h += `<div style="background:linear-gradient(135deg,#1a1a2e,#2a1a3e);border-radius:12px;padding:10px;margin-top:4px">`;
-        h += `<div style="text-align:center;font-size:.8em;color:#888;margin-bottom:6px">Your guess:</div>`;
-        h += renderPegs(currentGuess, true);
-        h += renderPalette();
-        if (currentGuess.length === PEGS) h += `<div style="text-align:center;margin-top:10px"><button class="btn" id="mm-submit" style="background:#1E88E5;font-size:1em;padding:10px 28px">Submit Guess</button></div>`;
-        h += `</div>`;
-      }
-    } else {
-      // Game over — show all guesses and reveal secret
-      h += `<div style="text-align:center;font-size:1em;font-weight:bold;color:#FFD54F;margin-bottom:8px">Game Over!</div>`;
-      h += `<div style="background:rgba(255,255,255,0.03);border-radius:10px;padding:6px 8px;margin-bottom:8px">`;
-      for (let i = 0; i < guesses.length; i++) {
-        h += `<div style="display:flex;align-items:center;gap:8px;padding:4px">`;
-        h += `<span style="color:#555;font-size:.7em;width:18px;text-align:right">${i+1}.</span>`;
-        h += renderPegsInline(guesses[i]);
-        h += renderFeedbackInline(feedback[i]);
-        h += `</div>`;
-      }
-      h += `</div>`;
-      h += `<div style="text-align:center;margin-top:6px;font-size:.9em;color:#aaa">Secret code:</div>`;
-      h += renderPegs(secret, false);
-    }
-    cont.innerHTML = h;
-    cont.querySelectorAll('[data-color]').forEach(el => {
-      el.onclick = () => { if (currentGuess.length < PEGS) { currentGuess.push(parseInt(el.dataset.color)); render(); } };
-    });
-    cont.querySelectorAll('[data-undo]').forEach(el => {
-      el.onclick = () => { currentGuess.pop(); render(); };
-    });
-    const confirmBtn = cont.querySelector('#mm-confirm');
-    if (confirmBtn) confirmBtn.onclick = () => {
-      secret = [...currentGuess]; currentGuess = [];
-      if (online) {
-        online.setState('secret', secret);
-        phase = 'waitguess';
-        render();
-      } else {
-        phase = 'guess';
-        showOverlay(area, 'Pass device to P2', 'Ready', () => render());
-      }
-    };
-    const submitBtn = cont.querySelector('#mm-submit');
-    if (submitBtn) submitBtn.onclick = () => {
-      const fb = calcFeedback(currentGuess, secret); SND.click();
-      guesses.push([...currentGuess]); feedback.push(fb);
-      if (online) online.sendMove({guess: currentGuess});
-      if (fb.exact === PEGS) { phase = 'done'; SND.win(); const m = online ? (online.playerId === 1 ? 'You cracked the code!' : 'Opponent cracked your code!') : 'P2 cracked the code!'; setStatus(m); currentGuess = []; render(); setTimeout(() => showOverlay(area, m, 'Rematch', mmRestart), 600); return; }
-      else if (guesses.length >= MAX_GUESS) { phase = 'done'; SND.buzz(); const m = online ? (online.playerId === 0 ? 'You win! Code unbroken.' : 'You lose! Code unbroken.') : 'P1 wins! Code unbroken.'; setStatus(m); currentGuess = []; render(); setTimeout(() => showOverlay(area, m, 'Rematch', mmRestart), 600); return; }
-      currentGuess = []; render();
-    };
-    if (phase === 'set') setStatus(online ? 'Set your secret code' : 'P1: Set code');
-    else if (phase === 'guess') setStatus(online ? (online.playerId === 1 ? `Guess (${MAX_GUESS - guesses.length} left)` : 'Opponent is guessing...') : `P2: Guess (${MAX_GUESS - guesses.length} left)`);
-    else if (phase === 'wait') setStatus('Waiting for code...');
-    else if (phase === 'waitguess') setStatus('Waiting for guesses...');
-  }
-  // Online: P0 receives guesses from P1
-  if (online && online.playerId === 0) {
-    online.listenMoves(data => {
-      const guess = data.guess;
-      const fb = calcFeedback(guess, secret);
-      guesses.push(guess); feedback.push(fb);
-      if (fb.exact === PEGS) { phase = 'done'; SND.win(); setStatus('Opponent cracked your code!'); render(); setTimeout(() => showOverlay(area, 'Opponent cracked your code!', 'Rematch', mmRestart), 600); return; }
-      else if (guesses.length >= MAX_GUESS) { phase = 'done'; SND.buzz(); setStatus('You win! Code unbroken.'); render(); setTimeout(() => showOverlay(area, 'You win! Code unbroken.', 'Rematch', mmRestart), 600); return; }
-      render();
-    });
-  }
-  if (online) {
-    online.onOpponentDisconnect(() => { if (phase !== 'done') { phase = 'done'; setStatus('Opponent disconnected'); render(); } });
-  }
-  function renderPegs(pegs, editable) {
-    let h = '<div style="display:flex;justify-content:center;gap:8px;margin:6px 0">';
-    for (let i = 0; i < PEGS; i++) {
-      const filled = i < pegs.length;
-      h += `<div style="width:42px;height:42px;border-radius:50%;background:${filled ? COLORS[pegs[i]] : '#222'};border:2px solid ${filled ? 'rgba(255,255,255,0.2)' : '#444'};box-shadow:${filled ? 'inset 0 -3px 6px rgba(0,0,0,0.3), 0 2px 4px rgba(0,0,0,0.3)' : 'none'}"></div>`;
-    }
-    if (editable && pegs.length > 0) h += `<div data-undo="1" style="width:42px;height:42px;border-radius:50%;background:#333;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1.1em;border:2px solid #555">↩</div>`;
-    h += '</div>';
-    return h;
-  }
-  function renderPegsInline(pegs) {
-    let h = '<div style="display:flex;gap:4px">';
-    pegs.forEach(p => h += `<div style="width:30px;height:30px;border-radius:50%;background:${COLORS[p]};box-shadow:inset 0 -2px 4px rgba(0,0,0,0.3)"></div>`);
-    return h + '</div>';
-  }
-  function renderFeedbackInline(fb) {
-    let h = '<div style="display:flex;flex-wrap:wrap;gap:3px;margin-left:10px;width:44px">';
-    for (let i = 0; i < fb.exact; i++) h += `<div style="width:16px;height:16px;border-radius:50%;background:#111;border:2px solid #555" title="Correct color & position"></div>`;
-    for (let i = 0; i < fb.color; i++) h += `<div style="width:16px;height:16px;border-radius:50%;background:#eee;border:2px solid #aaa" title="Correct color, wrong position"></div>`;
-    for (let i = 0; i < PEGS - fb.exact - fb.color; i++) h += `<div style="width:16px;height:16px;border-radius:50%;background:#2a2a2a;border:1px solid #333"></div>`;
-    // Text hint
-    const hints = [];
-    if (fb.exact > 0) hints.push(`${fb.exact}✓`);
-    if (fb.color > 0) hints.push(`${fb.color}~`);
-    if (hints.length > 0) h += `<div style="font-size:.6em;color:#aaa;width:100%;text-align:center;margin-top:1px">${hints.join(' ')}</div>`;
-    return h + '</div>';
-  }
-  function renderPalette() {
-    let h = '<div style="display:flex;justify-content:center;gap:10px;margin-top:10px">';
-    COLORS.forEach((c, i) => h += `<div data-color="${i}" style="width:40px;height:40px;border-radius:50%;background:${c};cursor:pointer;border:3px solid rgba(255,255,255,0.15);box-shadow:0 2px 6px rgba(0,0,0,0.4);transition:transform .1s" onpointerdown="this.style.transform='scale(0.9)'" onpointerup="this.style.transform='scale(1)'" onpointerleave="this.style.transform='scale(1)'"></div>`);
-    return h + '</div>';
-  }
-  function calcFeedback(guess, secret) {
-    let exact = 0, color = 0;
-    const sg = [...secret], gg = [...guess];
-    for (let i = 0; i < PEGS; i++) if (sg[i] === gg[i]) { exact++; sg[i] = gg[i] = -1; }
-    for (let i = 0; i < PEGS; i++) {
-      if (gg[i] === -1) continue;
-      const j = sg.indexOf(gg[i]);
-      if (j !== -1) { color++; sg[j] = -1; }
-    }
-    return { exact, color };
-  }
-  render();
-  return () => { if (online) online.cleanup(); };
-}
 
+  // --- Chess Engine ---
+  function inB(r,c) { return r>=0&&r<8&&c>=0&&c<8; }
+  function pC(p) { return p ? p[0] : null; }
+  function pT(p) { return p ? p[1] : null; }
+  function isDk(r,c) { return (yd&&yd.r===r&&yd.c===c)||(rd&&rd.r===r&&rd.c===c); }
+  function findK(col) { for(let r=0;r<8;r++) for(let c=0;c<8;c++) if(board[r][c]===col+'K') return {r,c}; return null; }
+
+  function pseudoMoves(r,c) {
+    const p=board[r][c]; if(!p) return [];
+    const col=p[0], tp=p[1], opp=col==='w'?'b':'w', mv=[];
+    function slide(dr,dc) {
+      for(let i=1;i<8;i++) {
+        const nr=r+dr*i, nc=c+dc*i;
+        if(!inB(nr,nc)||isDk(nr,nc)) break;
+        const x=board[nr][nc];
+        if(x) { if(pC(x)===opp) mv.push({r:nr,c:nc}); break; }
+        mv.push({r:nr,c:nc});
+      }
+    }
+    if(tp==='P') {
+      const dir=col==='w'?-1:1, sr=col==='w'?6:1;
+      if(inB(r+dir,c)&&!board[r+dir][c]&&!isDk(r+dir,c)) {
+        mv.push({r:r+dir,c:c});
+        if(r===sr&&!board[r+2*dir][c]&&!isDk(r+2*dir,c)) mv.push({r:r+2*dir,c:c});
+      }
+      for(const dc of [-1,1]) {
+        const nr=r+dir, nc=c+dc;
+        if(!inB(nr,nc)||isDk(nr,nc)) continue;
+        if(board[nr][nc]&&pC(board[nr][nc])===opp) mv.push({r:nr,c:nc});
+        if(ep&&ep.r===nr&&ep.c===nc) mv.push({r:nr,c:nc,ep:true});
+      }
+    } else if(tp==='N') {
+      for(const [dr,dc] of [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]]) {
+        const nr=r+dr, nc=c+dc;
+        if(inB(nr,nc)&&!isDk(nr,nc)&&(!board[nr][nc]||pC(board[nr][nc])===opp)) mv.push({r:nr,c:nc});
+      }
+    } else if(tp==='B') { for(const d of [[-1,-1],[-1,1],[1,-1],[1,1]]) slide(d[0],d[1]); }
+    else if(tp==='R') { for(const d of [[-1,0],[1,0],[0,-1],[0,1]]) slide(d[0],d[1]); }
+    else if(tp==='Q') { for(const d of [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]]) slide(d[0],d[1]); }
+    else if(tp==='K') {
+      for(const [dr,dc] of [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]]) {
+        const nr=r+dr, nc=c+dc;
+        if(inB(nr,nc)&&!isDk(nr,nc)&&(!board[nr][nc]||pC(board[nr][nc])===opp)) mv.push({r:nr,c:nc});
+      }
+      const row=col==='w'?7:0;
+      if(r===row&&c===4) {
+        if(castleR[col+'K']&&board[row][7]===col+'R'&&!board[row][5]&&!board[row][6]&&!isDk(row,5)&&!isDk(row,6)&&!isAtt(row,4,opp)&&!isAtt(row,5,opp)&&!isAtt(row,6,opp))
+          mv.push({r:row,c:6,castle:'K'});
+        if(castleR[col+'Q']&&board[row][0]===col+'R'&&!board[row][1]&&!board[row][2]&&!board[row][3]&&!isDk(row,1)&&!isDk(row,2)&&!isDk(row,3)&&!isAtt(row,4,opp)&&!isAtt(row,3,opp)&&!isAtt(row,2,opp))
+          mv.push({r:row,c:2,castle:'Q'});
+      }
+    }
+    return mv;
+  }
+
+  function isAtt(r,c,by) {
+    const pDir = by==='w' ? 1 : -1;
+    for(const dc of [-1,1]) { const fr=r+pDir, fc=c+dc; if(inB(fr,fc)&&board[fr][fc]===by+'P') return true; }
+    for(const [dr,dc] of [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]])
+      if(inB(r+dr,c+dc)&&board[r+dr][c+dc]===by+'N') return true;
+    for(const [dr,dc] of [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]])
+      if(inB(r+dr,c+dc)&&board[r+dr][c+dc]===by+'K') return true;
+    for(const [dr,dc] of [[-1,-1],[-1,1],[1,-1],[1,1]]) {
+      for(let i=1;i<8;i++) { const fr=r+dr*i, fc=c+dc*i; if(!inB(fr,fc)||isDk(fr,fc)) break; const p=board[fr][fc]; if(p) { if(pC(p)===by&&(pT(p)==='B'||pT(p)==='Q')) return true; break; } }
+    }
+    for(const [dr,dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+      for(let i=1;i<8;i++) { const fr=r+dr*i, fc=c+dc*i; if(!inB(fr,fc)||isDk(fr,fc)) break; const p=board[fr][fc]; if(p) { if(pC(p)===by&&(pT(p)==='R'||pT(p)==='Q')) return true; break; } }
+    }
+    return false;
+  }
+
+  function inCheck(col) { const k=findK(col); return k && isAtt(k.r, k.c, col==='w'?'b':'w'); }
+
+  function getLegal(r,c) {
+    const p=board[r][c]; if(!p) return [];
+    return pseudoMoves(r,c).filter(m => {
+      const sv=board[m.r][m.c], pc=board[r][c];
+      board[m.r][m.c]=pc; board[r][c]=null;
+      let epc=null;
+      if(m.ep) { epc=board[r][m.c]; board[r][m.c]=null; }
+      let rsv=null, rf=null, rt=null;
+      if(m.castle) {
+        const rw=m.r;
+        rf = m.castle==='K' ? {r:rw,c:7} : {r:rw,c:0};
+        rt = m.castle==='K' ? {r:rw,c:5} : {r:rw,c:3};
+        rsv=board[rf.r][rf.c]; board[rt.r][rt.c]=rsv; board[rf.r][rf.c]=null;
+      }
+      const chk=inCheck(pC(pc));
+      board[r][c]=pc; board[m.r][m.c]=sv;
+      if(m.ep) board[r][m.c]=epc;
+      if(m.castle) { board[rf.r][rf.c]=rsv; board[rt.r][rt.c]=null; }
+      return !chk;
+    });
+  }
+
+  function hasLegal(col) {
+    for(let r=0;r<8;r++) for(let c=0;c<8;c++)
+      if(board[r][c]&&pC(board[r][c])===col&&getLegal(r,c).length>0) return true;
+    return false;
+  }
+
+  function doMove(from,to,promo) {
+    const pc=board[from.r][from.c], cap=board[to.r][to.c], col=pC(pc), tp=pT(pc);
+    let epc=null;
+    if(to.ep) { epc=board[from.r][to.c]; board[from.r][to.c]=null; }
+    board[to.r][to.c]=pc; board[from.r][from.c]=null;
+    if(to.castle) {
+      const rw=to.r;
+      if(to.castle==='K') { board[rw][5]=board[rw][7]; board[rw][7]=null; }
+      else { board[rw][3]=board[rw][0]; board[rw][0]=null; }
+    }
+    if(tp==='P'&&(to.r===0||to.r===7)) board[to.r][to.c]=col+(promo||'Q');
+    if(tp==='K') { castleR[col+'K']=false; castleR[col+'Q']=false; }
+    if(tp==='R') {
+      if(from.r===7&&from.c===0) castleR.wQ=false; if(from.r===7&&from.c===7) castleR.wK=false;
+      if(from.r===0&&from.c===0) castleR.bQ=false; if(from.r===0&&from.c===7) castleR.bK=false;
+    }
+    if(cap) {
+      if(to.r===7&&to.c===0) castleR.wQ=false; if(to.r===7&&to.c===7) castleR.wK=false;
+      if(to.r===0&&to.c===0) castleR.bQ=false; if(to.r===0&&to.c===7) castleR.bK=false;
+    }
+    ep = (tp==='P'&&Math.abs(to.r-from.r)===2) ? {r:(from.r+to.r)/2, c:from.c} : null;
+    let note='';
+    if(to.castle==='K') note='O-O';
+    else if(to.castle==='Q') note='O-O-O';
+    else {
+      if(tp!=='P') note+=tp;
+      if(cap||epc) { if(tp==='P') note+=FL[from.c]; note+='x'; }
+      note+=FL[to.c]+RK[to.r];
+      if(promo) note+='='+promo;
+    }
+    const opp=col==='w'?'b':'w';
+    if(inCheck(opp)) note+=hasLegal(opp)?'+':'#';
+    SND.click();
+    log.push({text:(col==='w'?'⬜ White: ':'⬛ Black: ')+note, imp:false});
+  }
+
+  // --- Duck Mechanics ---
+  function placeRD() {
+    const e=[];
+    for(let r=0;r<8;r++) for(let c=0;c<8;c++)
+      if(!board[r][c]&&!(yd&&yd.r===r&&yd.c===c)&&!(rd&&rd.r===r&&rd.c===c)) e.push({r,c});
+    if(e.length>0) rd=e[Math.floor(rng()*e.length)];
+  }
+
+  function findLaserTarget() {
+    if(!rd) return null;
+    const t=[];
+    for(const [dr,dc] of [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]]) {
+      const nr=rd.r+dr, nc=rd.c+dc;
+      if(inB(nr,nc)&&board[nr][nc]&&pT(board[nr][nc])!=='K') t.push({r:nr,c:nc});
+    }
+    return t.length>0 ? t[Math.floor(rng()*t.length)] : null;
+  }
+
+  function fireLaser(target, cb) {
+    if(!target) { cb(); return; }
+    const tPc=board[target.r][target.c];
+    laserPh='charge'; laserSrc={...rd}; laserTgt={...target};
+    SND.shoot();
+    render();
+    animTmr=setTimeout(() => {
+      laserPh='beam'; render();
+      animTmr=setTimeout(() => {
+        laserPh='explode'; render();
+        animTmr=setTimeout(() => {
+          const pn=PN[pT(tPc)]||'piece', pc=pC(tPc)==='w'?'White':'Black';
+          log.push({text:'🔴 Red Duck vaporized '+pc+' '+pn+' at '+FL[target.c]+RK[target.r]+' with its laser!', imp:true});
+          board[target.r][target.c]=null;
+          SND.boom();
+          laserPh=null; laserSrc=null; laserTgt=null;
+          cb();
+        },400);
+      },500);
+    },500);
+  }
+
+  function safetyCheck() {
+    if(hasLegal(turn)||inCheck(turn)) return;
+    // Try re-teleporting red duck to far side
+    if(rd) {
+      const oldRd={...rd};
+      const far=rd.r<4?[4,5,6,7]:[0,1,2,3], e=[];
+      for(const row of far) for(let c=0;c<8;c++)
+        if(!board[row][c]&&!(yd&&yd.r===row&&yd.c===c)) e.push({r:row,c:c});
+      if(e.length>0) {
+        rd=e[Math.floor(rng()*e.length)];
+        if(hasLegal(turn)) { log.push({text:'🚨 Canard de Secours! Red Duck emergency teleport!', imp:true}); SND.chime(); return; }
+      }
+      rd=oldRd;
+    }
+    // Try removing yellow duck
+    if(yd) {
+      const oldYd={...yd}; yd=null;
+      if(hasLegal(turn)) { log.push({text:'🚨 Canard de Secours! Yellow Duck fled the board!', imp:true}); SND.chime(); return; }
+      yd=oldYd;
+    }
+    // Try both
+    if(rd&&yd) {
+      const oR={...rd}, oY={...yd}; yd=null;
+      const far=oR.r<4?[4,5,6,7]:[0,1,2,3], e=[];
+      for(const row of far) for(let c=0;c<8;c++) if(!board[row][c]) e.push({r:row,c:c});
+      if(e.length>0) {
+        rd=e[Math.floor(rng()*e.length)];
+        if(hasLegal(turn)) { log.push({text:'🚨 Canard de Secours! Both ducks repositioned!', imp:true}); SND.chime(); return; }
+      }
+      rd=oR; yd=oY;
+    }
+  }
+
+  function afterDucks() {
+    moveNum++;
+    const tgt = (moveNum>0&&moveNum%5===0) ? findLaserTarget() : null;
+    fireLaser(tgt, () => {
+      turn = turn==='w' ? 'b' : 'w';
+      safetyCheck();
+      if(!hasLegal(turn)) {
+        if(inCheck(turn)) {
+          const w=turn==='w'?'Black':'White';
+          log.push({text:'👑 Checkmate! '+w+' wins!', imp:true});
+          phase='done'; gameOver=true; SND.win();
+          const msg=online?((turn==='w'&&online.playerId===0)||(turn==='b'&&online.playerId===1)?'You lose by checkmate!':'You win by checkmate!'):w+' wins by checkmate!';
+          setStatus(msg); render();
+          setTimeout(() => showOverlay(area,msg,'Rematch',restart),800);
+          return;
+        }
+        log.push({text:'🤝 Stalemate — draw!', imp:true});
+        phase='done'; gameOver=true; setStatus('Draw by stalemate!'); render();
+        setTimeout(() => showOverlay(area,'Stalemate — Draw!','Rematch',restart),800);
+        return;
+      }
+      if(inCheck(turn)) log.push({text:'⚠️ '+(turn==='w'?'White':'Black')+' is in check!', imp:true});
+      phase='move'; sel=null; legal=[];
+      updStatus(); render();
+    });
+  }
+
+  function updStatus() {
+    if(gameOver) return;
+    const c=turn==='w'?'White':'Black';
+    if(online) {
+      const my=(turn==='w'&&online.playerId===0)||(turn==='b'&&online.playerId===1);
+      setStatus(phase==='duck'?(my?'Place the Yellow Duck 🐥':'Opponent placing duck...'):(my?'Your move':'Opponent\'s move'));
+    } else {
+      setStatus(phase==='duck'?c+': Place 🐥 Yellow Duck':c+'\'s move');
+    }
+  }
+
+  // --- Click Handler ---
+  function handleClick(r,c) {
+    if(gameOver||laserPh) return;
+    if(online) {
+      const my=(turn==='w'&&online.playerId===0)||(turn==='b'&&online.playerId===1);
+      if(!my) return;
+    }
+    if(phase==='move') {
+      if(promoting) return;
+      const lm=legal.find(m=>m.r===r&&m.c===c);
+      if(lm) {
+        const pc=board[sel.r][sel.c];
+        if(pT(pc)==='P'&&(r===0||r===7)) { promoting={from:{...sel},to:lm}; render(); return; }
+        lastMv={from:{...sel},to:lm};
+        doMove(sel,lm,null);
+        yd=null; phase='duck'; sel=null; legal=[];
+        if(online) online.sendMove({t:'mv',fr:lastMv.from.r,fc:lastMv.from.c,tr:lastMv.to.r,tc:lastMv.to.c,cs:lm.castle||'',ep:lm.ep||false,pr:''});
+        updStatus(); render();
+        return;
+      }
+      if(board[r][c]&&pC(board[r][c])===turn&&!isDk(r,c)) { sel={r,c}; legal=getLegal(r,c); SND.tick(); render(); return; }
+      sel=null; legal=[]; render();
+    } else if(phase==='duck') {
+      if(!board[r][c]&&!(rd&&rd.r===r&&rd.c===c)) {
+        yd={r,c};
+        if(online) online.sendMove({t:'dk',yr:r,yc:c});
+        placeRD();
+        SND.drop();
+        afterDucks();
+      }
+    }
+  }
+
+  function handlePromo(type) {
+    if(!promoting) return;
+    lastMv={from:promoting.from,to:promoting.to,promo:type};
+    doMove(promoting.from, promoting.to, type);
+    promoting=null; yd=null; phase='duck'; sel=null; legal=[];
+    if(online) online.sendMove({t:'mv',fr:lastMv.from.r,fc:lastMv.from.c,tr:lastMv.to.r,tc:lastMv.to.c,cs:lastMv.to.castle||'',ep:lastMv.to.ep||false,pr:type});
+    updStatus(); render();
+  }
+
+  // --- Online ---
+  if(online) {
+    online.listenMoves(data => {
+      if(data.t==='dk') {
+        yd={r:data.yr,c:data.yc};
+        placeRD();
+        SND.drop();
+        afterDucks();
+        return;
+      }
+      // Chess move
+      const from={r:data.fr,c:data.fc}, to={r:data.tr,c:data.tc};
+      if(data.cs) to.castle=data.cs;
+      if(data.ep) to.ep=true;
+      doMove(from, to, data.pr||null);
+      yd=null; phase='duck';
+      updStatus(); render();
+    });
+    online.onOpponentDisconnect(() => { if(!gameOver){gameOver=true;phase='done';setStatus('Opponent disconnected');render();} });
+  }
+
+  // --- Rendering ---
+  function render() {
+    const LT='#EEEED2', DK='#769656'; // Chess.com green theme
+    const hunger=moveNum%5;
+    let h='';
+
+    // Header: turn + hunger gauge
+    h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;margin-bottom:2px">';
+    h+='<div style="display:flex;align-items:center;gap:6px">';
+    h+='<div style="width:14px;height:14px;border-radius:50%;background:'+(turn==='w'?'#eee':'#333')+';border:2px solid #888"></div>';
+    h+='<span style="font-size:.85em;font-weight:bold;color:#ccc">'+(phase==='duck'?'Place 🐥':phase==='done'?'Game Over':(turn==='w'?'White':'Black')+'\'s turn')+'</span>';
+    h+='</div>';
+    h+='<div style="display:flex;align-items:center;gap:4px" title="Laser in '+(5-hunger)+' moves">';
+    h+='<span style="font-size:.75em;color:#999">⚡</span>';
+    for(let i=0;i<5;i++) { const f=i<hunger; h+='<div style="width:10px;height:10px;border-radius:2px;background:'+(f?'#f44336':'#333')+';border:1px solid '+(f?'#ff5252':'#555')+(i===4&&hunger===4?';box-shadow:0 0 6px #f44':'')+'"></div>'; }
+    h+='</div></div>';
+
+    // Board
+    h+='<div style="position:relative;width:min(88vw,360px);margin:0 auto">';
+    h+='<div id="dc-board" style="display:grid;grid-template-columns:repeat(8,1fr);border:2px solid #444;border-radius:3px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.5)">';
+
+    const kInCheck = inCheck(turn) ? findK(turn) : null;
+
+    for(let ri=0;ri<8;ri++) for(let ci=0;ci<8;ci++) {
+      const r=flipped?7-ri:ri, c=flipped?7-ci:ci;
+      const isLt=(r+c)%2===0;
+      const p=board[r][c];
+      const isSel=sel&&sel.r===r&&sel.c===c;
+      const isLeg=legal.some(m=>m.r===r&&m.c===c);
+      const isYD=yd&&yd.r===r&&yd.c===c;
+      const isRD=rd&&rd.r===r&&rd.c===c;
+      const isCap=isLeg&&p;
+      const isLTgt=laserTgt&&laserTgt.r===r&&laserTgt.c===c;
+      const isLSrc=laserSrc&&laserSrc.r===r&&laserSrc.c===c;
+      const isChk=kInCheck&&kInCheck.r===r&&kInCheck.c===c;
+      const isLast=lastMv&&phase!=='duck'&&((lastMv.from.r===r&&lastMv.from.c===c)||(lastMv.to.r===r&&lastMv.to.c===c));
+
+      let bg=isLt?LT:DK;
+      if(isSel) bg=isLt?'#F6F669':'#BACA44';
+      else if(isLast) bg=isLt?'rgba(155,199,0,0.55)':'rgba(155,199,0,0.45)';
+      if(isLTgt&&laserPh==='explode') bg='#ff4444';
+
+      let chkBg='';
+      if(isChk) chkBg='background:radial-gradient(ellipse at center,rgba(255,0,0,0.85) 0%,rgba(231,0,0,0.6) 25%,rgba(169,0,0,0) 89%);';
+
+      let content='';
+      if(isYD) {
+        content='<span style="font-size:clamp(22px,6vw,30px);line-height:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.4));pointer-events:none">🐥</span>';
+      } else if(isRD) {
+        const glow=isLSrc&&laserPh;
+        content='<span style="font-size:clamp(22px,6vw,30px);line-height:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.4))'+(glow?' drop-shadow(0 0 8px #f00) drop-shadow(0 0 14px #f00)':'')+'">🦆</span>';
+      } else if(p) {
+        const pc=pC(p);
+        const st=pc==='w'?'color:#fff;text-shadow:0 0 4px rgba(0,0,0,0.6),0 1px 2px rgba(0,0,0,0.9)':'color:#000;text-shadow:0 0 4px rgba(255,255,255,0.3)';
+        const expl=isLTgt&&laserPh==='explode'?';opacity:0;transform:scale(2);transition:all .3s':'';
+        content='<span style="font-size:clamp(24px,6.5vw,34px);'+st+';line-height:1;pointer-events:none'+expl+'">'+SYMS[p]+'</span>';
+      }
+
+      let dot='';
+      if(isLeg&&!p&&!isYD&&!isRD) dot='<div style="position:absolute;width:26%;height:26%;background:rgba(0,0,0,0.2);border-radius:50%;pointer-events:none"></div>';
+      let ring='';
+      if(isCap) ring='<div style="position:absolute;inset:0;border-radius:50%;box-shadow:inset 0 0 0 4px rgba(0,0,0,0.25);pointer-events:none"></div>';
+
+      let lbl='';
+      const lblCol=isLt?'#769656':'#EEEED2';
+      if(ci===0) lbl+='<span style="position:absolute;top:1px;left:2px;font-size:8px;color:'+lblCol+';font-weight:bold;pointer-events:none;opacity:.8">'+RK[r]+'</span>';
+      if(ri===7) lbl+='<span style="position:absolute;bottom:0;right:2px;font-size:8px;color:'+lblCol+';font-weight:bold;pointer-events:none;opacity:.8">'+FL[c]+'</span>';
+
+      const duckPhClick=phase==='duck'&&!board[r][c]&&!(rd&&rd.r===r&&rd.c===c);
+      const cursor=(phase==='move'||duckPhClick)?'pointer':'default';
+
+      h+='<div data-r="'+r+'" data-c="'+c+'" style="position:relative;display:flex;align-items:center;justify-content:center;background:'+bg+';cursor:'+cursor+';user-select:none;-webkit-user-select:none;aspect-ratio:1;'+chkBg+'">'+lbl+content+dot+ring+'</div>';
+    }
+    h+='</div>';
+
+    // Laser beam SVG overlay
+    if(laserPh==='beam'&&laserSrc&&laserTgt) h+='<svg id="dc-laser" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10"></svg>';
+    h+='</div>';
+
+    // Promotion dialog
+    if(promoting) {
+      const ppc=board[promoting.from.r][promoting.from.c];
+      const pcol=pC(ppc);
+      h+='<div style="display:flex;justify-content:center;gap:8px;padding:10px;background:rgba(0,0,0,0.85);border-radius:10px;margin:8px auto;width:fit-content">';
+      h+='<span style="color:#aaa;font-size:.85em;align-self:center;margin-right:4px">Promote:</span>';
+      for(const t of ['Q','R','B','N']) {
+        const sym=SYMS[pcol+t];
+        const st=pcol==='w'?'color:#fff;text-shadow:0 1px 2px #000':'color:#000;text-shadow:0 1px 2px rgba(255,255,255,0.4)';
+        h+='<button data-promo="'+t+'" style="font-size:30px;background:#555;border:2px solid #777;border-radius:8px;padding:6px 12px;cursor:pointer;'+st+'">'+sym+'</button>';
+      }
+      h+='</div>';
+    }
+
+    // Move log (last 8 entries)
+    const vLog=log.slice(-8);
+    if(vLog.length>0) {
+      h+='<div style="margin-top:6px;padding:4px 8px;font-size:.7em;max-height:100px;overflow-y:auto">';
+      for(const l of vLog) h+='<div style="padding:1px 0;color:'+(l.imp?'#ff8a65':'#777')+(l.imp?';font-weight:bold':'')+'">'+l.text+'</div>';
+      h+='</div>';
+    }
+
+    cont.innerHTML=h;
+
+    // Attach click handlers
+    cont.querySelectorAll('[data-r]').forEach(el => {
+      el.onclick=() => handleClick(parseInt(el.dataset.r), parseInt(el.dataset.c));
+    });
+    cont.querySelectorAll('[data-promo]').forEach(el => {
+      el.onclick=() => handlePromo(el.dataset.promo);
+    });
+
+    // Draw laser beam after DOM update
+    if(laserPh==='beam') requestAnimationFrame(drawLaser);
+  }
+
+  function drawLaser() {
+    const svg=cont.querySelector('#dc-laser');
+    const bd=cont.querySelector('#dc-board');
+    if(!svg||!bd||!laserSrc||!laserTgt) return;
+    const sq=bd.offsetWidth/8;
+    const fR=flipped?7-laserSrc.r:laserSrc.r, fC=flipped?7-laserSrc.c:laserSrc.c;
+    const tR=flipped?7-laserTgt.r:laserTgt.r, tC=flipped?7-laserTgt.c:laserTgt.c;
+    const x1=(fC+.5)*sq, y1=(fR+.5)*sq, x2=(tC+.5)*sq, y2=(tR+.5)*sq;
+    svg.innerHTML='<defs><filter id="gl"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>'+
+      '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="#ff0000" stroke-width="5" filter="url(#gl)" opacity=".7"/>'+
+      '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="#ffcc00" stroke-width="2" opacity=".9"/>'+
+      '<circle cx="'+x2+'" cy="'+y2+'" r="8" fill="rgba(255,60,0,0.4)" stroke="#f00" stroke-width="2">'+
+      '<animate attributeName="r" from="6" to="22" dur=".4s" fill="freeze"/>'+
+      '<animate attributeName="opacity" from="1" to="0" dur=".4s" fill="freeze"/>'+
+      '</circle>';
+  }
+
+  restart();
+  return () => { if(animTmr) clearTimeout(animTmr); if(online) online.cleanup(); };
+}
 // ==================== STAR CLASH (Galaga-style 2P) ====================
 function initStarClash(area, setStatus) {
   const {canvas, ctx, w, h} = createCanvas(area);
