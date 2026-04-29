@@ -2964,7 +2964,7 @@ function initShipBattle(area, setStatus, online) {
 // ==================== POOL ====================
 function initPool(area, setStatus) {
   const {canvas, ctx, w, h} = createCanvas(area);
-  const TW = w * 0.92, TH = h * 0.75, TX = (w-TW)/2, TY = (h-TH)/2;
+  const TW = w * 0.78, TH = h * 0.62, TX = (w-TW)/2, TY = (h-TH)/2;
   const BR = Math.min(TW,TH) * 0.028, PR = BR * 2.2;
   const FRICTION = 0.985;
   const pockets = [[TX,TY],[TX+TW/2,TY],[TX+TW,TY],[TX,TY+TH],[TX+TW/2,TY+TH],[TX+TW,TY+TH]];
