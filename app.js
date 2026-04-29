@@ -388,7 +388,7 @@ const RULES = {
   starclash: 'Galaga-style co-op/competitive shooter. P1 (bottom, red) and P2 (top, blue) both fight aliens in the middle. Slide your finger in your zone to move and auto-fire. Earn points by destroying aliens. If you get hit 3 times, you\'re out. Survive waves and outscore your opponent!',
   caro: 'Gomoku variant on a 13x13 board. Place stones on intersections. Get exactly 5 in a row (horizontal, vertical, or diagonal) to win. Black goes first.',
   awale: 'West African seed-sowing game. Tap a pit on your side to sow seeds counter-clockwise. If your last seed lands in an opponent\'s pit making it 2 or 3 seeds, you capture them (plus any consecutive 2s or 3s behind). First to capture 25+ seeds wins.',
-  duckchess: 'Duck-Day Chess — asymmetric chess variant with two chaotic ducks! Standard FIDE rules apply, but after each move you place the Yellow Duck (blocks all pieces). A Red Duck teleports randomly and fires a laser every 5 moves, vaporizing an adjacent piece. Kings are sacred — immune to the laser. Checkmate to win!',
+  duckchess: 'Duck-Day Chess — asymmetric chess variant with two chaotic ducks! Standard FIDE rules apply, but after each move you place the Yellow Duck (blocks all pieces). A Red Duck teleports randomly and fires a laser every 5 moves, vaporizing an adjacent piece. Kings are immune to the laser for the first 25 moves — after that, the Red Duck can vaporize Kings too! Checkmate to win!',
   hangman: 'Wheel of Fortune / Hangman. Spin the wheel to get a point value, then guess a letter. If it\'s in the puzzle, you earn points per occurrence. Buy a vowel for 250 points. Solve the puzzle to bank your points. Wrong guesses or Bankrupt lose your turn.',
   dotsboxes: 'Dots & Boxes on a 6x6 grid. Tap between two dots to draw a line. Complete the 4th side of a box to claim it (marked with your color) and take another turn. When all boxes are filled, the player with the most wins.',
   horse: 'Horse racing / jumping. Each player taps their side of the screen to make their horse jump over obstacles. Time your jumps to clear hurdles. The horse that gets furthest or survives longest wins.',
@@ -1131,7 +1131,7 @@ function initDuckChess(area, setStatus, online) {
     const t=[];
     for(const [dr,dc] of [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]]) {
       const nr=rd.r+dr, nc=rd.c+dc;
-      if(inB(nr,nc)&&board[nr][nc]&&pT(board[nr][nc])!=='K') t.push({r:nr,c:nc});
+      if(inB(nr,nc)&&board[nr][nc]&&(moveNum>=50||pT(board[nr][nc])!=='K')) t.push({r:nr,c:nc});
     }
     return t.length>0 ? t[Math.floor(rng()*t.length)] : null;
   }
@@ -1152,6 +1152,15 @@ function initDuckChess(area, setStatus, online) {
           board[target.r][target.c]=null;
           SND.boom();
           laserPh=null; laserSrc=null; laserTgt=null;
+          if(pT(tPc)==='K') {
+            const w=pc==='White'?'Black':'White';
+            log.push({text:'💀 '+pc+' King vaporized! '+w+' wins!', imp:true});
+            phase='done'; gameOver=true; SND.win();
+            const msg=online?((pc==='White'&&online.playerId===0)||(pc==='Black'&&online.playerId===1)?'Your King was vaporized! You lose!':'Enemy King vaporized! You win!'):w+' wins — King vaporized!';
+            setStatus(msg); render();
+            setTimeout(() => showOverlay(area,msg,'Rematch',restart),800);
+            return;
+          }
           cb();
         },400);
       },500);
@@ -1193,6 +1202,7 @@ function initDuckChess(area, setStatus, online) {
 
   function afterDucks() {
     moveNum++;
+    if(moveNum===50) { log.push({text:'💀 Move 25 reached — Kings are no longer immune to the Red Duck laser!', imp:true}); SND.chime(); }
     const tgt = (moveNum>0&&moveNum%5===0) ? findLaserTarget() : null;
     fireLaser(tgt, () => {
       turn = turn==='w' ? 'b' : 'w';
@@ -1304,7 +1314,8 @@ function initDuckChess(area, setStatus, online) {
     h+='<div style="width:14px;height:14px;border-radius:50%;background:'+(turn==='w'?'#eee':'#333')+';border:2px solid #888"></div>';
     h+='<span style="font-size:.85em;font-weight:bold;color:#ccc">'+(phase==='duck'?'Place 🐥':phase==='done'?'Game Over':(turn==='w'?'White':'Black')+'\'s turn')+'</span>';
     h+='</div>';
-    h+='<div style="display:flex;align-items:center;gap:4px" title="Laser in '+(5-hunger)+' moves">';
+    h+='<div style="display:flex;align-items:center;gap:4px" title="Laser in '+(5-hunger)+' moves'+(moveNum>=50?' — Kings vulnerable!':'')+'">';
+    if(moveNum>=50) h+='<span style="font-size:.7em" title="Kings can be vaporized!">💀</span>';
     h+='<span style="font-size:.75em;color:#999">⚡</span>';
     for(let i=0;i<5;i++) { const f=i<hunger; h+='<div style="width:10px;height:10px;border-radius:2px;background:'+(f?'#f44336':'#333')+';border:1px solid '+(f?'#ff5252':'#555')+(i===4&&hunger===4?';box-shadow:0 0 6px #f44':'')+'"></div>'; }
     h+='</div></div>';
@@ -3509,7 +3520,7 @@ function initMiniGolf(area, setStatus) {
   ];
   let holeIdx = 0, playerScores = [[],[]];
   let turn = 0, strokes = 0;
-  let ball, hole, walls, bvx=0, bvy=0, moving=false, aiming=false, aimPt=null, trail=[];
+  let ball, hole, walls, bvx=0, bvy=0, moving=false, aiming=false, aimPt=null, trail=[], zoomScale=1;
   function loadHole() {
     const hd = holes[holeIdx];
     ball = {...hd.ball}; hole = {...hd.hole}; walls = hd.walls;
@@ -3518,13 +3529,22 @@ function initMiniGolf(area, setStatus) {
   loadHole();
   function getP(e) { const r=canvas.getBoundingClientRect(),t=e.touches?e.touches[0]:e; return{x:(t.clientX-r.left)/r.width*w,y:(t.clientY-r.top)/r.height*h}; }
   canvas.addEventListener('mousedown',e=>{if(!moving&&!gameEnd)startAim(getP(e));});
-  canvas.addEventListener('mousemove',e=>{if(aiming)aimPt=getP(e);});
+  canvas.addEventListener('mousemove',e=>{moveAim(getP(e));});
   canvas.addEventListener('mouseup',e=>{if(aiming)shoot();});
   canvas.addEventListener('touchstart',e=>{e.preventDefault();if(!moving&&!gameEnd)startAim(getP(e));});
-  canvas.addEventListener('touchmove',e=>{e.preventDefault();if(aiming)aimPt=getP(e);});
+  canvas.addEventListener('touchmove',e=>{e.preventDefault();moveAim(getP(e));});
   canvas.addEventListener('touchend',e=>{e.preventDefault();if(aiming)shoot();});
   let gameEnd = false;
-  function startAim(p) { aiming = true; aimPt = p; }
+  function startAim(p) { aiming = true; aimPt = p; zoomScale = 1; }
+  function moveAim(p) {
+    if (!aiming) return;
+    const cx = w/2, cy = h/2;
+    const bSX = cx + (ball.x - cx) * zoomScale, bSY = cy + (ball.y - cy) * zoomScale;
+    const sd = Math.sqrt((p.x - bSX)**2 + (p.y - bSY)**2);
+    const tgt = sd > 70 ? Math.max(0.5, 1 - (sd - 70) / 280) : 1;
+    zoomScale += (tgt - zoomScale) * 0.25;
+    aimPt = {x: cx + (p.x - cx) / zoomScale, y: cy + (p.y - cy) / zoomScale};
+  }
   function shoot() {
     if (!aiming || !aimPt) return;
     aiming = false;
@@ -3598,10 +3618,15 @@ function initMiniGolf(area, setStatus) {
       if (Math.abs(bvx)+Math.abs(bvy) < 0.1) { bvx=bvy=0; moving=false; }
     }
     if (!moving && trail.length > 0) trail.shift();
+    if (!aiming && zoomScale < 1) zoomScale = Math.min(1, zoomScale + 0.03);
     draw();
     raf = requestAnimationFrame(update);
   }
   function draw() {
+    // Dark background (visible when zoomed out)
+    ctx.fillStyle = '#0a1a0a'; ctx.fillRect(0,0,w,h);
+    ctx.save();
+    if (zoomScale < 1) { const cx = w/2, cy = h/2; ctx.translate(cx,cy); ctx.scale(zoomScale,zoomScale); ctx.translate(-cx,-cy); }
     // Green felt with gradient
     const feltG = ctx.createLinearGradient(0,0,w,h);
     feltG.addColorStop(0,'#1a6b1a'); feltG.addColorStop(0.5,'#1B5E20'); feltG.addColorStop(1,'#145a14');
@@ -3673,6 +3698,10 @@ function initMiniGolf(area, setStatus) {
 
     // Aim UI
     if(aiming&&aimPt){
+      // Glow around ball
+      const grd=ctx.createRadialGradient(ball.x,ball.y,BR,ball.x,ball.y,BR*3);
+      grd.addColorStop(0,'rgba(255,255,100,0.45)');grd.addColorStop(1,'rgba(255,255,100,0)');
+      ctx.fillStyle=grd;ctx.beginPath();ctx.arc(ball.x,ball.y,BR*3,0,Math.PI*2);ctx.fill();
       const dx=ball.x-aimPt.x, dy=ball.y-aimPt.y;
       const power=Math.min(Math.sqrt(dx*dx+dy*dy),200), pct=power/200;
       const angle=Math.atan2(dy,dx);
@@ -3706,6 +3735,7 @@ function initMiniGolf(area, setStatus) {
       ctx.fillStyle='#64B5F6';ctx.fillText(`P2:${s2}`,w/2+14,h-RL-9);
     }
     ctx.textAlign='left';
+    ctx.restore();
   }
   setStatus('Hole 1 — P1\'s turn');
   raf = requestAnimationFrame(update);

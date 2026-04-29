@@ -1,0 +1,6 @@
+v1.16 — Duck Chess endgame + Mini Golf zoom
+
+- Duck Chess: after 25 moves per player, the Red Duck laser can now vaporize Kings — adds late-game tension
+- Duck Chess: skull icon and log warning when Kings become vulnerable
+- Mini Golf: table zooms out while aiming, same as Pool — full power from any ball position
+- Pool & Mini Golf: yellow glow highlight on ball while aiming
