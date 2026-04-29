@@ -1175,7 +1175,7 @@ function initStarClash(area, setStatus) {
 
   // Aliens: formation in the middle band
   let aliens = [], alienDir = 1, alienSpeed = 0.4, alienDropTimer = 0;
-  let alienShootTimer = 0, wave = 1;
+  let alienShootTimer = 0, wave = 1, diveTimer = 0;
   const ALIEN_TYPES = [
     {color:'#E53935',points:30,w:18,h:14}, // top row
     {color:'#FDD835',points:20,w:20,h:14}, // mid row
@@ -1199,6 +1199,11 @@ function initStarClash(area, setStatus) {
     const pool = aliens.map((_,i)=>i);
     for(let i=pool.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]];}
     for(let i=0;i<Math.min(4,aliens.length);i++) aliens[pool[i]].special=true;
+    // Mark up to 4 random aliens as divers (Galaga-style)
+    const divePool = aliens.map((_,i)=>i);
+    for(let i=divePool.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[divePool[i],divePool[j]]=[divePool[j],divePool[i]];}
+    for(let i=0;i<Math.min(4,aliens.length);i++) aliens[divePool[i]].canDive=true;
+    diveTimer = 0;
   }
   spawnWave();
 
@@ -1314,17 +1319,68 @@ function initStarClash(area, setStatus) {
       if (hit) { bullets.splice(bi, 1); continue; }
     }
 
-    // Move aliens
+    // Move aliens (skip diving ones)
     let edgeHit = false;
     for (const a of aliens) {
       if (!a.alive) continue;
+      if (a.diving) {
+        a.homeX += alienDir * alienSpeed; // track formation drift
+        a.frame += 0.04;
+        continue;
+      }
       a.x += alienDir * alienSpeed;
       a.frame += 0.02;
       if (a.x < 15 || a.x > w - 15) edgeHit = true;
     }
     if (edgeHit) {
       alienDir = -alienDir;
-      // Don't drop aliens vertically — they stay in the middle band
+    }
+
+    // Trigger Galaga-style dives
+    diveTimer++;
+    if (diveTimer >= 90) {
+      diveTimer = 0;
+      const ready = aliens.filter(a => a.alive && a.canDive && !a.diving);
+      if (ready.length > 0 && (p1.alive || p2.alive)) {
+        const diver = ready[Math.floor(Math.random() * ready.length)];
+        diver.diving = true;
+        diver.homeX = diver.x;
+        diver.homeY = diver.y;
+        diver.diveTarget = (p1.alive && p2.alive) ? Math.floor(Math.random() * 2) : (p1.alive ? 0 : 1);
+        diver.divePhase = 0;
+        diver.diveShootCd = 25;
+      }
+    }
+
+    // Diving alien movement
+    for (const a of aliens) {
+      if (!a.alive || !a.diving) continue;
+      if (a.divePhase === 0) {
+        // Swoop toward target player
+        const targetX = a.diveTarget === 0 ? p1.x : p2.x;
+        const targetY = a.diveTarget === 0 ? P1_SHIP_Y : P2_SHIP_Y;
+        const dirY = targetY > a.y ? 1 : -1;
+        a.y += dirY * 2.8;
+        a.x += (targetX - a.x) * 0.035;
+        // Fire while diving
+        a.diveShootCd--;
+        if (a.diveShootCd <= 0) {
+          a.diveShootCd = 35;
+          alienShoot(a);
+        }
+        if (Math.abs(a.y - targetY) < 35) a.divePhase = 1;
+      } else {
+        // Return to formation
+        const dx = a.homeX - a.x, dy = a.homeY - a.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 4) {
+          a.x += (dx / dist) * 2.8;
+          a.y += (dy / dist) * 2.8;
+        } else {
+          a.x = a.homeX; a.y = a.homeY;
+          a.diving = false;
+        }
+      }
     }
 
     // Alien shooting
@@ -1332,7 +1388,7 @@ function initStarClash(area, setStatus) {
     const shootInterval = Math.max(20, 60 - wave * 5);
     if (alienShootTimer >= shootInterval) {
       alienShootTimer = 0;
-      const liveAliens = aliens.filter(a => a.alive);
+      const liveAliens = aliens.filter(a => a.alive && !a.diving);
       if (liveAliens.length > 0) {
         const shooter = liveAliens[Math.floor(Math.random() * liveAliens.length)];
         alienShoot(shooter);
@@ -1397,6 +1453,8 @@ function initStarClash(area, setStatus) {
     for (const a of aliens) {
       if (!a.alive) continue;
       const t = a.type, wobble = Math.sin(a.frame * 4) * 2;
+      // Diving alien trail
+      if(a.diving){const tp=0.4+Math.sin(a.frame*6)*0.2;ctx.fillStyle=`rgba(255,60,60,${tp})`;ctx.beginPath();ctx.arc(a.x,a.y,12,0,Math.PI*2);ctx.fill();const dirY=a.divePhase===0?(a.diveTarget===0?-1:1):(a.homeY>a.y?-1:1);for(let t=1;t<=3;t++){ctx.fillStyle=`rgba(255,100,50,${0.2-t*0.05})`;ctx.beginPath();ctx.arc(a.x,a.y+dirY*t*7,4-t,0,Math.PI*2);ctx.fill();}}
       if(a.special){const gp=0.3+Math.sin(a.frame*8)*0.2;ctx.fillStyle=`rgba(255,215,0,${gp})`;ctx.beginPath();ctx.arc(a.x,a.y,14,0,Math.PI*2);ctx.fill();ctx.fillStyle='#FFD700';}
       else ctx.fillStyle = t.color;
       // Body
