@@ -1,0 +1,6 @@
+v1.17 — Horse Jump sprite upgrade
+
+- Horse Jump: replaced vector-drawn horses with sprite-based rendering using the Onfe Horse Sprite Asset Pack
+- White horse (P1, top lane) and brown horse (P2, bottom lane) with smooth gallop and jump animations
+- Jockey removed — horse colors now differentiate players
+- Smooth upscaling with high-quality image rendering blends naturally with vector hurdles and backgrounds
