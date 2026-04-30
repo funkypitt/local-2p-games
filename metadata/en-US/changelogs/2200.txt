@@ -1,0 +1,4 @@
+v1.19 — Build fix: sync web assets to Android
+
+- Fixed APK build pipeline: web assets (including horse sprites from v1.17 and mini golf margins from v1.18) were not being copied into the Android build
+- All features from v1.17 and v1.18 now properly included in the APK
