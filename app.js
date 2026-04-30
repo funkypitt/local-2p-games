@@ -386,7 +386,7 @@ const RULES = {
   tanks: 'Artillery duel. On your turn, drag to adjust angle and power, then tap FIRE. Wind affects the shot. Damage depends on how close the shell lands. Destroy the opponent\'s tank to win.',
   ships: 'Battleship. Place your ships on the grid, then take turns tapping squares to fire at the opponent\'s fleet. Hit all segments of every ship to win. Ships: Carrier (5), Battleship (4), Cruiser (3), Submarine (3), Destroyer (2).',
   golf: 'Mini golf for 2. Take turns putting — drag from the ball to aim and set power, release to putt. Fewer strokes wins each hole. Play through all holes.',
-  starclash: 'Galaga-style co-op/competitive shooter. P1 (bottom, red) and P2 (top, blue) both fight aliens in the middle. Slide your finger in your zone to move and auto-fire. Earn points by destroying aliens. If you get hit 3 times, you\'re out. Survive waves and outscore your opponent!',
+  starclash: 'Galaga-style co-op/competitive shooter. P1 (bottom, red) and P2 (top, blue) both fight aliens in the middle. Slide your finger in your zone to move and auto-fire. Earn points by destroying aliens. If you get hit 3 times, you\'re out. Kill glowing aliens for random effects: \u26A1 Speed (rapid fire), \uD83D\uDCA5 Big Shot (huge bullets), \uD83D\uDC0C Slow (sluggish movement), \u2702\uFE0F Short Range (bullets fizzle out early). Survive waves and outscore your opponent!',
   caro: 'Gomoku variant on a 13x13 board. Place stones on intersections. Get exactly 5 in a row (horizontal, vertical, or diagonal) to win. Black goes first.',
   awale: 'West African seed-sowing game. Tap a pit on your side to sow seeds counter-clockwise. If your last seed lands in an opponent\'s pit making it 2 or 3 seeds, you capture them (plus any consecutive 2s or 3s behind). First to capture 25+ seeds wins.',
   duckchess: 'Duck-Day Chess — asymmetric chess variant with two chaotic ducks! Standard FIDE rules apply, but after each move you place the Yellow Duck (blocks all pieces). A Red Duck teleports randomly and fires a laser every 5 moves, vaporizing an adjacent piece. Kings are immune to the laser for the first 25 moves — after that, the Red Duck can vaporize Kings too! Checkmate to win!',
@@ -1523,8 +1523,8 @@ function initStarClash(area, setStatus) {
   function sfxAlienDie() { SND.alienDie(); }
 
   // Players: P1 at bottom, P2 at top (inverted)
-  let p1 = {x: w/2, hp: 3, score: 0, cooldown: 0, alive: true, powerTimer: 0, campHeat: 0};
-  let p2 = {x: w/2, hp: 3, score: 0, cooldown: 0, alive: true, powerTimer: 0, campHeat: 0};
+  let p1 = {x: w/2, hp: 3, score: 0, cooldown: 0, alive: true, powerTimer: 0, powerType: null, campHeat: 0};
+  let p2 = {x: w/2, hp: 3, score: 0, cooldown: 0, alive: true, powerTimer: 0, powerType: null, campHeat: 0};
   let bullets = []; // {x, y, dy, owner: 0|1|2(alien), color}
   let explosions = []; // {x, y, timer}
   let stars = Array.from({length:60}, () => ({x:Math.random()*w, y:Math.random()*h, s:Math.random()*1.5+0.3}));
@@ -1557,6 +1557,12 @@ function initStarClash(area, setStatus) {
     {color:'#FDD835',points:20,w:20,h:14}, // mid row
     {color:'#43A047',points:10,w:20,h:14}, // bottom row
   ];
+  const SPECIAL_EFFECTS = [
+    { name:'SPEED',  bonus:true,  label:'\u26A1', color:'#FFD700', desc:'Speed!' },
+    { name:'BIG',    bonus:true,  label:'\uD83D\uDCA5', color:'#4CAF50', desc:'Big Shot!' },
+    { name:'SLOW',   bonus:false, label:'\uD83D\uDC0C', color:'#9C27B0', desc:'Slow...' },
+    { name:'SHORT',  bonus:false, label:'\u2702\uFE0F', color:'#F44336', desc:'Short Range!' },
+  ];
   function spawnWave() {
     aliens = [];
     const cols = Math.min(8, 5 + wave), rows = Math.min(4, 2 + Math.floor(wave/2));
@@ -1574,7 +1580,7 @@ function initStarClash(area, setStatus) {
     // Mark up to 4 random aliens as special (power-up carriers)
     const pool = aliens.map((_,i)=>i);
     for(let i=pool.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]];}
-    for(let i=0;i<Math.min(4,aliens.length);i++) aliens[pool[i]].special=true;
+    for(let i=0;i<Math.min(4,aliens.length);i++) aliens[pool[i]].special=SPECIAL_EFFECTS[Math.floor(Math.random()*SPECIAL_EFFECTS.length)];
     // Mark up to 4 random aliens as divers (Galaga-style)
     const divePool = aliens.map((_,i)=>i);
     for(let i=divePool.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[divePool[i],divePool[j]]=[divePool[j],divePool[i]];}
@@ -1604,14 +1610,24 @@ function initStarClash(area, setStatus) {
     const bx = p.x;
     const by = player === 0 ? P1_SHIP_Y - 16 : P2_SHIP_Y + 16;
     const dy = player === 0 ? -BULLET_SPD : BULLET_SPD;
-    if (p.powerTimer > 0) {
-      bullets.push({x:bx,y:by,dy,owner:player,color:'#FFD700',powered:true});
-      bullets.push({x:bx-8,y:by,dy,owner:player,color:'#FFD700',powered:true});
-      bullets.push({x:bx+8,y:by,dy,owner:player,color:'#FFD700',powered:true});
-      p.cooldown = 6;
+    const col = player === 0 ? '#FF6B6B' : '#64B5F6';
+    if (p.powerTimer > 0 && p.powerType) {
+      const eff = p.powerType.name;
+      if (eff === 'SPEED') {
+        bullets.push({x:bx,y:by,dy,owner:player,color:'#FFD700',powered:true});
+        p.cooldown = 4;
+      } else if (eff === 'BIG') {
+        bullets.push({x:bx,y:by,dy,owner:player,color:'#4CAF50',powered:true,big:true});
+        p.cooldown = 10;
+      } else if (eff === 'SLOW') {
+        bullets.push({x:bx,y:by,dy,owner:player,color:col});
+        p.cooldown = 18;
+      } else if (eff === 'SHORT') {
+        bullets.push({x:bx,y:by,dy,owner:player,color:col,maxDist:h*0.35,startY:by});
+        p.cooldown = 12;
+      }
     } else {
-      const col = player === 0 ? '#FF6B6B' : '#64B5F6';
-      bullets.push({x: bx, y: by, dy, owner: player, color: col});
+      bullets.push({x:bx,y:by,dy,owner:player,color:col});
       p.cooldown = 12;
     }
     sfxShoot();
@@ -1628,10 +1644,12 @@ function initStarClash(area, setStatus) {
   function update() {
     // Move players toward touch
     autoFireP1 = false; autoFireP2 = false;
+    const p1Spd = (p1.powerTimer > 0 && p1.powerType?.name === 'SLOW') ? 0.06 : 0.15;
+    const p2Spd = (p2.powerTimer > 0 && p2.powerType?.name === 'SLOW') ? 0.06 : 0.15;
     for (const id in touches) {
       const {x, y} = touches[id];
-      if (y > MID) { p1.x += (x - p1.x) * 0.15; autoFireP1 = true; }
-      else { p2.x += (x - p2.x) * 0.15; autoFireP2 = true; }
+      if (y > MID) { p1.x += (x - p1.x) * p1Spd; autoFireP1 = true; }
+      else { p2.x += (x - p2.x) * p2Spd; autoFireP2 = true; }
     }
     p1.x = Math.max(PW/2, Math.min(w - PW/2, p1.x));
     p2.x = Math.max(PW/2, Math.min(w - PW/2, p2.x));
@@ -1663,7 +1681,11 @@ function initStarClash(area, setStatus) {
 
     // Move bullets
     for (const b of bullets) b.y += b.dy;
-    bullets = bullets.filter(b => b.y > -10 && b.y < h + 10);
+    bullets = bullets.filter(b => {
+      if (b.y < -10 || b.y > h + 10) return false;
+      if (b.maxDist && Math.abs(b.y - b.startY) > b.maxDist) return false;
+      return true;
+    });
 
     // Bullet vs alien collision
     for (let bi = bullets.length - 1; bi >= 0; bi--) {
@@ -1671,12 +1693,14 @@ function initStarClash(area, setStatus) {
       if (b.owner === 2) continue; // alien bullets don't hit aliens
       for (const a of aliens) {
         if (!a.alive) continue;
-        if (Math.abs(b.x - a.x) < a.type.w/2 + 3 && Math.abs(b.y - a.y) < a.type.h/2 + 3) {
+        const hitW = b.big ? a.type.w/2 + 10 : a.type.w/2 + 3;
+        const hitH = b.big ? a.type.h/2 + 10 : a.type.h/2 + 3;
+        if (Math.abs(b.x - a.x) < hitW && Math.abs(b.y - a.y) < hitH) {
           a.alive = false;
           bullets.splice(bi, 1);
           explosions.push({x: a.x, y: a.y, timer: 12});
-          if (b.owner === 0) { p1.score += a.type.points; if(a.special) p1.powerTimer=300; }
-          else { p2.score += a.type.points; if(a.special) p2.powerTimer=300; }
+          if (b.owner === 0) { p1.score += a.type.points; if(a.special) { p1.powerTimer=180; p1.powerType=a.special; } }
+          else { p2.score += a.type.points; if(a.special) { p2.powerTimer=180; p2.powerType=a.special; } }
           sfxAlienDie();
           break;
         }
@@ -1811,15 +1835,15 @@ function initStarClash(area, setStatus) {
       else msg = 'P1 wins!';
       setStatus(`${msg} P1:${p1.score} P2:${p2.score}`);
       setTimeout(() => showOverlay(area, `${msg}<br>P1: ${p1.score} | P2: ${p2.score}`, 'Rematch', () => {
-        p1 = {x:w/2,hp:3,score:0,cooldown:0,alive:true,powerTimer:0,campHeat:0};
-        p2 = {x:w/2,hp:3,score:0,cooldown:0,alive:true,powerTimer:0,campHeat:0};
+        p1 = {x:w/2,hp:3,score:0,cooldown:0,alive:true,powerTimer:0,powerType:null,campHeat:0};
+        p2 = {x:w/2,hp:3,score:0,cooldown:0,alive:true,powerTimer:0,powerType:null,campHeat:0};
         bullets = []; explosions = []; wave = 1;
         spawnWave(); initShields(); gameOver = false;
         raf = requestAnimationFrame(loop);
       }), 1000);
     }
 
-    if (!gameOver) setStatus(`P1:${p1.score} ❤${p1.hp}${p1.powerTimer>0?' ⚡':''} | Wave ${wave} | ${p2.powerTimer>0?'⚡ ':''}❤${p2.hp} P2:${p2.score}`);
+    if (!gameOver) setStatus(`P1:${p1.score} \u2764${p1.hp}${p1.powerTimer>0?' '+p1.powerType.label:''} | Wave ${wave} | ${p2.powerTimer>0?p2.powerType.label+' ':''}\u2764${p2.hp} P2:${p2.score}`);
   }
 
   function draw() {
@@ -1860,7 +1884,7 @@ function initStarClash(area, setStatus) {
       const t = a.type, wobble = Math.sin(a.frame * 4) * 2;
       // Diving alien trail
       if(a.diving){const tp=0.4+Math.sin(a.frame*6)*0.2;ctx.fillStyle=`rgba(255,60,60,${tp})`;ctx.beginPath();ctx.arc(a.x,a.y,12,0,Math.PI*2);ctx.fill();const dirY=a.divePhase===0?(a.diveTarget===0?-1:1):(a.homeY>a.y?-1:1);for(let t=1;t<=3;t++){ctx.fillStyle=`rgba(255,100,50,${0.2-t*0.05})`;ctx.beginPath();ctx.arc(a.x,a.y+dirY*t*7,4-t,0,Math.PI*2);ctx.fill();}}
-      if(a.special){const gp=0.3+Math.sin(a.frame*8)*0.2;ctx.fillStyle=`rgba(255,215,0,${gp})`;ctx.beginPath();ctx.arc(a.x,a.y,14,0,Math.PI*2);ctx.fill();ctx.fillStyle='#FFD700';}
+      if(a.special){const gp=0.3+Math.sin(a.frame*8)*0.2;const sc=a.special.color;ctx.fillStyle=sc+Math.round(gp*255).toString(16).padStart(2,'0');ctx.beginPath();ctx.arc(a.x,a.y,14,0,Math.PI*2);ctx.fill();ctx.fillStyle=sc;}
       else ctx.fillStyle = t.color;
       // Body
       ctx.beginPath();
@@ -1884,8 +1908,8 @@ function initStarClash(area, setStatus) {
     }
 
     // Power-up ship glow
-    if(p1.alive&&p1.powerTimer>0){const gp=0.25+Math.sin(Date.now()*0.008)*0.15;ctx.fillStyle=`rgba(255,215,0,${gp})`;ctx.beginPath();ctx.arc(p1.x,P1_SHIP_Y,26,0,Math.PI*2);ctx.fill();}
-    if(p2.alive&&p2.powerTimer>0){const gp=0.25+Math.sin(Date.now()*0.008)*0.15;ctx.fillStyle=`rgba(255,215,0,${gp})`;ctx.beginPath();ctx.arc(p2.x,P2_SHIP_Y,26,0,Math.PI*2);ctx.fill();}
+    if(p1.alive&&p1.powerTimer>0&&p1.powerType){const gp=0.25+Math.sin(Date.now()*0.008)*0.15;ctx.fillStyle=p1.powerType.color+Math.round(gp*255).toString(16).padStart(2,'0');ctx.beginPath();ctx.arc(p1.x,P1_SHIP_Y,26,0,Math.PI*2);ctx.fill();}
+    if(p2.alive&&p2.powerTimer>0&&p2.powerType){const gp=0.25+Math.sin(Date.now()*0.008)*0.15;ctx.fillStyle=p2.powerType.color+Math.round(gp*255).toString(16).padStart(2,'0');ctx.beginPath();ctx.arc(p2.x,P2_SHIP_Y,26,0,Math.PI*2);ctx.fill();}
 
     // Players
     if (p1.alive) {
@@ -1971,6 +1995,15 @@ function initStarClash(area, setStatus) {
       ctx.fillStyle = b.color;
       if (b.owner === 2) {
         ctx.fillRect(b.x - 1.5, b.y - 4, 3, 8);
+      } else if (b.big) {
+        ctx.fillRect(b.x - 5, b.y - 8, 10, 16);
+        ctx.fillStyle = 'rgba(76,175,80,0.3)';
+        ctx.fillRect(b.x - 7, b.y - 9, 14, 18);
+      } else if (b.maxDist) {
+        const fade = 1 - Math.abs(b.y - b.startY) / b.maxDist;
+        ctx.globalAlpha = Math.max(0.2, fade);
+        ctx.fillRect(b.x - 1.5, b.y - 5, 3, 10);
+        ctx.globalAlpha = 1;
       } else if (b.powered) {
         ctx.fillRect(b.x - 3, b.y - 6, 6, 12);
         ctx.fillStyle = 'rgba(255,215,0,0.3)';
