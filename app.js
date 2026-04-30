@@ -4160,7 +4160,7 @@ function initHorseJump(area, setStatus) {
   // --- Horse sprite setup ---
   const GALLOP_FW = 80, GALLOP_FH = 64, GALLOP_FC = 6;
   const JUMP_FW = 80, JUMP_FH = 82, JUMP_FC = 16;
-  const SPRITE_W = 70;
+  const SPRITE_W = 86;
   const GALLOP_SH = Math.round(SPRITE_W * GALLOP_FH / GALLOP_FW);
   const JUMP_SH = Math.round(SPRITE_W * JUMP_FH / JUMP_FW);
   function loadSprite(b64) { const i = new Image(); i.src = 'data:image/png;base64,' + b64; return i; }
@@ -4236,20 +4236,19 @@ function initHorseJump(area, setStatus) {
       ctx.fill();
     }
 
-    // Flip horizontally (sprites face left, game needs right) + smooth upscaling
-    ctx.scale(-1, 1);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
 
     if (air && jumpImg.complete) {
-      // Jumping: map vy-based progress to frame index across 16 jump frames
+      // Jump sprites face RIGHT — no flip needed
       const jumpProgress = Math.min(1, Math.max(0, (vy - JUMP_V0) / (-2 * JUMP_V0)));
       const fi = Math.min(JUMP_FC - 1, Math.max(0, Math.floor(jumpProgress * JUMP_FC)));
       ctx.drawImage(jumpImg,
         fi * JUMP_FW, 0, JUMP_FW, JUMP_FH,
         -SPRITE_W / 2, -(JUMP_SH - 8), SPRITE_W, JUMP_SH);
     } else if (gallopImg.complete) {
-      // Running: cycle gallop frames
+      // Gallop sprites face LEFT — flip to face RIGHT
+      ctx.scale(-1, 1);
       const fi = Math.floor(legPhase) % GALLOP_FC;
       ctx.drawImage(gallopImg,
         fi * GALLOP_FW, 0, GALLOP_FW, GALLOP_FH,

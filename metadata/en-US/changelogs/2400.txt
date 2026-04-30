@@ -1,0 +1,4 @@
+v1.21 — Fix Horse Jump direction + larger sprites
+
+- Fixed jump animation: jump sprites face right (opposite to gallop), so removed the horizontal flip for jump frames only
+- Increased horse sprite display size from 70px to 86px for better visibility
