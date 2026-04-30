@@ -4158,7 +4158,7 @@ function initHorseJump(area, setStatus) {
   const GROUND_OFFSET = 55;
 
   // --- Horse sprite setup ---
-  const GALLOP_FW = 90, GALLOP_FH = 64, GALLOP_FC = 6;
+  const GALLOP_FW = 80, GALLOP_FH = 64, GALLOP_FC = 6;
   const JUMP_FW = 80, JUMP_FH = 82, JUMP_FC = 16;
   const SPRITE_W = 70;
   const GALLOP_SH = Math.round(SPRITE_W * GALLOP_FH / GALLOP_FW);

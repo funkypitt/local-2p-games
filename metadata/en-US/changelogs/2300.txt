@@ -1,0 +1,3 @@
+v1.20 — Fix Horse Jump gallop animation
+
+- Fixed gallop sprite frame width (was 90px, should be 80px) causing frames to overlap and show doubled/reversed horses
