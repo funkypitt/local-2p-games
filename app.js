@@ -4241,8 +4241,10 @@ function initHorseJump(area, setStatus) {
 
     if (air && jumpImg.complete) {
       // Jump sprites face RIGHT — no flip needed
+      // Frames 0-3 are run-up, 4-12 are airborne, 13-15 are landing — use 3-12 while in air
+      const JF = 3, JR = 10;
       const jumpProgress = Math.min(1, Math.max(0, (vy - JUMP_V0) / (-2 * JUMP_V0)));
-      const fi = Math.min(JUMP_FC - 1, Math.max(0, Math.floor(jumpProgress * JUMP_FC)));
+      const fi = JF + Math.min(JR - 1, Math.floor(jumpProgress * JR));
       ctx.drawImage(jumpImg,
         fi * JUMP_FW, 0, JUMP_FW, JUMP_FH,
         -SPRITE_W / 2, -(JUMP_SH - 8), SPRITE_W, JUMP_SH);
