@@ -161,6 +161,7 @@ const SND = {
   tick() { this._sfx(function() { const t=this._ctx.currentTime; this._tone(1100,0.03,'square',0.06,t,this._sfxGain); this._tone(2200,0.015,'sine',0.03,t,this._sfxGain); }); },
   spinTick() { this._sfx(function() { const f=600+Math.random()*600; const t=this._ctx.currentTime; this._tone(f,0.04,'triangle',0.08,t,this._sfxGain); this._tone(f*1.5,0.02,'sine',0.03,t,this._sfxGain); }); },
   gallop() { this._sfx(function() { const t=this._ctx.currentTime; this._tone(180,0.05,'triangle',0.15,t,this._sfxGain); this._tone(240,0.05,'triangle',0.12,t+0.05,this._sfxGain); this._tone(300,0.03,'sine',0.04,t+0.03,this._sfxGain); }); },
+  seedDrop() { this._sfx(function() { const t=this._ctx.currentTime; this._tone(400+Math.random()*200,0.04,'triangle',0.08,t,this._sfxGain); }); },
 };
 
 // === ONLINE MULTIPLAYER MODULE ===
@@ -844,7 +845,8 @@ function initMemory(area, setStatus, online) {
 // ==================== AWALÉ ====================
 function initAwale(area, setStatus, online) {
   let board = Array(12).fill(4);
-  let scores = [0, 0], turn = 0, gameOver = false;
+  let scores = [0, 0], turn = 0, gameOver = false, animating = false, activePit = -1;
+  const delay = ms => new Promise(r => setTimeout(r, ms));
   const wrap = document.createElement('div');
   wrap.className = 'board-game';
   area.appendChild(wrap);
@@ -877,15 +879,17 @@ function initAwale(area, setStatus, online) {
     let h = `<div style="text-align:center;margin-bottom:6px;font-weight:bold;font-size:${turn===1?'1.3em':'0.95em'};color:${turn===1?'#fff':'#666'};${turn===1?'text-shadow:0 0 10px rgba(255,255,255,0.6),0 0 20px rgba(255,255,255,0.3)':'opacity:0.5'};transition:all 0.3s">▲ ${online ? (online.playerId===1?'You':'Opp') : 'P2'}: ${scores[1]}</div>`;
     h += '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:6px">';
     for (let i = 11; i >= 6; i--) {
-      const a = turn===1 && board[i]>0 && !gameOver && (!online || online.playerId===1);
-      h += `<div data-pit="${i}" style="background:${a?'#6D4C41':'#3E2723'};padding:8px 4px;border-radius:12px;text-align:center;cursor:${a?'pointer':'default'};min-height:70px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative">`;
+      const a = !animating && turn===1 && board[i]>0 && !gameOver && (!online || online.playerId===1);
+      const glow = i===activePit ? 'box-shadow:0 0 12px 4px rgba(255,200,50,0.7);' : '';
+      h += `<div data-pit="${i}" style="background:${a?'#6D4C41':'#3E2723'};padding:8px 4px;border-radius:12px;text-align:center;cursor:${a?'pointer':'default'};min-height:70px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;${glow}">`;
       h += renderBeans(board[i], a);
       h += `<div style="font-size:.65em;color:#aaa;margin-top:1px">${board[i]}</div></div>`;
     }
     h += '</div><div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px">';
     for (let i = 0; i <= 5; i++) {
-      const a = turn===0 && board[i]>0 && !gameOver && (!online || online.playerId===0);
-      h += `<div data-pit="${i}" style="background:${a?'#6D4C41':'#3E2723'};padding:8px 4px;border-radius:12px;text-align:center;cursor:${a?'pointer':'default'};min-height:70px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative">`;
+      const a = !animating && turn===0 && board[i]>0 && !gameOver && (!online || online.playerId===0);
+      const glow = i===activePit ? 'box-shadow:0 0 12px 4px rgba(255,200,50,0.7);' : '';
+      h += `<div data-pit="${i}" style="background:${a?'#6D4C41':'#3E2723'};padding:8px 4px;border-radius:12px;text-align:center;cursor:${a?'pointer':'default'};min-height:70px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;${glow}">`;
       h += renderBeans(board[i], a);
       h += `<div style="font-size:.65em;color:#aaa;margin-top:1px">${board[i]}</div></div>`;
     }
@@ -893,6 +897,7 @@ function initAwale(area, setStatus, online) {
     cont.innerHTML = h;
     cont.querySelectorAll('[data-pit]').forEach(el => {
       el.onclick = () => {
+        if (animating) return;
         const pit = parseInt(el.dataset.pit);
         if (online && turn !== online.playerId) return;
         execPlay(pit);
@@ -902,28 +907,46 @@ function initAwale(area, setStatus, online) {
     if (gameOver) {
       const m = online ? (scores[online.playerId]>scores[1-online.playerId]?'You win!':scores[online.playerId]<scores[1-online.playerId]?'You lose!':'Draw!') : (scores[0]>scores[1]?'P1 wins!':scores[1]>scores[0]?'P2 wins!':'Draw!');
       setStatus(m);
-      setTimeout(() => showOverlay(area, `${m}<br>P1: ${scores[0]} | P2: ${scores[1]}`, 'Rematch', () => { board = Array(12).fill(4); scores = [0,0]; turn = 0; gameOver = false; render(); }), 600);
+      setTimeout(() => showOverlay(area, `${m}<br>P1: ${scores[0]} | P2: ${scores[1]}`, 'Rematch', () => { board = Array(12).fill(4); scores = [0,0]; turn = 0; gameOver = false; animating = false; activePit = -1; render(); }), 600);
     } else {
       setStatus(online ? (turn===online.playerId?'Your turn':"Opponent's turn") : `P${turn+1}'s turn`);
     }
   }
-  function execPlay(pit) {
-    if (gameOver) return;
+  async function execPlay(pit) {
+    if (gameOver || animating) return;
     if (turn===0 && (pit<0||pit>5)) return;
     if (turn===1 && (pit<6||pit>11)) return;
     if (board[pit]===0) return;
     let seeds = board[pit]; board[pit] = 0; SND.click();
+    render(); // show empty source pit immediately
+    animating = true;
+
     let pos = pit;
-    while (seeds > 0) { pos = (pos+1)%12; if (pos===pit) continue; board[pos]++; seeds--; }
+    for (let i = 0; i < seeds; i++) {
+      pos = (pos+1)%12;
+      if (pos===pit) { seeds++; continue; } // skip origin, add extra iteration
+      board[pos]++;
+      activePit = pos;
+      SND.seedDrop();
+      render();
+      await delay(120);
+    }
+    activePit = -1;
+
     // Capture
     const oppS = turn===0?6:0, oppE = turn===0?11:5;
     if (pos >= oppS && pos <= oppE) {
       let p = pos;
       while (p >= oppS && p <= oppE && (board[p]===2||board[p]===3)) {
+        activePit = p;
         scores[turn] += board[p]; board[p] = 0; SND.chime();
+        render();
+        await delay(200);
         p += (turn===0) ? -1 : 1;
       }
+      activePit = -1;
     }
+
     if (scores[0]>=25||scores[1]>=25) gameOver = true;
     // Check if next player can play
     const ns = turn===0?6:0, ne = turn===0?11:5;
@@ -931,6 +954,7 @@ function initAwale(area, setStatus, online) {
     for (let i=ns;i<=ne;i++) if(board[i]>0) hasSeeds=true;
     if (!hasSeeds) { for(let i=0;i<12;i++){scores[turn]+=board[i];board[i]=0;} gameOver=true; }
     turn = 1 - turn;
+    animating = false;
     render();
   }
   if (online) {
@@ -3509,14 +3533,15 @@ function initPool(area, setStatus) {
 // ==================== MINI GOLF ====================
 function initMiniGolf(area, setStatus) {
   const {canvas, ctx, w, h} = createCanvas(area);
+  const CW = w * 0.82, CH = h * 0.72, CX = (w-CW)/2, CY = (h-CH)/2;
   const BR = 8, HR = 14, FRICTION = 0.98, POWER_MULT = 0.10;
   const holes = [
-    {ball:{x:w/2,y:h*0.8},hole:{x:w/2,y:h*0.2},walls:[[w*0.2,0,w*0.2,h],[w*0.8,0,w*0.8,h]]},
-    {ball:{x:w*0.3,y:h*0.85},hole:{x:w*0.7,y:h*0.15},walls:[[w*0.15,0,w*0.15,h*0.7],[w*0.85,h*0.3,w*0.85,h],[w*0.15,h*0.7,w*0.5,h*0.7],[w*0.5,h*0.3,w*0.85,h*0.3]]},
-    {ball:{x:w/2,y:h*0.85},hole:{x:w/2,y:h*0.15},walls:[[w*0.2,0,w*0.2,h],[w*0.8,0,w*0.8,h],[w*0.35,h*0.4,w*0.65,h*0.4],[w*0.35,h*0.6,w*0.65,h*0.6]]},
-    {ball:{x:w*0.75,y:h*0.82},hole:{x:w*0.25,y:h*0.18},walls:[[w*0.5,h*0.25,w*0.5,h*0.75],[w*0.5,h*0.25,w*0.85,h*0.25]]},
-    {ball:{x:w/2,y:h*0.88},hole:{x:w/2,y:h*0.12},walls:[[0,h*0.72,w*0.65,h*0.72],[w*0.35,h*0.5,w,h*0.5],[0,h*0.28,w*0.65,h*0.28]]},
-    {ball:{x:w/2,y:h*0.88},hole:{x:w/2,y:h*0.12},walls:[[w*0.1,h*0.15,w*0.4,h*0.5],[w*0.9,h*0.15,w*0.6,h*0.5],[w*0.4,h*0.5,w*0.4,h*0.7],[w*0.6,h*0.5,w*0.6,h*0.7]]}
+    {ball:{x:CX+CW/2,y:CY+CH*0.8},hole:{x:CX+CW/2,y:CY+CH*0.2},walls:[[CX+CW*0.2,CY,CX+CW*0.2,CY+CH],[CX+CW*0.8,CY,CX+CW*0.8,CY+CH]]},
+    {ball:{x:CX+CW*0.3,y:CY+CH*0.85},hole:{x:CX+CW*0.7,y:CY+CH*0.15},walls:[[CX+CW*0.15,CY,CX+CW*0.15,CY+CH*0.7],[CX+CW*0.85,CY+CH*0.3,CX+CW*0.85,CY+CH],[CX+CW*0.15,CY+CH*0.7,CX+CW*0.5,CY+CH*0.7],[CX+CW*0.5,CY+CH*0.3,CX+CW*0.85,CY+CH*0.3]]},
+    {ball:{x:CX+CW/2,y:CY+CH*0.85},hole:{x:CX+CW/2,y:CY+CH*0.15},walls:[[CX+CW*0.2,CY,CX+CW*0.2,CY+CH],[CX+CW*0.8,CY,CX+CW*0.8,CY+CH],[CX+CW*0.35,CY+CH*0.4,CX+CW*0.65,CY+CH*0.4],[CX+CW*0.35,CY+CH*0.6,CX+CW*0.65,CY+CH*0.6]]},
+    {ball:{x:CX+CW*0.75,y:CY+CH*0.82},hole:{x:CX+CW*0.25,y:CY+CH*0.18},walls:[[CX+CW*0.5,CY+CH*0.25,CX+CW*0.5,CY+CH*0.75],[CX+CW*0.5,CY+CH*0.25,CX+CW*0.85,CY+CH*0.25]]},
+    {ball:{x:CX+CW/2,y:CY+CH*0.88},hole:{x:CX+CW/2,y:CY+CH*0.12},walls:[[CX,CY+CH*0.72,CX+CW*0.65,CY+CH*0.72],[CX+CW*0.35,CY+CH*0.5,CX+CW,CY+CH*0.5],[CX,CY+CH*0.28,CX+CW*0.65,CY+CH*0.28]]},
+    {ball:{x:CX+CW/2,y:CY+CH*0.88},hole:{x:CX+CW/2,y:CY+CH*0.12},walls:[[CX+CW*0.1,CY+CH*0.15,CX+CW*0.4,CY+CH*0.5],[CX+CW*0.9,CY+CH*0.15,CX+CW*0.6,CY+CH*0.5],[CX+CW*0.4,CY+CH*0.5,CX+CW*0.4,CY+CH*0.7],[CX+CW*0.6,CY+CH*0.5,CX+CW*0.6,CY+CH*0.7]]}
   ];
   let holeIdx = 0, playerScores = [[],[]];
   let turn = 0, strokes = 0;
@@ -3556,10 +3581,10 @@ function initMiniGolf(area, setStatus) {
   }
   function checkWallBounce(bx, by, vx, vy) {
     // Boundary walls
-    if (bx < BR) { bx = BR; vx = Math.abs(vx); }
-    if (bx > w-BR) { bx = w-BR; vx = -Math.abs(vx); }
-    if (by < BR) { by = BR; vy = Math.abs(vy); }
-    if (by > h-BR) { by = h-BR; vy = -Math.abs(vy); }
+    if (bx < CX+BR) { bx = CX+BR; vx = Math.abs(vx); }
+    if (bx > CX+CW-BR) { bx = CX+CW-BR; vx = -Math.abs(vx); }
+    if (by < CY+BR) { by = CY+BR; vy = Math.abs(vy); }
+    if (by > CY+CH-BR) { by = CY+CH-BR; vy = -Math.abs(vy); }
     // Wall segments
     for (const [x1,y1,x2,y2] of walls) {
       const dx = x2-x1, dy = y2-y1, len = Math.sqrt(dx*dx+dy*dy);
@@ -3628,21 +3653,21 @@ function initMiniGolf(area, setStatus) {
     ctx.save();
     if (zoomScale < 1) { const cx = w/2, cy = h/2; ctx.translate(cx,cy); ctx.scale(zoomScale,zoomScale); ctx.translate(-cx,-cy); }
     // Green felt with gradient
-    const feltG = ctx.createLinearGradient(0,0,w,h);
+    const feltG = ctx.createLinearGradient(CX,CY,CX+CW,CY+CH);
     feltG.addColorStop(0,'#1a6b1a'); feltG.addColorStop(0.5,'#1B5E20'); feltG.addColorStop(1,'#145a14');
-    ctx.fillStyle = feltG; ctx.fillRect(0,0,w,h);
+    ctx.fillStyle = feltG; ctx.fillRect(CX,CY,CW,CH);
     // Mowing stripes
-    for (let y=0;y<h;y+=16) { ctx.fillStyle=y%32===0?'rgba(255,255,255,0.016)':'rgba(0,0,0,0.016)'; ctx.fillRect(0,y,w,16); }
+    for (let sy=CY;sy<CY+CH;sy+=16) { ctx.fillStyle=(sy-CY)%32===0?'rgba(255,255,255,0.016)':'rgba(0,0,0,0.016)'; ctx.fillRect(CX,sy,CW,16); }
 
     // Wooden rail border
     const RL=7;
-    ctx.fillStyle='#5D3A1A'; ctx.fillRect(0,0,w,RL); ctx.fillRect(0,h-RL,w,RL); ctx.fillRect(0,0,RL,h); ctx.fillRect(w-RL,0,RL,h);
-    ctx.fillStyle='#8B6B4A'; ctx.fillRect(0,0,w,2); ctx.fillRect(0,0,2,h);
-    ctx.fillStyle='#3A2210'; ctx.fillRect(0,h-2,w,2); ctx.fillRect(w-2,0,2,h);
+    ctx.fillStyle='#5D3A1A'; ctx.fillRect(CX,CY,CW,RL); ctx.fillRect(CX,CY+CH-RL,CW,RL); ctx.fillRect(CX,CY,RL,CH); ctx.fillRect(CX+CW-RL,CY,RL,CH);
+    ctx.fillStyle='#8B6B4A'; ctx.fillRect(CX,CY,CW,2); ctx.fillRect(CX,CY,2,CH);
+    ctx.fillStyle='#3A2210'; ctx.fillRect(CX,CY+CH-2,CW,2); ctx.fillRect(CX+CW-2,CY,2,CH);
     // Green bumper edge
-    ctx.strokeStyle='#2E7D32'; ctx.lineWidth=2; ctx.strokeRect(RL,RL,w-RL*2,h-RL*2);
+    ctx.strokeStyle='#2E7D32'; ctx.lineWidth=2; ctx.strokeRect(CX+RL,CY+RL,CW-RL*2,CH-RL*2);
     // Corner bolts
-    for(const[cx,cy] of [[RL/2,RL/2],[w-RL/2,RL/2],[RL/2,h-RL/2],[w-RL/2,h-RL/2]]){
+    for(const[cx,cy] of [[CX+RL/2,CY+RL/2],[CX+CW-RL/2,CY+RL/2],[CX+RL/2,CY+CH-RL/2],[CX+CW-RL/2,CY+CH-RL/2]]){
       ctx.fillStyle='#8B6B4A';ctx.beginPath();ctx.arc(cx,cy,2.5,0,Math.PI*2);ctx.fill();
       ctx.fillStyle='#3A2210';ctx.beginPath();ctx.arc(cx,cy,1,0,Math.PI*2);ctx.fill();
     }
@@ -3720,19 +3745,19 @@ function initMiniGolf(area, setStatus) {
     }
 
     // HUD
-    ctx.fillStyle='rgba(0,0,0,0.3)';ctx.fillRect(w-72,RL+4,64,20);
+    ctx.fillStyle='rgba(0,0,0,0.3)';ctx.fillRect(CX+CW-72,CY+RL+4,64,20);
     ctx.fillStyle='#fff';ctx.font='bold 10px sans-serif';ctx.textAlign='right';
-    ctx.fillText(`Hole ${holeIdx+1}/${holes.length}`,w-RL-6,RL+18);
-    ctx.fillStyle='rgba(0,0,0,0.3)';ctx.fillRect(RL+4,RL+4,78,20);
+    ctx.fillText(`Hole ${holeIdx+1}/${holes.length}`,CX+CW-RL-6,CY+RL+18);
+    ctx.fillStyle='rgba(0,0,0,0.3)';ctx.fillRect(CX+RL+4,CY+RL+4,78,20);
     ctx.fillStyle=turn===0?'#FF6B6B':'#64B5F6';ctx.textAlign='left';
-    ctx.fillText(`P${turn+1} \u2022 ${strokes} stroke${strokes!==1?'s':''}`,RL+10,RL+18);
+    ctx.fillText(`P${turn+1} \u2022 ${strokes} stroke${strokes!==1?'s':''}`,CX+RL+10,CY+RL+18);
     // Score summary
     if(playerScores[0].length>0||playerScores[1].length>0){
       const s1=playerScores[0].reduce((a,b)=>a+b,0),s2=playerScores[1].reduce((a,b)=>a+b,0);
-      ctx.fillStyle='rgba(0,0,0,0.3)';ctx.fillRect(w/2-40,h-RL-22,80,18);
+      ctx.fillStyle='rgba(0,0,0,0.3)';ctx.fillRect(CX+CW/2-40,CY+CH-RL-22,80,18);
       ctx.fillStyle='#FF6B6B';ctx.textAlign='center';ctx.font='9px sans-serif';
-      ctx.fillText(`P1:${s1}`,w/2-14,h-RL-9);
-      ctx.fillStyle='#64B5F6';ctx.fillText(`P2:${s2}`,w/2+14,h-RL-9);
+      ctx.fillText(`P1:${s1}`,CX+CW/2-14,CY+CH-RL-9);
+      ctx.fillStyle='#64B5F6';ctx.fillText(`P2:${s2}`,CX+CW/2+14,CY+CH-RL-9);
     }
     ctx.textAlign='left';
     ctx.restore();

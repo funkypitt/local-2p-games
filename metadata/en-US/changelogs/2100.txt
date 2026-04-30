@@ -1,0 +1,2 @@
+- Mini Golf: course now centered with margins for easier power-shot aiming
+- Awale: seeds animate pit-to-pit with sound feedback per drop
