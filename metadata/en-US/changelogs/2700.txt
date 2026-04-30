@@ -1,0 +1,6 @@
+v1.24 — Multi-feature update
+
+- Word Clash: Larger letter wheel and circles for easier selection on phone
+- Wake Lock: Screen stays on during gameplay (no more screensaver interruptions)
+- Tennis: New "2x" power-up spawns a second ball for double-ball chaos
+- Memory: Hidden easter egg (try double-tapping the empty space...)

@@ -377,7 +377,7 @@ const ONLINE = (function() {
 
 // --- Game Instructions ---
 const RULES = {
-  tennis: 'Pong-style tennis. Slide your finger on your half of the screen to move your paddle. Bounce the ball past your opponent to score. Collect power-ups when the ball hits them: BIG = bigger paddle, TINY = shrink opponent, MAGNET = ball curves toward you, GHOST = invisible ball, QUAKE = jittery paddles. First to 5 wins.',
+  tennis: 'Pong-style tennis. Slide your finger on your half of the screen to move your paddle. Bounce the ball past your opponent to score. Collect power-ups when the ball hits them: BIG = bigger paddle, TINY = shrink opponent, MAGNET = ball curves toward you, GHOST = invisible ball, QUAKE = jittery paddles, 2x = double ball! First to 5 wins.',
   four: 'Classic Connect 4. Tap a column to drop your disc. Get 4 in a row (horizontal, vertical, or diagonal) to win. Red goes first.',
   pool: '8-ball pool. Drag from the cue ball to aim and set power, then release to shoot. Sink all your balls (stripes or solids, assigned on first pot) then the 8-ball to win. Potting the cue ball is a foul — opponent gets ball-in-hand.',
   memory: 'Flip 2 cards per turn. If they match, you keep them and go again. If not, they flip back and it\'s the opponent\'s turn. The player with the most pairs wins.',
@@ -438,7 +438,18 @@ function makeMusicBtn(parent) {
   return btn;
 }
 
+// === WAKE LOCK (prevent screen dimming during games) ===
+let wakeLock = null;
+async function acquireWakeLock() {
+  try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request('screen'); } catch(e) {}
+}
+function releaseWakeLock() {
+  if (wakeLock) { wakeLock.release(); wakeLock = null; }
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && wakeLock) acquireWakeLock(); });
+
 function startGame(g) {
+  acquireWakeLock();
   document.getElementById('menu').style.display = 'none';
   const gameEl = document.getElementById('game');
   gameEl.style.display = 'flex';
@@ -514,6 +525,7 @@ function startGame(g) {
 function endGame() {
   if (currentDestroy) currentDestroy();
   currentDestroy = null;
+  releaseWakeLock();
   SND.musicStop();
   document.getElementById('game-area').innerHTML = '';
   document.getElementById('game').style.display = 'none';
@@ -759,6 +771,8 @@ function initFourInARow(area, setStatus, online) {
 function initMemory(area, setStatus, online) {
   const PAIRS = 16, TOTAL = 32;
   const symbols = ['🍎','🍊','🍋','🍇','🍉','🍓','🫐','🥝','🍌','🥭','🍑','🍒','🍍','🥥','🍆','🫑'];
+  const FELIX = '\u{1F431}felix';
+  let felixMode = false;
   let cards = [...symbols, ...symbols];
   const rngFn = online ? online.rng : Math.random;
   for (let i = cards.length - 1; i > 0; i--) { const j = Math.floor(rngFn()*(i+1)); [cards[i],cards[j]]=[cards[j],cards[i]]; }
@@ -801,11 +815,12 @@ function initMemory(area, setStatus, online) {
     cardEls.push(el);
   }
   function restart() {
+    felixMode = false;
     cards = [...symbols, ...symbols];
     const rf = online ? online.rng : Math.random;
     for (let i = cards.length - 1; i > 0; i--) { const j = Math.floor(rf()*(i+1)); [cards[i],cards[j]]=[cards[j],cards[i]]; }
     matched = Array(TOTAL).fill(false); first = -1; second = -1; busy = false; turn = 1; scores = [0, 0];
-    for (let i = 0; i < TOTAL; i++) { cardEls[i].textContent = ''; cardEls[i].style.background = '#2a2a4a'; }
+    for (let i = 0; i < TOTAL; i++) { cardEls[i].innerHTML = ''; cardEls[i].style.background = '#2a2a4a'; }
     updateStatus();
   }
   updateStatus();
@@ -813,9 +828,16 @@ function initMemory(area, setStatus, online) {
     if (online) setStatus(`You: ${scores[online.playerId]}  Opp: ${scores[1-online.playerId]} — ${turn === online.playerId+1 ? 'Your turn' : "Opponent's turn"}`);
     else setStatus(`P1: ${scores[0]}  P2: ${scores[1]} — P${turn}'s turn`);
   }
+  function showCard(i) {
+    if (cards[i] === FELIX) {
+      cardEls[i].innerHTML = '<img src="felix.png" style="width:80%;height:80%;object-fit:contain;border-radius:6px">';
+    } else {
+      cardEls[i].textContent = cards[i];
+    }
+  }
   function execFlip(i) {
     if (busy || matched[i] || (first === i)) return;
-    cardEls[i].textContent = cards[i];
+    showCard(i);
     cardEls[i].style.background = '#3a3a6a'; SND.pop();
     if (first === -1) { first = i; return; }
     second = i; busy = true;
@@ -828,8 +850,8 @@ function initMemory(area, setStatus, online) {
     } else {
       SND.buzz();
       setTimeout(() => {
-        cardEls[first].textContent = ''; cardEls[first].style.background = '#2a2a4a';
-        cardEls[second].textContent = ''; cardEls[second].style.background = '#2a2a4a';
+        cardEls[first].innerHTML = ''; cardEls[first].style.background = '#2a2a4a';
+        cardEls[second].innerHTML = ''; cardEls[second].style.background = '#2a2a4a';
         first = second = -1; busy = false;
         turn = 3 - turn; updateStatus();
       }, 800);
@@ -839,6 +861,26 @@ function initMemory(area, setStatus, online) {
     online.listenMoves(data => execFlip(data.i));
     online.onOpponentDisconnect(() => setStatus('Opponent disconnected'));
   }
+
+  // Felix easter egg — double-tap empty space to replace a random fruit with felix.png
+  let lastTapTime = 0;
+  wrap.addEventListener('click', (e) => {
+    if (e.target.closest('[style*="cursor:pointer"]') && e.target !== wrap && e.target !== grid) return;
+    const now = Date.now();
+    if (now - lastTapTime < 400) {
+      if (!felixMode) {
+        felixMode = true;
+        const pick = Math.floor(Math.random() * symbols.length);
+        const felixSymbol = symbols[pick];
+        for (let i = 0; i < TOTAL; i++) {
+          if (cards[i] === felixSymbol) cards[i] = FELIX;
+          if (matched[i] && cards[i] === FELIX) showCard(i);
+        }
+      }
+    }
+    lastTapTime = now;
+  });
+
   return () => { if (online) online.cleanup(); };
 }
 
@@ -1466,6 +1508,10 @@ function initDuckChess(area, setStatus, online) {
 function initStarClash(area, setStatus) {
   const {canvas, ctx, w, h} = createCanvas(area);
   const PW = 40, PH = 28, BULLET_SPD = 7, ALIEN_BULLET_SPD = 3.5;
+  const EDGE_ZONE = w * 0.18;         // danger zone width on each side
+  const CAMP_HEAT_RATE = 1;            // heat gain per frame when in zone
+  const CAMP_HEAT_COOL = 3;            // heat loss per frame when NOT in zone
+  const CAMP_DAMAGE_THRESHOLD = 180;   // frames before damage (~3s at 60fps)
   const SHIELD_ROWS = 3, SHIELD_COLS = 8, SHIELD_BLOCK = 6;
   const MID = h / 2;
   const CTRL_H = 50; // control zone height
@@ -1477,8 +1523,8 @@ function initStarClash(area, setStatus) {
   function sfxAlienDie() { SND.alienDie(); }
 
   // Players: P1 at bottom, P2 at top (inverted)
-  let p1 = {x: w/2, hp: 3, score: 0, cooldown: 0, alive: true, powerTimer: 0};
-  let p2 = {x: w/2, hp: 3, score: 0, cooldown: 0, alive: true, powerTimer: 0};
+  let p1 = {x: w/2, hp: 3, score: 0, cooldown: 0, alive: true, powerTimer: 0, campHeat: 0};
+  let p2 = {x: w/2, hp: 3, score: 0, cooldown: 0, alive: true, powerTimer: 0, campHeat: 0};
   let bullets = []; // {x, y, dy, owner: 0|1|2(alien), color}
   let explosions = []; // {x, y, timer}
   let stars = Array.from({length:60}, () => ({x:Math.random()*w, y:Math.random()*h, s:Math.random()*1.5+0.3}));
@@ -1597,6 +1643,23 @@ function initStarClash(area, setStatus) {
     // Auto-fire
     if (autoFireP1 && p1.cooldown <= 0 && p1.alive) shoot(0);
     if (autoFireP2 && p2.cooldown <= 0 && p2.alive) shoot(1);
+
+    // Edge camping heat
+    for (const p of [p1, p2]) {
+      if (!p.alive) continue;
+      if (p.x < PW/2 + EDGE_ZONE || p.x > w - PW/2 - EDGE_ZONE) {
+        p.campHeat += CAMP_HEAT_RATE;
+      } else {
+        p.campHeat = Math.max(0, p.campHeat - CAMP_HEAT_COOL);
+      }
+      if (p.campHeat >= CAMP_DAMAGE_THRESHOLD) {
+        p.hp--;
+        p.campHeat = 0;
+        explosions.push({x: p.x, y: p === p1 ? P1_SHIP_Y : P2_SHIP_Y, timer: 10});
+        SND.buzz();
+        if (p.hp <= 0) p.alive = false;
+      }
+    }
 
     // Move bullets
     for (const b of bullets) b.y += b.dy;
@@ -1748,8 +1811,8 @@ function initStarClash(area, setStatus) {
       else msg = 'P1 wins!';
       setStatus(`${msg} P1:${p1.score} P2:${p2.score}`);
       setTimeout(() => showOverlay(area, `${msg}<br>P1: ${p1.score} | P2: ${p2.score}`, 'Rematch', () => {
-        p1 = {x:w/2,hp:3,score:0,cooldown:0,alive:true,powerTimer:0};
-        p2 = {x:w/2,hp:3,score:0,cooldown:0,alive:true,powerTimer:0};
+        p1 = {x:w/2,hp:3,score:0,cooldown:0,alive:true,powerTimer:0,campHeat:0};
+        p2 = {x:w/2,hp:3,score:0,cooldown:0,alive:true,powerTimer:0,campHeat:0};
         bullets = []; explosions = []; wave = 1;
         spawnWave(); initShields(); gameOver = false;
         raf = requestAnimationFrame(loop);
@@ -1767,6 +1830,18 @@ function initStarClash(area, setStatus) {
       ctx.fillStyle = `rgba(255,255,255,${0.3+s.s*0.3})`;
       ctx.fillRect(s.x, s.y, s.s > 1 ? 2 : 1, s.s > 1 ? 2 : 1);
     }
+
+    // Edge danger zones
+    const zoneLeft = PW/2 + EDGE_ZONE;
+    const zoneRight = w - PW/2 - EDGE_ZONE;
+    // Check if either player is in a zone for pulse effect
+    const p1InZone = p1.alive && (p1.x < zoneLeft || p1.x > zoneRight);
+    const p2InZone = p2.alive && (p2.x < zoneLeft || p2.x > zoneRight);
+    const anyInZone = p1InZone || p2InZone;
+    const pulse = anyInZone ? 0.12 + Math.sin(Date.now() * 0.006) * 0.06 : 0.07;
+    ctx.fillStyle = `rgba(255,30,30,${pulse})`;
+    ctx.fillRect(0, 0, zoneLeft, h);
+    ctx.fillRect(zoneRight, 0, w - zoneRight, h);
 
     // Midline
     ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
@@ -1844,6 +1919,12 @@ function initStarClash(area, setStatus) {
       ctx.beginPath(); ctx.arc(p1.x,py-4,5,0,Math.PI*2); ctx.fill();
       ctx.fillStyle = 'rgba(255,255,255,0.35)';
       ctx.beginPath(); ctx.arc(p1.x-1.5,py-5.5,1.8,0,Math.PI*2); ctx.fill();
+      // Camp heat warning flash
+      if (p1.campHeat > CAMP_DAMAGE_THRESHOLD * 0.5) {
+        const fa = (Math.sin(Date.now()*0.02)*0.5+0.5) * 0.5;
+        ctx.fillStyle = `rgba(255,0,0,${fa})`;
+        ctx.beginPath(); ctx.arc(p1.x, py, 22, 0, Math.PI*2); ctx.fill();
+      }
     }
 
     if (p2.alive) {
@@ -1877,6 +1958,12 @@ function initStarClash(area, setStatus) {
       ctx.beginPath(); ctx.arc(p2.x,py+4,5,0,Math.PI*2); ctx.fill();
       ctx.fillStyle = 'rgba(255,255,255,0.35)';
       ctx.beginPath(); ctx.arc(p2.x-1.5,py+5.5,1.8,0,Math.PI*2); ctx.fill();
+      // Camp heat warning flash
+      if (p2.campHeat > CAMP_DAMAGE_THRESHOLD * 0.5) {
+        const fa = (Math.sin(Date.now()*0.02)*0.5+0.5) * 0.5;
+        ctx.fillStyle = `rgba(255,0,0,${fa})`;
+        ctx.beginPath(); ctx.arc(p2.x, py, 22, 0, Math.PI*2); ctx.fill();
+      }
     }
 
     // Bullets
@@ -1966,6 +2053,7 @@ function initTennis(area, setStatus) {
     { name:'GHOST',  label:'?',      color:'#9C27B0', desc:'Ghost' },
     { name:'MAGNET', label:'U',      color:'#00BCD4', desc:'Magnet' },
     { name:'QUAKE',  label:'~',      color:'#FF9800', desc:'Quake!' },
+    { name:'DOUBLE', label:'2x',     color:'#E91E63', desc:'2 Balls!' },
   ];
   let powerup = null; // {x, y, type, age}
   let spawnTimer = 240;
@@ -1974,6 +2062,7 @@ function initTennis(area, setStatus) {
   let flashMsg = '', flashTimer = 0;
   // Extra balls for multi-ball-like chaos from quake
   let particles = []; // visual sparks on powerup collect
+  let extraBalls = []; // {x, y, vx, vy} — spawned by DOUBLE power-up
 
   function resetBall(dir) {
     bx = w/2; by = h/2;
@@ -1982,6 +2071,7 @@ function initTennis(area, setStatus) {
     bvx = Math.sin(angle) * speed;
     bvy = Math.cos(angle) * speed * dir;
     serving = false; lastHitter = 0;
+    extraBalls = [];
   }
   resetBall(1);
 
@@ -2024,6 +2114,8 @@ function initTennis(area, setStatus) {
       if (collector === 1) fx.magnetP1 = 300; else fx.magnetP2 = 300; // 5s
     } else if (t.name === 'QUAKE') {
       fx.quake = 240; // 4s
+    } else if (t.name === 'DOUBLE') {
+      extraBalls.push({ x: bx, y: by, vx: -bvx + (Math.random()-0.5)*2, vy: bvy });
     }
     SND.chime();
     powerup = null;
@@ -2107,6 +2199,28 @@ function initTennis(area, setStatus) {
 
     // Particles
     particles = particles.filter(p => { p.x += p.vx; p.y += p.vy; p.life--; return p.life > 0; });
+
+    // Extra balls (DOUBLE power-up)
+    for (let ei = extraBalls.length - 1; ei >= 0; ei--) {
+      const eb = extraBalls[ei];
+      if (fx.magnetP1 > 0 && eb.vy > 0) eb.vx += (p1x - eb.x) * 0.003;
+      if (fx.magnetP2 > 0 && eb.vy < 0) eb.vx += (p2x - eb.x) * 0.003;
+      eb.x += eb.vx * spdMod; eb.y += eb.vy * spdMod;
+      if (eb.x < BR || eb.x > w - BR) eb.vx = -eb.vx;
+      eb.x = Math.max(BR, Math.min(w - BR, eb.x));
+      if (eb.y + BR > p1y - PH/2 && eb.y + BR < p1y + PH/2 && eb.vy > 0 && Math.abs(eb.x - p1x) < PW1/2 + BR) {
+        eb.vy = -Math.abs(eb.vy) * 1.08; eb.vx += (eb.x - p1x) / PW1 * 4; SND.pong();
+      }
+      if (eb.y - BR < p2y + PH/2 && eb.y - BR > p2y - PH/2 && eb.vy < 0 && Math.abs(eb.x - p2x) < PW2/2 + BR) {
+        eb.vy = Math.abs(eb.vy) * 1.08; eb.vx += (eb.x - p2x) / PW2 * 4; SND.pong();
+      }
+      if (powerup && lastHitter > 0) {
+        const dx = eb.x - powerup.x, dy = eb.y - powerup.y;
+        if (Math.sqrt(dx*dx + dy*dy) < BR + 42) collectPowerup(lastHitter);
+      }
+      if (eb.y < 0) { s1++; SND.score(); extraBalls.splice(ei, 1); }
+      else if (eb.y > h) { s2++; SND.score(); extraBalls.splice(ei, 1); }
+    }
 
     // Score
     if (by < 0) { s1++; SND.score(); resetBall(-1); }
@@ -2231,6 +2345,20 @@ function initTennis(area, setStatus) {
       ctx.beginPath(); ctx.arc(bx - bvx, by - bvy, BR*0.6, 0, Math.PI*2); ctx.fill();
     }
     ctx.globalAlpha = 1;
+
+    // Extra balls
+    for (const eb of extraBalls) {
+      if (fx.ghost > 0) ctx.globalAlpha = 0.12 + Math.sin(frameCount * 0.15) * 0.08;
+      ctx.fillStyle = (fx.magnetP1 > 0 || fx.magnetP2 > 0) ? '#00E5FF' : '#fff';
+      ctx.beginPath(); ctx.arc(eb.x, eb.y, BR, 0, Math.PI*2); ctx.fill();
+      const eSpd = Math.sqrt(eb.vx*eb.vx + eb.vy*eb.vy);
+      if (eSpd > 5) {
+        ctx.globalAlpha = (fx.ghost > 0 ? 0.05 : 0.15);
+        ctx.beginPath(); ctx.arc(eb.x - eb.vx*0.5, eb.y - eb.vy*0.5, BR*0.8, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(eb.x - eb.vx, eb.y - eb.vy, BR*0.6, 0, Math.PI*2); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
 
     ctx.font = '9px sans-serif';
   }
@@ -2752,7 +2880,7 @@ function initWordClash(area, setStatus, online) {
     h += '<div style="text-align:center;margin:6px 0;font-size:1.7em;font-weight:bold;letter-spacing:6px;color:#FFD54F;min-height:1.8em">' + (selWord || '&nbsp;') + '</div>';
 
     // Letter wheel with shuffle button in center
-    const wheelR = 76, lcSize = 46;
+    const wheelR = 96, lcSize = 54;
     const svgW = 2 * (wheelR + lcSize / 2) + 16, svgH = 2 * (wheelR + lcSize / 2) + 16;
     const wheelCx = svgW / 2, wheelCy = svgH / 2;
     h += '<div style="display:flex;justify-content:center;margin:2px 0">';
@@ -2774,7 +2902,7 @@ function initWordClash(area, setStatus, online) {
       const lx = wheelCx + wheelR * Math.cos(angle) - lcSize / 2;
       const ly = wheelCy + wheelR * Math.sin(angle) - lcSize / 2;
       const isSel = selection.includes(i);
-      h += '<div data-widx="' + i + '" style="position:absolute;left:' + lx + 'px;top:' + ly + 'px;width:' + lcSize + 'px;height:' + lcSize + 'px;border-radius:50%;background:' + (isSel ? P_COLORS[turn] : '#1a2744') + ';border:2.5px solid ' + (isSel ? '#fff' : '#2e5090') + ';display:flex;align-items:center;justify-content:center;font-size:1.4em;font-weight:bold;color:#fff;cursor:pointer;transition:background 0.1s;box-shadow:' + (isSel ? '0 0 12px ' + P_COLORS[turn] : '0 2px 8px rgba(0,0,0,0.4)') + '">' + wheelLetters[i] + '</div>';
+      h += '<div data-widx="' + i + '" style="position:absolute;left:' + lx + 'px;top:' + ly + 'px;width:' + lcSize + 'px;height:' + lcSize + 'px;border-radius:50%;background:' + (isSel ? P_COLORS[turn] : '#1a2744') + ';border:2.5px solid ' + (isSel ? '#fff' : '#2e5090') + ';display:flex;align-items:center;justify-content:center;font-size:1.7em;font-weight:bold;color:#fff;cursor:pointer;transition:background 0.1s;box-shadow:' + (isSel ? '0 0 12px ' + P_COLORS[turn] : '0 2px 8px rgba(0,0,0,0.4)') + '">' + wheelLetters[i] + '</div>';
     }
     // Shuffle button in center of wheel (like WOW)
     h += '<div id="wc-shuffle" style="position:absolute;left:' + (wheelCx - 20) + 'px;top:' + (wheelCy - 20) + 'px;width:40px;height:40px;border-radius:50%;background:#37474F;border:1.5px solid #546E7A;display:flex;align-items:center;justify-content:center;font-size:1.2em;cursor:pointer;color:#B0BEC5">\u21BB</div>';
