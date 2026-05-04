@@ -14,3 +14,7 @@ android/keystore.jks
 .DS_Store
 www/
 package-lock.json
+*.zip
+*.jpg
+*.png
+*.mp4
