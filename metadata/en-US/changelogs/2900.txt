@@ -1,0 +1,4 @@
+v1.26 — Better French words
+
+- Word Clash (FR): expanded puzzle pool from 8 to 18 anchors, all sub-words validated against the Lexique dictionary
+- Wheel of Funktune (FR): replaced the 48-word list with 130 common French nouns of varied length
