@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2P Games</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+    max-width: 720px;
+    margin: 2rem auto;
+    padding: 0 1.25rem;
+    line-height: 1.55;
+    color: #222;
+  }
+  h1, h2 { line-height: 1.25; }
+  h1 { margin-bottom: 0.25rem; }
+  h2 { margin-top: 2rem; border-bottom: 1px solid #eee; padding-bottom: 0.25rem; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  pre { background: #f6f6f6; padding: 0.75rem 1rem; overflow-x: auto; border-radius: 4px; }
+  ul { padding-left: 1.25rem; }
+  a { color: #2a5db0; }
+</style>
+</head>
+<body>
+
+<h1>2P Games</h1>
+<p><em>16 multiplayer games — play locally or online. No ads, no accounts.</em></p>
+
+<h2>Overview</h2>
+<p>
+  2P Games is a collection of 16 touch-friendly multiplayer games for two players. Play locally
+  on a single device (left/right or top/bottom split) or online with a friend via room codes
+  and quick match. Built as a Capacitor wrapper around an HTML5/JavaScript game engine; online
+  multiplayer is brokered through Firebase.
+</p>
+
+<h2>Features</h2>
+<ul>
+  <li>16 games in one app, all local 2-player</li>
+  <li>10 games support online multiplayer via room codes or quick match: 4 in a Row, Caro, Awalé, Memory, Duck-Day Chess, Tank Wars, Ship Battle, Dots &amp; Boxes, Word Clash, Tic Tac Toe</li>
+  <li>Local-only titles: Tennis (with power-ups), Pool, Air Hockey, Mini Golf, Star Clash, Wheel of Funktune, Horse Jump</li>
+  <li>Built-in instructions for every game (? button)</li>
+  <li>Touch-optimised controls split between halves of the screen</li>
+  <li>Calming background music with a toggle</li>
+  <li>Rematch support in every game</li>
+  <li>No ads, no tracking, no in-app purchases</li>
+</ul>
+
+<h2>Screenshots</h2>
+<p>See <code>metadata/en-US/images/</code> and the JPG/PNG assets at the repo root.</p>
+
+<h2>Build &amp; install</h2>
+<p>Capacitor (Android) wrapping a vanilla HTML/JS web app under <code>www/</code>.</p>
+<pre>npm install
+npx cap sync android
+cd android &amp;&amp; ./gradlew assembleRelease
+</pre>
+
+<h2>License</h2>
+<p>MIT, per the F-Droid metadata at <code>fdroid-repo/metadata/com.local2p.games.yml</code>.
+The <code>package.json</code> declares <code>ISC</code> as the historical default but the
+authoritative project license is MIT.</p>
+
+</body>
+</html>
