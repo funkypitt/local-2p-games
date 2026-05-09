@@ -1,13 +1,13 @@
 [en]
-15 multiplayer games — play locally or online. No ads, no accounts.
+16 multiplayer games — play locally or online. No ads, no accounts.
 
-2P Games is a collection of 15 touch-friendly multiplayer games designed for two players. Share one device, with the screen split into two halves, or play online with a friend over a room code or quick match. Every game has rematch support and built-in instructions.
+2P Games is a collection of 16 touch-friendly multiplayer games designed for two players. Share one device, with the screen split into two halves, or play online with a friend over a room code or quick match. Every game has rematch support and built-in instructions.
 
 10 games support online multiplayer: 4 in a Row, Caro, Awalé, Memory, Duck-Day Chess, Tank Wars, Ship Battle, Dots & Boxes, Word Clash, and Tic Tac Toe.
 
-The local-only roster includes Tennis (with power-ups), Air Hockey, Mini Golf, Star Clash, Wheel of Funktune, and Horse Jump.
+The local-only roster includes Tennis (with power-ups), Pool, Air Hockey, Mini Golf, Star Clash, Wheel of Funktune, and Horse Jump.
 
-- 15 multiplayer games in one app
+- 16 multiplayer games in one app
 - Local 2-player on a single device, plus online multiplayer
 - Room codes and quick match for online play
 - Calming background music with toggle
@@ -16,15 +16,15 @@ The local-only roster includes Tennis (with power-ups), Air Hockey, Mini Golf, S
 
 ---
 [fr]
-15 jeux multijoueurs — local ou en ligne. Sans pub, sans compte.
+16 jeux multijoueurs — local ou en ligne. Sans pub, sans compte.
 
-2P Games rassemble 15 mini-jeux multijoueurs tactiles pensés pour deux joueurs. Partagez un même appareil, l'écran divisé en deux moitiés, ou jouez en ligne avec un ami via un code de salle ou un match rapide. Tous les jeux gèrent la revanche et embarquent un mode d'emploi.
+2P Games rassemble 16 mini-jeux multijoueurs tactiles pensés pour deux joueurs. Partagez un même appareil, l'écran divisé en deux moitiés, ou jouez en ligne avec un ami via un code de salle ou un match rapide. Tous les jeux gèrent la revanche et embarquent un mode d'emploi.
 
 10 jeux supportent le multijoueur en ligne : 4 in a Row, Caro, Awalé, Memory, Duck-Day Chess, Tank Wars, Ship Battle, Dots & Boxes, Word Clash et Tic Tac Toe.
 
-La sélection locale comprend Tennis (avec power-ups), Air Hockey, Mini Golf, Star Clash, Wheel of Funktune et Horse Jump.
+La sélection locale comprend Tennis (avec power-ups), Pool, Air Hockey, Mini Golf, Star Clash, Wheel of Funktune et Horse Jump.
 
-- 15 jeux multijoueurs réunis dans une seule app
+- 16 jeux multijoueurs réunis dans une seule app
 - Mode 2-joueurs sur un même appareil, plus multijoueur en ligne
 - Codes de salle et match rapide pour le jeu en ligne
 - Musique d'ambiance apaisante, activable / désactivable
