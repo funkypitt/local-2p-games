@@ -3475,21 +3475,37 @@ function initCarrom(area, setStatus) {
     return {x: (t.clientX - r.left) / r.width * w, y: (t.clientY - r.top) / r.height * h};
   }
 
+  // Slide strip is a wide horizontal band centred on the active baseline.
+  // Touching anywhere inside it (including on the striker) starts a slide.
+  // Touching outside it starts an aim. While sliding, if the finger leaves
+  // the strip we transition to aim mid-gesture (no need to release).
+  const SLIDE_HALF_H = SR * 1.6;
+  function onSlideStrip(p) {
+    return Math.abs(p.y - baselineY[turn]) < SLIDE_HALF_H;
+  }
+
   function startAim(p) {
     if (moving || gameOver) return;
     const s = striker();
     if (!s.active) return;
-    const onStriker = (p.x - s.x) ** 2 + (p.y - s.y) ** 2 < (SR * 1.4) ** 2;
-    const onBaseline = Math.abs(p.y - baselineY[turn]) < SR * 1.8;
-    if (onBaseline && !onStriker && p.x >= baselineMinX && p.x <= baselineMaxX) {
+    if (onSlideStrip(p)) {
       strikerSliding = true;
       s.x = Math.max(baselineMinX, Math.min(baselineMaxX, p.x));
+      aimStart = p; aimCurrent = p;
       return;
     }
     aiming = true; aimStart = p; aimCurrent = p;
   }
   function moveAim(p) {
     if (strikerSliding) {
+      // If the finger has dragged off the baseline strip, switch to aim mode
+      // so the same gesture can position AND fire the striker.
+      if (!onSlideStrip(p)) {
+        strikerSliding = false;
+        aiming = true;
+        aimCurrent = p;
+        return;
+      }
       const s = striker();
       s.x = Math.max(baselineMinX, Math.min(baselineMaxX, p.x));
       return;
@@ -3694,6 +3710,11 @@ function initCarrom(area, setStatus) {
     ctx.strokeStyle = 'rgba(110,70,20,0.5)'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.arc(BX + SIDE/2, BY + SIDE/2, PR * 4.9, 0, Math.PI * 2); ctx.stroke();
     ctx.beginPath(); ctx.arc(BX + SIDE/2, BY + SIDE/2, PR * 1.2, 0, Math.PI * 2); ctx.stroke();
+    // Active player's slide strip — subtle filled lane indicates where you can drag to slide the striker
+    if (!moving && !gameOver) {
+      ctx.fillStyle = turn === 0 ? 'rgba(220,90,90,0.10)' : 'rgba(90,140,220,0.10)';
+      ctx.fillRect(baselineMinX, baselineY[turn] - SLIDE_HALF_H, baselineMaxX - baselineMinX, SLIDE_HALF_H * 2);
+    }
     // Baselines
     [0, 1].forEach(p => {
       ctx.strokeStyle = turn === p ? (p === 0 ? 'rgba(220,90,90,0.95)' : 'rgba(90,140,220,0.95)') : 'rgba(110,70,20,0.4)';
@@ -3706,6 +3727,16 @@ function initCarrom(area, setStatus) {
       ctx.beginPath(); ctx.arc(baselineMinX, baselineY[p], 4, 0, Math.PI*2); ctx.stroke();
       ctx.beginPath(); ctx.arc(baselineMaxX, baselineY[p], 4, 0, Math.PI*2); ctx.stroke();
     });
+    // Slide handles ("← ◯ →") on the active baseline to hint the slide affordance
+    if (!moving && !gameOver && !aiming) {
+      const s = striker();
+      ctx.fillStyle = turn === 0 ? 'rgba(220,90,90,0.7)' : 'rgba(90,140,220,0.7)';
+      ctx.font = `bold ${Math.round(SR*0.9)}px sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('‹', s.x - SR * 1.7, baselineY[turn]);
+      ctx.fillText('›', s.x + SR * 1.7, baselineY[turn]);
+      ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    }
     // Pockets
     for (const [px, py] of pockets) {
       ctx.fillStyle = '#0a0a0a';

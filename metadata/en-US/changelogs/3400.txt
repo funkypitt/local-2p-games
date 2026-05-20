@@ -1,0 +1,3 @@
+v1.31 — Carrom: clearer striker slide UX
+
+The slide gesture was hidden: touching ON the striker fell through to aim mode, while touching the baseline elsewhere slid. Now any touch on the baseline strip (visualised as a subtle coloured lane with ‹ › slide handles) slides the striker, including taps directly on the striker. Dragging off the strip in the same gesture transitions to aim mode — no need to release first.
