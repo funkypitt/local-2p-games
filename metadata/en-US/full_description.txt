@@ -21,7 +21,7 @@ GAMES:
 - Munch Maze — 2-player maze chase with dots, monsters, and power pellets
 - Awalé — Ancient African seed-sowing strategy game
 - Mastermonde — Crack the color code in fewest guesses
-- Wheel of Funktune — Spin the wheel, guess the phrase
+- Hangman — Classic turn-based letter-guessing
 - Pixel Run — Split-screen auto-runner with coins and enemies
 - Horse Jump — Split-screen horse racing over hurdles
 

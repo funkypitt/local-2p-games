@@ -5,7 +5,7 @@
 
 10 games support online multiplayer: 4 in a Row, Caro, Awalé, Memory, Duck-Day Chess, Tank Wars, Ship Battle, Dots & Boxes, Word Clash, and Tic Tac Toe.
 
-The local-only roster includes Tennis (with power-ups), Pool, Air Hockey, Mini Golf, Star Clash, Wheel of Funktune, and Horse Jump.
+The local-only roster includes Tennis (with power-ups), Pool, Air Hockey, Mini Golf, Star Clash, Hangman, and Horse Jump.
 
 - 16 multiplayer games in one app
 - Local 2-player on a single device, plus online multiplayer
@@ -22,7 +22,7 @@ The local-only roster includes Tennis (with power-ups), Pool, Air Hockey, Mini G
 
 10 jeux supportent le multijoueur en ligne : 4 in a Row, Caro, Awalé, Memory, Duck-Day Chess, Tank Wars, Ship Battle, Dots & Boxes, Word Clash et Tic Tac Toe.
 
-La sélection locale comprend Tennis (avec power-ups), Pool, Air Hockey, Mini Golf, Star Clash, Wheel of Funktune et Horse Jump.
+La sélection locale comprend Tennis (avec power-ups), Pool, Air Hockey, Mini Golf, Star Clash, Hangman (Pendu) et Horse Jump.
 
 - 16 jeux multijoueurs réunis dans une seule app
 - Mode 2-joueurs sur un même appareil, plus multijoueur en ligne

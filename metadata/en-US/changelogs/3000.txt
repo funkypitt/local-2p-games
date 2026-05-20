@@ -1,0 +1,5 @@
+v1.27 — Turn flash, Hangman rework, Word Clash tries
+
+- Turn-based games now flash "Player X, your turn!" briefly when control passes to the other player
+- Word Clash: replaced the 30-second timer with 3 tries per turn (every word attempt and every hint counts as 1 try)
+- Wheel of Funktune is now plain Hangman: simple turn-based letter guessing — no wheel, no money, no vowel purchase. Renamed and icon updated.

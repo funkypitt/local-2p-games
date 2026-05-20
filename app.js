@@ -34,6 +34,21 @@ function showOverlay(area, msg, btnText, cb) {
   return o;
 }
 
+// Flash "Player X, your turn!" briefly over the game area on turn switch.
+// player: 1 or 2. color (optional) overrides the default per-player color.
+function flashTurn(area, player, color) {
+  if (!area) return;
+  const prev = area.querySelector('.turn-flash');
+  if (prev) prev.remove();
+  const c = color || (player === 1 ? '#FF6B6B' : '#64B5F6');
+  const el = document.createElement('div');
+  el.className = 'turn-flash';
+  el.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:30;pointer-events:none;animation:flashTurn 1.1s ease-out forwards';
+  el.innerHTML = `<div style="background:rgba(15,15,26,0.65);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:18px 32px;border-radius:14px;border:2px solid ${c};box-shadow:0 0 24px ${c},0 0 48px ${c}40;font-size:1.6em;font-weight:900;color:${c};text-shadow:0 0 12px ${c};letter-spacing:1px">Player ${player}, your turn!</div>`;
+  area.appendChild(el);
+  setTimeout(() => { if (el.parentNode) el.remove(); }, 1100);
+}
+
 // === GLOBAL AUDIO ENGINE ===
 const SND = {
   _ctx: null, _musicGain: null, _sfxGain: null, _convolver: null,
@@ -381,7 +396,7 @@ const RULES = {
   four: 'Classic Connect 4. Tap a column to drop your disc. Get 4 in a row (horizontal, vertical, or diagonal) to win. Red goes first.',
   pool: '8-ball pool. Drag from the cue ball to aim and set power, then release to shoot. Sink all your balls (stripes or solids, assigned on first pot) then the 8-ball to win. Potting the cue ball is a foul — opponent gets ball-in-hand.',
   memory: 'Flip 2 cards per turn. If they match, you keep them and go again. If not, they flip back and it\'s the opponent\'s turn. The player with the most pairs wins.',
-  wordclash: 'Word puzzle duel. Both players share a crossword grid built from one set of scrambled letters. Take turns swiping letters on the wheel to form words. Grid words fill in your color and score = word length. Bonus words (valid but not on grid) score 1 point. 30 seconds per turn. Game ends when the grid is complete — highest score wins.',
+  wordclash: 'Word puzzle duel. Both players share a crossword grid built from one set of scrambled letters. Take turns swiping letters on the wheel to form words. Grid words fill in your color and score = word length. Bonus words (valid but not on grid) score 1 point. You get 3 tries per turn — each word attempt (right or wrong) and each hint counts as 1 try. Game ends when the grid is complete — highest score wins.',
   hockey: 'Air hockey. Drag your mallet (bottom = P1, top = P2) to hit the puck into the opponent\'s goal. First to 7 wins.',
   tanks: 'Artillery duel. On your turn, drag to adjust angle and power, then tap FIRE. Wind affects the shot. Damage depends on how close the shell lands. Destroy the opponent\'s tank to win.',
   ships: 'Battleship. Place your ships on the grid, then take turns tapping squares to fire at the opponent\'s fleet. Hit all segments of every ship to win. Ships: Carrier (5), Battleship (4), Cruiser (3), Submarine (3), Destroyer (2).',
@@ -390,7 +405,7 @@ const RULES = {
   caro: 'Gomoku variant on a 13x13 board. Place stones on intersections. Get exactly 5 in a row (horizontal, vertical, or diagonal) to win. Black goes first.',
   awale: 'West African seed-sowing game. Tap a pit on your side to sow seeds counter-clockwise. If your last seed lands in an opponent\'s pit making it 2 or 3 seeds, you capture them (plus any consecutive 2s or 3s behind). First to capture 25+ seeds wins.',
   duckchess: 'Duck-Day Chess — asymmetric chess variant with two chaotic ducks! Standard FIDE rules apply, but after each move you place the Yellow Duck (blocks all pieces). A Red Duck teleports randomly and fires a laser every 5 moves, vaporizing an adjacent piece. Kings are immune to the laser for the first 25 moves — after that, the Red Duck can vaporize Kings too! Checkmate to win!',
-  hangman: 'Wheel of Fortune / Hangman. Spin the wheel to get a point value, then guess a letter. If it\'s in the puzzle, you earn points per occurrence. Buy a vowel for 250 points. Solve the puzzle to bank your points. Wrong guesses or Bankrupt lose your turn.',
+  hangman: 'Classic turn-based hangman. On your turn, pick a letter. Right guess: you score 1 point per matching letter and play again. Wrong guess: a body part is added to the gallows and the turn passes. Reveal the full word to win all your collected points. 6 wrong guesses total = both players lose the round.',
   dotsboxes: 'Dots & Boxes on a 6x6 grid. Tap between two dots to draw a line. Complete the 4th side of a box to claim it (marked with your color) and take another turn. When all boxes are filled, the player with the most wins.',
   horse: 'Horse racing / jumping. Each player taps their side of the screen to make their horse jump over obstacles. Time your jumps to clear hurdles. The horse that gets furthest or survives longest wins.',
 };
@@ -410,7 +425,7 @@ const GAMES = [
   {id:'caro',name:'Caro',icon:'⚫',color:'#37474F',init:initCaro,online:true},
   {id:'awale',name:'Awalé',icon:'🥜',color:'#4E342E',init:initAwale,online:true},
   {id:'duckchess',name:'Duck-Day Chess',icon:'🦆',color:'#B71C1C',init:initDuckChess,online:true},
-  {id:'hangman',name:'Wheel of Funktune',icon:'🎡',color:'#4A148C',init:initHangman},
+  {id:'hangman',name:'Hangman',icon:'🪢',color:'#4A148C',init:initHangman},
   {id:'dotsboxes',name:'Dots & Boxes',icon:'🔲',color:'#455A64',init:initDotsAndBoxes,online:true},
   {id:'horse',name:'Horse Jump',icon:'🏇',color:'#8D6E63',init:initHorseJump},
 ];
@@ -644,7 +659,7 @@ function initDotsAndBoxes(area, setStatus, online) {
     if (gained) SND.score();
     draw();
     if (checkEnd()) return;
-    if (!gained) turn = turn === 1 ? 2 : 1;
+    if (!gained) { turn = turn === 1 ? 2 : 1; flashTurn(area, turn, turn === 1 ? P1 : P2); }
     setStatus(statusText()); draw();
   }
 
@@ -749,6 +764,7 @@ function initFourInARow(area, setStatus, online) {
     if (checkWin(r, c)) { SND.win(); const m = online ? (turn === online.playerId + 1 ? 'You win!' : 'You lose!') : `${turn===1?'Red':'Yellow'} wins!`; setStatus(m); gameOver = true; setTimeout(() => showOverlay(area, m, 'Rematch', restart), 600); return; }
     if (board[0].every(v => v)) { setStatus('Draw!'); gameOver = true; setTimeout(() => showOverlay(area, 'Draw!', 'Rematch', restart), 600); return; }
     turn = 3 - turn;
+    flashTurn(area, turn, turn === 1 ? '#F44336' : '#FFEB3B');
     setStatus(online ? (turn === online.playerId + 1 ? 'Your turn' : "Opponent's turn") : `${turn===1?'Red':'Yellow'}'s turn`);
   }
   function checkWin(r, c) {
@@ -853,7 +869,7 @@ function initMemory(area, setStatus, online) {
         cardEls[first].innerHTML = ''; cardEls[first].style.background = '#2a2a4a';
         cardEls[second].innerHTML = ''; cardEls[second].style.background = '#2a2a4a';
         first = second = -1; busy = false;
-        turn = 3 - turn; updateStatus();
+        turn = 3 - turn; flashTurn(area, turn); updateStatus();
       }, 800);
     }
   }
@@ -997,6 +1013,7 @@ function initAwale(area, setStatus, online) {
     if (!hasSeeds) { for(let i=0;i<12;i++){scores[turn]+=board[i];board[i]=0;} gameOver=true; }
     turn = 1 - turn;
     animating = false;
+    if (!gameOver) flashTurn(area, turn + 1);
     render();
   }
   if (online) {
@@ -1290,6 +1307,7 @@ function initDuckChess(area, setStatus, online) {
       }
       if(inCheck(turn)) log.push({text:'⚠️ '+(turn==='w'?'White':'Black')+' is in check!', imp:true});
       phase='move'; sel=null; legal=[];
+      flashTurn(area, turn === 'w' ? 1 : 2, turn === 'w' ? '#eee' : '#666');
       updStatus(); render();
     });
   }
@@ -2519,7 +2537,8 @@ function initWordClash(area, setStatus, online) {
   let lang, puzzle, gridWords, bonusWords, foundGrid, foundBonus, hinted;
   let gridRows, gridCols, gridCells;
   let wheelLetters, selection = [], selectionActive = false;
-  let scores = [0, 0], turn = 0, timeLeft = 30, timerInterval = null;
+  let scores = [0, 0], turn = 0, triesLeft = 3;
+  const MAX_TRIES = 3;
   let gameOver = false, destroyed = false;
 
   const wrap = document.createElement('div');
@@ -2710,21 +2729,9 @@ function initWordClash(area, setStatus, online) {
     hinted = new Set();
   }
 
-  // --- Timer ---
+  // --- Turn / tries ---
   function startTurn() {
-    timeLeft = 30;
-    if (timerInterval) clearInterval(timerInterval);
-    timerInterval = setInterval(() => {
-      if (destroyed || gameOver) { clearInterval(timerInterval); return; }
-      timeLeft--;
-      updateTimer();
-      if (timeLeft <= 0) {
-        clearInterval(timerInterval);
-        SND.buzz();
-        if (online) online.sendMove({word: '', type: 'timeout'});
-        switchTurn();
-      }
-    }, 1000);
+    triesLeft = MAX_TRIES;
     if (online) {
       setStatus(turn === online.playerId ? 'Your turn' : "Opponent's turn");
     } else {
@@ -2733,17 +2740,27 @@ function initWordClash(area, setStatus, online) {
     render();
   }
 
-  function updateTimer() {
-    const el = cont.querySelector('#wc-timer');
+  // Consume one try. If 0, switch turn (after a brief delay so the player sees the outcome).
+  function consumeTry() {
+    triesLeft--;
+    updateTries();
+    if (triesLeft <= 0) {
+      setTimeout(() => { if (!destroyed && !gameOver) switchTurn(); }, 500);
+    }
+  }
+
+  function updateTries() {
+    const el = cont.querySelector('#wc-tries');
     if (el) {
-      el.textContent = timeLeft + 's';
-      el.style.color = timeLeft <= 5 ? '#F44336' : '#FFD54F';
+      el.textContent = triesLeft + ' ' + (triesLeft === 1 ? 'try' : 'tries');
+      el.style.color = triesLeft <= 1 ? '#F44336' : '#FFD54F';
     }
   }
 
   function switchTurn() {
     turn = 1 - turn;
     if (checkEnd()) return;
+    if (!online) flashTurn(area, turn + 1, '#80CBC4');
     startTurn();
   }
 
@@ -2751,7 +2768,6 @@ function initWordClash(area, setStatus, online) {
     const allFound = gridWords.every(gw => gw.foundBy >= 0);
     if (!allFound) return false;
     gameOver = true;
-    if (timerInterval) clearInterval(timerInterval);
     SND.win();
     const w = scores[0] > scores[1] ? 'P1 wins!' : scores[1] > scores[0] ? 'P2 wins!' : "It's a tie!";
     const msg = online
@@ -2765,6 +2781,7 @@ function initWordClash(area, setStatus, online) {
 
   function restart() {
     scores = [0, 0]; turn = 0; gameOver = false; selection = [];
+    triesLeft = MAX_TRIES;
     generatePuzzle();
     render();
     startTurn();
@@ -2783,6 +2800,7 @@ function initWordClash(area, setStatus, online) {
   function revealLetter() {
     if (gameOver) return;
     if (online && turn !== online.playerId) return;
+    if (triesLeft <= 0) return;
     const candidates = [];
     for (const key in gridCells) {
       if (gridCells[key].foundBy === -1 && !hinted.has(key)) candidates.push(key);
@@ -2792,15 +2810,15 @@ function initWordClash(area, setStatus, online) {
     hinted.add(pick);
     SND.pop();
     if (online) online.sendMove({type: 'reveal', cell: pick});
-    if (timerInterval) clearInterval(timerInterval);
     render();
-    setTimeout(() => switchTurn(), 400);
+    consumeTry();
   }
 
   // --- Word submission ---
   function submitWord(word) {
     if (gameOver) return;
     if (online && turn !== online.playerId) return;
+    if (triesLeft <= 0) return;
     if (word.length < 3) return;
 
     // Check grid words
@@ -2817,9 +2835,8 @@ function initWordClash(area, setStatus, online) {
       }
       SND.chime();
       if (online) online.sendMove({word: word, type: 'grid'});
-      if (timerInterval) clearInterval(timerInterval);
       render();
-      setTimeout(() => switchTurn(), 400);
+      consumeTry();
       return;
     }
 
@@ -2829,21 +2846,18 @@ function initWordClash(area, setStatus, online) {
       scores[turn] += 1;
       SND.pop();
       if (online) online.sendMove({word: word, type: 'bonus'});
-      if (timerInterval) clearInterval(timerInterval);
       render();
-      setTimeout(() => switchTurn(), 400);
+      consumeTry();
       return;
     }
 
-    // Already found or invalid
+    // Already found or invalid — still consumes a try
     SND.buzz();
+    if (online) online.sendMove({word: word, type: 'miss'});
+    consumeTry();
   }
 
   function applyOpponentMove(data) {
-    if (data.type === 'timeout') {
-      switchTurn();
-      return;
-    }
     const word = data.word;
     if (data.type === 'grid') {
       const gw = gridWords.find(g => g.word === word && g.foundBy < 0);
@@ -2870,10 +2884,11 @@ function initWordClash(area, setStatus, online) {
         hinted.add(data.cell);
         SND.pop();
       }
+    } else if (data.type === 'miss') {
+      SND.buzz();
     }
-    if (timerInterval) clearInterval(timerInterval);
     render();
-    setTimeout(() => switchTurn(), 400);
+    consumeTry();
   }
 
   // --- Render ---
@@ -2886,7 +2901,7 @@ function initWordClash(area, setStatus, online) {
     // Score bar
     h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;margin-bottom:4px">';
     h += '<div style="font-size:' + (turn === 0 ? '1.5em' : '0.95em') + ';font-weight:bold;color:' + P_COLORS[0] + (turn === 0 ? ';text-shadow:0 0 10px ' + P_COLORS[0] + ',0 0 24px ' + P_COLORS[0] : ';opacity:0.4') + ';transition:all 0.3s">P1: ' + scores[0] + '</div>';
-    h += '<div id="wc-timer" style="font-size:1.6em;font-weight:bold;color:' + (timeLeft <= 5 ? '#F44336' : '#FFD54F') + '">' + timeLeft + 's</div>';
+    h += '<div id="wc-tries" style="font-size:1.3em;font-weight:bold;color:' + (triesLeft <= 1 ? '#F44336' : '#FFD54F') + '">' + triesLeft + ' ' + (triesLeft === 1 ? 'try' : 'tries') + '</div>';
     h += '<div style="font-size:' + (turn === 1 ? '1.5em' : '0.95em') + ';font-weight:bold;color:' + P_COLORS[1] + (turn === 1 ? ';text-shadow:0 0 10px ' + P_COLORS[1] + ',0 0 24px ' + P_COLORS[1] : ';opacity:0.4') + ';transition:all 0.3s">P2: ' + scores[1] + '</div>';
     h += '</div>';
 
@@ -2956,7 +2971,7 @@ function initWordClash(area, setStatus, online) {
       const canAct = !online || turn === online.playerId;
       if (canAct) {
         h += '<div style="display:flex;justify-content:center;margin:4px 0">';
-        h += '<button id="wc-reveal" style="padding:6px 20px;font-size:0.95em;background:#37474F;border:1.5px solid #546E7A;border-radius:8px;color:#B0BEC5;cursor:pointer">Hint (skip turn)</button>';
+        h += '<button id="wc-reveal" style="padding:6px 20px;font-size:0.95em;background:#37474F;border:1.5px solid #546E7A;border-radius:8px;color:#B0BEC5;cursor:pointer">Hint (uses 1 try)</button>';
         h += '</div>';
       }
     }
@@ -3046,7 +3061,6 @@ function initWordClash(area, setStatus, online) {
     online.onOpponentDisconnect(() => {
       if (!gameOver) {
         gameOver = true;
-        if (timerInterval) clearInterval(timerInterval);
         setStatus('Opponent disconnected');
         render();
       }
@@ -3058,7 +3072,6 @@ function initWordClash(area, setStatus, online) {
 
   return () => {
     destroyed = true;
-    if (timerInterval) clearInterval(timerInterval);
     if (online) online.cleanup();
   };
 }
@@ -3180,6 +3193,7 @@ function initTankWars(area, setStatus, online) {
     }
     turn = 1 - turn;
     state = 'aim';
+    flashTurn(area, turn + 1, turn === 0 ? '#FF4444' : '#4488FF');
     const windStr = `Wind: ${wind > 0 ? '→' : '←'} ${Math.abs(wind).toFixed(0)}`;
     setStatus(online ? (turn === online.playerId ? `Your turn | ${windStr}` : `Opponent's turn | ${windStr}`) : `P${turn+1}'s turn | ${windStr}`);
   }
@@ -3497,6 +3511,7 @@ function initShipBattle(area, setStatus, online) {
     setTimeout(() => {
       turn = 1 - prevTurn;
       if (online) {
+        flashTurn(area, turn + 1);
         setStatus(turn === online.playerId ? 'Your turn' : "Opponent's turn");
         render();
       } else {
@@ -3643,7 +3658,7 @@ function initPool(area, setStatus) {
           const cb = balls[0]; cb.active = true; cb.x = TX+TW*0.25; cb.y = TY+TH/2; cb.vx = cb.vy = 0;
         }
         if (!gameOver) {
-          if (!scored || cuePocketed) turn = 1 - turn;
+          if (!scored || cuePocketed) { turn = 1 - turn; flashTurn(area, turn + 1); }
           const types = assigned[0] ? `P1:${assigned[0]} P2:${assigned[1]}` : '';
           setStatus(`P${turn+1}'s shot ${types}`);
         }
@@ -3816,10 +3831,12 @@ function initMiniGolf(area, setStatus) {
         playerScores[turn].push(strokes);
         if (turn === 1 && holeIdx < holes.length - 1) {
           holeIdx++; turn = 0; loadHole();
+          flashTurn(area, 1);
           setStatus(`Hole ${holeIdx+1} — P1's turn`);
         } else if (turn === 0) {
           const savedBall = {...holes[holeIdx].ball};
           turn = 1; strokes = 0; ball = savedBall; bvx = bvy = 0;
+          flashTurn(area, 2);
           setStatus(`Hole ${holeIdx+1} — P2's turn`);
         } else {
           gameEnd = true;
@@ -4060,6 +4077,7 @@ function initCaro(area, setStatus, online) {
     }
 
     turn = 3 - turn;
+    flashTurn(area, turn, turn === 1 ? '#333' : '#fff');
     setStatus(online ? (turn === online.playerId + 1 ? 'Your Turn' : "Opponent's Turn") : (turn === 1 ? "Black's Turn" : "White's Turn"));
   }
   if (online) {
@@ -4132,10 +4150,10 @@ function initCaro(area, setStatus, online) {
   return () => { if (online) online.cleanup(); };
 }
 
-// ==================== WHEEL OF FORTUNE (Hangman) ====================
+// ==================== HANGMAN ====================
 function initHangman(area, setStatus) {
   const WORDS = [
-    'ELEPHANT','COMPUTER','BIRTHDAY','SANDWICH','MOUNTAIN','TREASURE','DINOSAUR','ELEPHANT',
+    'ELEPHANT','COMPUTER','BIRTHDAY','SANDWICH','MOUNTAIN','TREASURE','DINOSAUR',
     'FOOTBALL','HOSPITAL','KEYBOARD','UMBRELLA','VACATION','BATHROOM','CHAMPION','CROCODILE',
     'DARKNESS','EXERCISE','FIREWORK','GOLDFISH','HARDWARE','INTERNET','JAPANESE','KANGAROO',
     'LANGUAGE','MIDNIGHT','NOTEBOOK','OPERATOR','PAINTING','QUESTION','RECEIVER','SKELETON',
@@ -4163,15 +4181,13 @@ function initHangman(area, setStatus) {
   ];
   const isFrHm = navigator.language.startsWith('fr');
   const wordList = isFrHm ? WORDS_FR : WORDS;
-  const SEGMENTS = [100,200,300,400,500,600,700,800,900,1000,300,500,200,400,600,800,0,0]; // 0 = lose turn
-  const SEG_COLORS = ['#E53935','#1E88E5','#43A047','#FDD835','#8E24AA','#FF6F00','#00ACC1','#D81B60','#7CB342','#FF5722','#5C6BC0','#26A69A','#F4511E','#AB47BC','#42A5F5','#66BB6A','#424242','#757575'];
+  const MAX_WRONG = 6;
 
   let word = wordList[Math.floor(Math.random() * wordList.length)];
   let revealed = Array(word.length).fill(false);
   let guessed = new Set();
-  let scores = [0, 0], turn = 0, spinResult = -1, phase = 'spin', gameOver = false;
-  let wheelAngle = 0, wheelSpeed = 0, spinning = false;
-  let wrongCount = [0, 0];
+  let scores = [0, 0], turn = 0, gameOver = false;
+  let wrongCount = 0;
 
   const wrap = document.createElement('div');
   wrap.className = 'board-game';
@@ -4181,16 +4197,12 @@ function initHangman(area, setStatus) {
   cont.style.cssText = 'width:min(95vw,420px)';
   wrap.appendChild(cont);
 
-  function sfxTick() { SND.spinTick(); }
-  function sfxWin() { SND.chime(); }
-  function sfxBuzz() { SND.buzz(); }
-
   function render() {
     let h = '';
     // Scores
     h += `<div style="display:flex;justify-content:space-around;margin:6px 0;font-size:1em">`;
-    h += `<div style="font-size:${turn===0?'1.3em':'0.9em'};color:${turn===0?'#FF6B6B':'#666'};font-weight:${turn===0?'bold':'normal'};${turn===0?'text-shadow:0 0 8px rgba(255,107,107,0.6),0 0 18px rgba(255,107,107,0.3)':'opacity:0.5'};transition:all 0.3s">P1: $${scores[0]}</div>`;
-    h += `<div style="font-size:${turn===1?'1.3em':'0.9em'};color:${turn===1?'#64B5F6':'#666'};font-weight:${turn===1?'bold':'normal'};${turn===1?'text-shadow:0 0 8px rgba(100,181,246,0.6),0 0 18px rgba(100,181,246,0.3)':'opacity:0.5'};transition:all 0.3s">P2: $${scores[1]}</div>`;
+    h += `<div style="font-size:${turn===0?'1.3em':'0.9em'};color:${turn===0?'#FF6B6B':'#666'};font-weight:${turn===0?'bold':'normal'};${turn===0?'text-shadow:0 0 8px rgba(255,107,107,0.6),0 0 18px rgba(255,107,107,0.3)':'opacity:0.5'};transition:all 0.3s">P1: ${scores[0]}</div>`;
+    h += `<div style="font-size:${turn===1?'1.3em':'0.9em'};color:${turn===1?'#64B5F6':'#666'};font-weight:${turn===1?'bold':'normal'};${turn===1?'text-shadow:0 0 8px rgba(100,181,246,0.6),0 0 18px rgba(100,181,246,0.3)':'opacity:0.5'};transition:all 0.3s">P2: ${scores[1]}</div>`;
     h += `</div>`;
 
     // Word display
@@ -4204,147 +4216,101 @@ function initHangman(area, setStatus) {
 
     // Hangman drawing
     h += `<div style="display:flex;justify-content:center;margin:6px 0">`;
-    h += `<svg width="100" height="90" viewBox="0 0 100 90">`;
-    const total = wrongCount[0] + wrongCount[1];
-    h += `<line x1="15" y1="85" x2="50" y2="85" stroke="#fff" stroke-width="2"/>`;
-    h += `<line x1="30" y1="85" x2="30" y2="10" stroke="#fff" stroke-width="2"/>`;
-    h += `<line x1="30" y1="10" x2="65" y2="10" stroke="#fff" stroke-width="2"/>`;
-    h += `<line x1="65" y1="10" x2="65" y2="20" stroke="#fff" stroke-width="2"/>`;
-    if (total >= 1) h += `<circle cx="65" cy="28" r="8" stroke="#fff" fill="none" stroke-width="2"/>`;
-    if (total >= 2) h += `<line x1="65" y1="36" x2="65" y2="58" stroke="#fff" stroke-width="2"/>`;
-    if (total >= 3) h += `<line x1="65" y1="42" x2="52" y2="50" stroke="#fff" stroke-width="2"/>`;
-    if (total >= 4) h += `<line x1="65" y1="42" x2="78" y2="50" stroke="#fff" stroke-width="2"/>`;
-    if (total >= 5) h += `<line x1="65" y1="58" x2="52" y2="72" stroke="#fff" stroke-width="2"/>`;
-    if (total >= 6) h += `<line x1="65" y1="58" x2="78" y2="72" stroke="#fff" stroke-width="2"/>`;
+    h += `<svg width="120" height="120" viewBox="0 0 120 120">`;
+    h += `<line x1="15" y1="115" x2="60" y2="115" stroke="#fff" stroke-width="3"/>`;
+    h += `<line x1="35" y1="115" x2="35" y2="10" stroke="#fff" stroke-width="3"/>`;
+    h += `<line x1="35" y1="10" x2="80" y2="10" stroke="#fff" stroke-width="3"/>`;
+    h += `<line x1="80" y1="10" x2="80" y2="22" stroke="#fff" stroke-width="3"/>`;
+    if (wrongCount >= 1) h += `<circle cx="80" cy="32" r="10" stroke="#fff" fill="none" stroke-width="2.5"/>`;
+    if (wrongCount >= 2) h += `<line x1="80" y1="42" x2="80" y2="72" stroke="#fff" stroke-width="2.5"/>`;
+    if (wrongCount >= 3) h += `<line x1="80" y1="50" x2="65" y2="62" stroke="#fff" stroke-width="2.5"/>`;
+    if (wrongCount >= 4) h += `<line x1="80" y1="50" x2="95" y2="62" stroke="#fff" stroke-width="2.5"/>`;
+    if (wrongCount >= 5) h += `<line x1="80" y1="72" x2="65" y2="90" stroke="#fff" stroke-width="2.5"/>`;
+    if (wrongCount >= 6) h += `<line x1="80" y1="72" x2="95" y2="90" stroke="#fff" stroke-width="2.5"/>`;
     h += `</svg></div>`;
 
-    // Wheel result / spin button
-    if (phase === 'spin' && !gameOver) {
-      h += `<div style="text-align:center;margin:8px"><button class="btn" id="wof-spin" style="font-size:1.1em;padding:10px 28px;background:${turn===0?'#C62828':'#1565C0'}">🎡 P${turn+1} Spin!</button></div>`;
-    } else if (phase === 'spinning') {
-      h += `<div style="text-align:center;margin:8px;font-size:1.2em;color:#FFD54F">Spinning...</div>`;
-    } else if (phase === 'guess' && !gameOver) {
-      const val = SEGMENTS[spinResult];
-      if (val === 0) {
-        h += `<div style="text-align:center;margin:6px;color:#F44336;font-weight:bold">LOSE A TURN!</div>`;
-      } else {
-        h += `<div style="text-align:center;margin:6px;color:#FFD54F;font-weight:bold">$${val} per letter — Pick a letter!</div>`;
-      }
-    }
+    // Wrong counter
+    h += `<div style="text-align:center;margin:4px 0;font-size:.9em;color:${wrongCount >= 5 ? '#F44336' : '#aaa'}">Wrong: ${wrongCount}/${MAX_WRONG}</div>`;
 
     // Letter grid
-    if (phase === 'guess' && !gameOver) {
-      h += `<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:4px;margin:6px 0">`;
+    if (!gameOver) {
+      h += `<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:4px;margin:8px 0">`;
       for (let c = 65; c <= 90; c++) {
         const letter = String.fromCharCode(c);
         const used = guessed.has(letter);
-        h += `<div data-letter="${letter}" style="width:30px;height:34px;border-radius:6px;background:${used?'#333':'#2a2a4a'};display:flex;align-items:center;justify-content:center;font-size:.9em;font-weight:bold;cursor:${used?'default':'pointer'};color:${used?'#555':'#fff'}">${letter}</div>`;
+        const tint = turn === 0 ? '#7e2a2a' : '#2a4a7e';
+        h += `<div data-letter="${letter}" style="width:30px;height:34px;border-radius:6px;background:${used?'#333':tint};display:flex;align-items:center;justify-content:center;font-size:.9em;font-weight:bold;cursor:${used?'default':'pointer'};color:${used?'#555':'#fff'}">${letter}</div>`;
       }
       h += `</div>`;
     }
 
     // Guessed letters
     if (guessed.size > 0) {
-      h += `<div style="text-align:center;margin:4px 0;font-size:.75em;color:#666">Used: ${[...guessed].join(' ')}</div>`;
+      h += `<div style="text-align:center;margin:4px 0;font-size:.75em;color:#666">Used: ${[...guessed].sort().join(' ')}</div>`;
     }
 
     cont.innerHTML = h;
 
-    // Bind events
-    const spinBtn = cont.querySelector('#wof-spin');
-    if (spinBtn) spinBtn.onclick = spinWheel;
     cont.querySelectorAll('[data-letter]').forEach(el => {
       el.onclick = () => {
         const letter = el.dataset.letter;
-        if (!guessed.has(letter) && phase === 'guess') guessLetter(letter);
+        if (!guessed.has(letter) && !gameOver) guessLetter(letter);
       };
     });
 
-    if (!gameOver) setStatus(`P${turn+1}'s turn | P1:$${scores[0]} P2:$${scores[1]}`);
+    if (!gameOver) setStatus(`P${turn+1}'s turn`);
   }
 
-  function spinWheel() {
-    phase = 'spinning';
-    wheelSpeed = 10 + Math.random() * 15;
-    spinning = true;
+  function newRound() {
+    word = wordList[Math.floor(Math.random() * wordList.length)];
+    revealed = Array(word.length).fill(false);
+    guessed = new Set();
+    scores = [0, 0]; turn = 0; wrongCount = 0;
+    gameOver = false;
     render();
-    animateSpin();
-  }
-
-  function animateSpin() {
-    if (!spinning) return;
-    wheelAngle += wheelSpeed;
-    wheelSpeed *= 0.97;
-    if (wheelSpeed > 2 && Math.random() < 0.3) sfxTick();
-    if (wheelSpeed < 0.3) {
-      spinning = false;
-      spinResult = Math.floor((wheelAngle % 360) / (360 / SEGMENTS.length)) % SEGMENTS.length;
-      const val = SEGMENTS[spinResult];
-      if (val === 0) {
-        phase = 'guess';
-        sfxBuzz();
-        render();
-        setTimeout(() => { turn = 1 - turn; phase = 'spin'; render(); }, 1200);
-      } else {
-        phase = 'guess';
-        render();
-      }
-      return;
-    }
-    render();
-    requestAnimationFrame(animateSpin);
   }
 
   function guessLetter(letter) {
     guessed.add(letter);
-    const val = SEGMENTS[spinResult];
     let found = 0;
     for (let i = 0; i < word.length; i++) {
       if (word[i] === letter && !revealed[i]) { revealed[i] = true; found++; }
     }
     if (found > 0) {
-      scores[turn] += val * found;
-      sfxWin();
-      // Check win
+      scores[turn] += found;
+      SND.chime();
       if (revealed.every(v => v)) {
         gameOver = true;
-        setStatus(`P${turn+1} solved it! P1:$${scores[0]} P2:$${scores[1]}`);
+        SND.win();
         render();
         setTimeout(() => {
           const winner = scores[0] > scores[1] ? 'P1' : scores[1] > scores[0] ? 'P2' : 'Tie';
-          showOverlay(area, `Word: ${word}<br>${winner === 'Tie' ? "It's a tie!" : winner + ' wins!'}`, 'New Game', () => {
-            word = wordList[Math.floor(Math.random() * wordList.length)];
-            revealed = Array(word.length).fill(false);
-            guessed = new Set(); scores = [0, 0]; turn = 0; wrongCount = [0, 0];
-            phase = 'spin'; gameOver = false; render();
-          });
-        }, 800);
+          const msg = `Word: ${word}<br>P1: ${scores[0]} | P2: ${scores[1]}<br>${winner === 'Tie' ? "It's a tie!" : winner + ' wins!'}`;
+          showOverlay(area, msg, 'New Game', newRound);
+        }, 600);
         return;
       }
-      phase = 'spin'; render(); // Same player spins again
+      render();
+      // same player continues — no flash
     } else {
-      wrongCount[turn]++;
-      sfxBuzz();
-      if (wrongCount[0] + wrongCount[1] >= 6) {
+      wrongCount++;
+      SND.buzz();
+      if (wrongCount >= MAX_WRONG) {
         gameOver = true;
-        setStatus(`Hanged! Word was: ${word}`);
         render();
         setTimeout(() => {
-          showOverlay(area, `Word was: ${word}<br>P1:$${scores[0]} P2:$${scores[1]}`, 'New Game', () => {
-            word = wordList[Math.floor(Math.random() * wordList.length)];
-            revealed = Array(word.length).fill(false);
-            guessed = new Set(); scores = [0, 0]; turn = 0; wrongCount = [0, 0];
-            phase = 'spin'; gameOver = false; render();
-          });
-        }, 800);
+          showOverlay(area, `Hanged!<br>Word was: ${word}<br>P1: ${scores[0]} | P2: ${scores[1]}`, 'New Game', newRound);
+        }, 700);
         return;
       }
-      turn = 1 - turn; phase = 'spin'; render();
+      turn = 1 - turn;
+      flashTurn(area, turn + 1, turn === 0 ? '#FF6B6B' : '#64B5F6');
+      render();
     }
   }
 
   render();
-  setStatus("P1's turn — Spin the wheel!");
+  setStatus("P1's turn — Pick a letter");
   return () => {};
 }
 
