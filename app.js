@@ -397,7 +397,7 @@ const RULES = {
   pool: '8-ball pool. Drag from the cue ball to aim and set power, then release to shoot. Sink all your balls (stripes or solids, assigned on first pot) then the 8-ball to win. Potting the cue ball is a foul — opponent gets ball-in-hand.',
   memory: 'Flip 2 cards per turn. If they match, you keep them and go again. If not, they flip back and it\'s the opponent\'s turn. The player with the most pairs wins.',
   wordclash: 'Word puzzle duel. Both players share a crossword grid built from one set of scrambled letters. Take turns swiping letters on the wheel to form words. Grid words fill in your color and score = word length. Bonus words (valid but not on grid) score 1 point. You get 3 tries per turn — each word attempt (right or wrong) and each hint counts as 1 try. Game ends when the grid is complete — highest score wins.',
-  hockey: 'Air hockey. Drag your mallet (bottom = P1, top = P2) to hit the puck into the opponent\'s goal. First to 7 wins.',
+  hockey: 'Air hockey. Drag your mallet (bottom = P1, top = P2) to hit the puck into the opponent\'s goal. Mallet speed matters — a fast swipe smashes the puck (sparks!), a gentle one taps. First to 5 wins.',
   tanks: 'Artillery duel. On your turn, drag to adjust angle and power, then tap FIRE. Wind affects the shot. Damage depends on how close the shell lands. Destroy the opponent\'s tank to win.',
   carrom: 'Indian flicking board game. 19 pieces: 9 white, 9 black, and the red Queen. Tap your baseline to slide the striker laterally, then drag away from the striker (slingshot) to aim and release to flick. Pocket your colour (P1 white, P2 black) to score 1 point and play again. Pocket opponent\'s colour: they score, your turn ends. Pocket the Queen: you keep flicking, but you must "cover" the Queen by pocketing one of your own pieces in the same or next shot — succeed and you score 3, fail and the Queen returns to the centre. Pocketing the striker is a foul: return one of your pieces, the Queen returns if pending, and your turn ends. First to pocket all 9 of your colour wins.',
   golf: 'Mini golf for 2. Take turns putting — drag from the ball to aim and set power, release to putt. Fewer strokes wins each hole. Play through all holes.',
@@ -2490,18 +2490,35 @@ function initTennis(area, setStatus) {
 function initAirHockey(area, setStatus) {
   const {canvas, ctx, w, h} = createCanvas(area);
   const MR = w * 0.08, PR = w * 0.045, GW = w * 0.3;
-  let m1 = {x:w/2, y:h*0.82}, m2 = {x:w/2, y:h*0.18};
+  const MAX_PUCK_SPEED = 22;     // hard cap to avoid tunneling
+  const MIN_HIT_SPEED = 4;       // gentle taps still nudge
+  const SMASH_THRESHOLD = 13;    // exit speed above which sparks + shake fire
+  const WIN_SCORE = 5;
+  let m1 = {x:w/2, y:h*0.82, vx:0, vy:0};
+  let m2 = {x:w/2, y:h*0.18, vx:0, vy:0};
   let puck = {x:w/2, y:h/2, vx:0, vy:0};
   let s1 = 0, s2 = 0;
+  let particles = [];   // {x, y, vx, vy, life, max, color}
+  let trail = [];       // recent puck positions
+  let shake = 0;        // current screen shake amplitude in px
   const touches = {};
   canvas.addEventListener('touchstart', e => { e.preventDefault(); for (const t of e.changedTouches){const r=canvas.getBoundingClientRect();touches[t.identifier]={x:(t.clientX-r.left)/r.width*w,y:(t.clientY-r.top)/r.height*h};}});
   canvas.addEventListener('touchmove', e => { e.preventDefault(); for (const t of e.changedTouches){const r=canvas.getBoundingClientRect();touches[t.identifier]={x:(t.clientX-r.left)/r.width*w,y:(t.clientY-r.top)/r.height*h};}});
   canvas.addEventListener('touchend', e => { for (const t of e.changedTouches) delete touches[t.identifier]; });
-  let mouseY = h/2;
   canvas.addEventListener('mousemove', e => { const r=canvas.getBoundingClientRect(); touches['m']={x:(e.clientX-r.left)/r.width*w,y:(e.clientY-r.top)/r.height*h}; });
   let raf;
-  function resetPuck() { puck = {x:w/2, y:h/2, vx:0, vy:0}; }
+  function resetPuck() { puck = {x:w/2, y:h/2, vx:0, vy:0}; trail = []; }
+  function spawnSparks(x, y, speed, baseColor) {
+    const n = Math.min(14, Math.round(4 + speed * 0.5));
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = 1.5 + Math.random() * (speed * 0.35);
+      particles.push({x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 18 + Math.random() * 10, max: 26, color: baseColor});
+    }
+  }
   function update() {
+    // Track mallet velocity by remembering prev position
+    const m1px = m1.x, m1py = m1.y, m2px = m2.x, m2py = m2.y;
     // Move mallets toward touches
     let t1 = null, t2 = null;
     for (const id in touches) {
@@ -2511,33 +2528,76 @@ function initAirHockey(area, setStatus) {
     if (t2) { m2.x += (t2.x - m2.x) * 0.3; m2.y += (t2.y - m2.y) * 0.3; m2.y = Math.max(MR, Math.min(h/2 - MR, m2.y)); }
     m1.x = Math.max(MR, Math.min(w - MR, m1.x));
     m2.x = Math.max(MR, Math.min(w - MR, m2.x));
+    m1.vx = m1.x - m1px; m1.vy = m1.y - m1py;
+    m2.vx = m2.x - m2px; m2.vy = m2.y - m2py;
     // Puck physics
     puck.x += puck.vx; puck.y += puck.vy;
     puck.vx *= 0.995; puck.vy *= 0.995;
+    // Trail
+    trail.push({x: puck.x, y: puck.y});
+    if (trail.length > 10) trail.shift();
     // Wall bounce
     if (puck.x < PR) { puck.x = PR; puck.vx = Math.abs(puck.vx); }
     if (puck.x > w - PR) { puck.x = w - PR; puck.vx = -Math.abs(puck.vx); }
     // Goal check
     const inGoal = puck.x > w/2 - GW/2 && puck.x < w/2 + GW/2;
-    if (puck.y < PR) { if (inGoal) { s1++; SND.score(); resetPuck(); } else { puck.y = PR; puck.vy = Math.abs(puck.vy); } }
-    if (puck.y > h - PR) { if (inGoal) { s2++; SND.score(); resetPuck(); } else { puck.y = h - PR; puck.vy = -Math.abs(puck.vy); } }
-    // Mallet-puck collision
+    if (puck.y < PR) { if (inGoal) { s1++; SND.score(); shake = 12; resetPuck(); } else { puck.y = PR; puck.vy = Math.abs(puck.vy); } }
+    if (puck.y > h - PR) { if (inGoal) { s2++; SND.score(); shake = 12; resetPuck(); } else { puck.y = h - PR; puck.vy = -Math.abs(puck.vy); } }
+    // Mallet-puck collision — impulse with restitution so mallet speed transfers to puck
     for (const m of [m1, m2]) {
-      const dx = puck.x - m.x, dy = puck.y - m.y, dist = Math.sqrt(dx*dx+dy*dy);
-      if (dist < MR + PR) {
-        const nx = dx/dist, ny = dy/dist;
-        puck.vx = nx * 8; puck.vy = ny * 8; SND.pong();
-        puck.x = m.x + nx * (MR + PR + 1);
-        puck.y = m.y + ny * (MR + PR + 1);
+      const dx = puck.x - m.x, dy = puck.y - m.y, dist = Math.sqrt(dx*dx + dy*dy);
+      if (dist === 0 || dist >= MR + PR) continue;
+      const nx = dx / dist, ny = dy / dist;
+      const vrn = (puck.vx - m.vx) * nx + (puck.vy - m.vy) * ny;
+      if (vrn < 0) {
+        // Mallet acts as effectively infinite mass; e>1 gives a satisfying "smack"
+        const e = 1.2;
+        const j = -(1 + e) * vrn;
+        puck.vx += j * nx;
+        puck.vy += j * ny;
       }
+      // Speed clamp + floor (gentle nudges still travel)
+      let sp = Math.hypot(puck.vx, puck.vy);
+      if (sp > MAX_PUCK_SPEED) { puck.vx *= MAX_PUCK_SPEED / sp; puck.vy *= MAX_PUCK_SPEED / sp; sp = MAX_PUCK_SPEED; }
+      if (sp < MIN_HIT_SPEED) { puck.vx = nx * MIN_HIT_SPEED; puck.vy = ny * MIN_HIT_SPEED; sp = MIN_HIT_SPEED; }
+      // Separate puck from mallet
+      puck.x = m.x + nx * (MR + PR + 1);
+      puck.y = m.y + ny * (MR + PR + 1);
+      SND.pong();
+      // Smash effects above threshold
+      if (sp >= SMASH_THRESHOLD) {
+        const isP1 = (m === m1);
+        spawnSparks(puck.x, puck.y, sp, isP1 ? '#FF8A80' : '#82B1FF');
+        shake = Math.min(10, sp * 0.45);
+      }
+      trail = [];
     }
-    if (s1>=7||s2>=7) { const m = s1>=7?'P1 wins!':'P2 wins!'; setStatus(m); draw(); setTimeout(() => showOverlay(area, `${m}<br>P1: ${s1} | P2: ${s2}`, 'Rematch', () => { s1 = 0; s2 = 0; m1 = {x:w/2,y:h*0.82}; m2 = {x:w/2,y:h*0.18}; resetPuck(); raf = requestAnimationFrame(update); }), 600); return; }
+    // Particles update
+    for (const p of particles) { p.x += p.vx; p.y += p.vy; p.vx *= 0.92; p.vy *= 0.92; p.life--; }
+    particles = particles.filter(p => p.life > 0);
+    // Shake decay
+    shake = Math.max(0, shake - 0.5);
+    if (s1>=WIN_SCORE||s2>=WIN_SCORE) {
+      const msg = s1>=WIN_SCORE?'P1 wins!':'P2 wins!';
+      setStatus(msg); draw();
+      setTimeout(() => showOverlay(area, `${msg}<br>P1: ${s1} | P2: ${s2}`, 'Rematch', () => {
+        s1 = 0; s2 = 0;
+        m1 = {x:w/2, y:h*0.82, vx:0, vy:0};
+        m2 = {x:w/2, y:h*0.18, vx:0, vy:0};
+        particles = []; shake = 0;
+        resetPuck();
+        raf = requestAnimationFrame(update);
+      }), 600);
+      return;
+    }
     setStatus(`P2: ${s2}  |  P1: ${s1}`);
     draw();
     raf = requestAnimationFrame(update);
   }
   function draw() {
-    ctx.fillStyle = '#1a3a5c'; ctx.fillRect(0, 0, w, h);
+    ctx.save();
+    if (shake > 0.3) ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
+    ctx.fillStyle = '#1a3a5c'; ctx.fillRect(-20, -20, w + 40, h + 40);
     // Center line + circle
     ctx.strokeStyle = '#2a5a8c'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(0, h/2); ctx.lineTo(w, h/2); ctx.stroke();
@@ -2546,6 +2606,12 @@ function initAirHockey(area, setStatus) {
     ctx.fillStyle = '#0d1b2a';
     ctx.fillRect(w/2 - GW/2, 0, GW, 6);
     ctx.fillRect(w/2 - GW/2, h - 6, GW, 6);
+    // Puck trail (older = more transparent)
+    for (let i = 0; i < trail.length; i++) {
+      const a = (i / trail.length) * 0.35;
+      ctx.fillStyle = `rgba(255,255,255,${a})`;
+      ctx.beginPath(); ctx.arc(trail[i].x, trail[i].y, PR * (0.5 + 0.4 * i / trail.length), 0, Math.PI*2); ctx.fill();
+    }
     // Mallets
     ctx.fillStyle = '#EF5350';
     ctx.beginPath(); ctx.arc(m1.x, m1.y, MR, 0, Math.PI*2); ctx.fill();
@@ -2554,6 +2620,15 @@ function initAirHockey(area, setStatus) {
     // Puck
     ctx.fillStyle = '#fff';
     ctx.beginPath(); ctx.arc(puck.x, puck.y, PR, 0, Math.PI*2); ctx.fill();
+    // Particles
+    for (const p of particles) {
+      const a = Math.max(0, p.life / p.max);
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = a;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 2.5 * a + 0.5, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
   }
   raf = requestAnimationFrame(update);
   return () => cancelAnimationFrame(raf);

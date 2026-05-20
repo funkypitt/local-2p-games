@@ -1,0 +1,6 @@
+v1.33 — Air Hockey: smash physics, sparks, shorter matches
+
+- Mallet speed now matters. Hit the puck with a fast swipe and it rockets (with sparks and a screen shake), tap it gently and it nudges. Under the hood: impulse-based collision with restitution 1.2, capped at 22 units/frame.
+- Visual punch on smashes: coloured particle sparks + brief screen shake when the puck exits a hit above ~13 units/frame.
+- Fading puck trail when it's moving fast.
+- First to 5 goals wins (was 7) — matches end faster.
