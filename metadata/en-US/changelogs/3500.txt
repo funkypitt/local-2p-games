@@ -1,0 +1,7 @@
+v1.32 — Star Clash: more action, less idle dodging
+
+- Removed the edge "camp" zones entirely (no more pointless red strips).
+- New: rusher attacks. Every 100 points you score, a red rusher alien spawns mid-board and dives at your opponent, firing as it goes. Kill it for 50 bonus points; let it pass and it leaves the screen.
+- New: kill-streak combo multiplier. 3 alien kills in a row = x2 score, 5 = x3, 8 = x4. Taking a hit resets your streak. Active multiplier shown in the HUD.
+- New: bullet-vs-bullet cancel. Your shot meeting an incoming alien shot cancels both with a small pop. Rewards defensive aim.
+- New: sudden-death from Wave 5. Aliens accelerate sharply and shoot faster every wave after that — games end in minutes instead of dragging.

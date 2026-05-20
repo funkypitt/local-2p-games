@@ -401,7 +401,7 @@ const RULES = {
   tanks: 'Artillery duel. On your turn, drag to adjust angle and power, then tap FIRE. Wind affects the shot. Damage depends on how close the shell lands. Destroy the opponent\'s tank to win.',
   carrom: 'Indian flicking board game. 19 pieces: 9 white, 9 black, and the red Queen. Tap your baseline to slide the striker laterally, then drag away from the striker (slingshot) to aim and release to flick. Pocket your colour (P1 white, P2 black) to score 1 point and play again. Pocket opponent\'s colour: they score, your turn ends. Pocket the Queen: you keep flicking, but you must "cover" the Queen by pocketing one of your own pieces in the same or next shot — succeed and you score 3, fail and the Queen returns to the centre. Pocketing the striker is a foul: return one of your pieces, the Queen returns if pending, and your turn ends. First to pocket all 9 of your colour wins.',
   golf: 'Mini golf for 2. Take turns putting — drag from the ball to aim and set power, release to putt. Fewer strokes wins each hole. Play through all holes.',
-  starclash: 'Galaga-style co-op/competitive shooter. P1 (bottom, red) and P2 (top, blue) both fight aliens in the middle. Slide your finger in your zone to move and auto-fire. Earn points by destroying aliens. If you get hit 3 times, you\'re out. Kill glowing aliens for random effects: \u26A1 Speed (rapid fire), \uD83D\uDCA5 Big Shot (huge bullets), \uD83D\uDC0C Slow (sluggish movement), \u2702\uFE0F Short Range (bullets fizzle out early). Survive waves and outscore your opponent!',
+  starclash: 'Competitive Galaga: P1 (bottom, red) and P2 (top, blue) share a wave of aliens. Slide on your half to move and auto-fire. 3 hits and you\'re out. Glowing aliens drop power-ups: \u26A1 Speed, \uD83D\uDCA5 Big Shot, \uD83D\uDC0C Slow (debuff), \u2702\uFE0F Short Range (debuff). Chain kills build a combo multiplier (3+ = x2, 5+ = x3, 8+ = x4) \u2014 taking a hit resets it. Every 100 points you score, a red "rusher" alien dives at your opponent. Your bullets cancel incoming alien bullets on contact. From Wave 5, aliens accelerate sharply (sudden death). Last one standing wins.',
   caro: 'Gomoku variant on a 13x13 board. Place stones on intersections. Get exactly 5 in a row (horizontal, vertical, or diagonal) to win. Black goes first.',
   awale: 'West African seed-sowing game. Tap a pit on your side to sow seeds counter-clockwise. If your last seed lands in an opponent\'s pit making it 2 or 3 seeds, you capture them (plus any consecutive 2s or 3s behind). First to capture 25+ seeds wins.',
   duckchess: 'Duck-Day Chess — asymmetric chess variant with two chaotic ducks! Standard FIDE rules apply, but after each move you place the Yellow Duck (blocks all pieces). A Red Duck teleports randomly and fires a laser every 5 moves, vaporizing an adjacent piece. Kings are immune to the laser for the first 25 moves — after that, the Red Duck can vaporize Kings too! Checkmate to win!',
@@ -1556,11 +1556,10 @@ function initDuckChess(area, setStatus, online) {
 function initStarClash(area, setStatus) {
   const {canvas, ctx, w, h} = createCanvas(area);
   const PW = 40, PH = 28, BULLET_SPD = 7, ALIEN_BULLET_SPD = 3.5;
-  const EDGE_ZONE = w * 0.18;         // danger zone width on each side
-  const CAMP_HEAT_RATE = 1;            // heat gain per frame when in zone
-  const CAMP_HEAT_COOL = 3;            // heat loss per frame when NOT in zone
-  const CAMP_DAMAGE_THRESHOLD = 180;   // frames before damage (~3s at 60fps)
   const SHIELD_ROWS = 3, SHIELD_COLS = 8, SHIELD_BLOCK = 6;
+  const RUSHER_SCORE_STEP = 100;       // every N points your opponent scores, a rusher dives at you
+  const COMBO_TIERS = [{streak:8,mult:4},{streak:5,mult:3},{streak:3,mult:2}];
+  function comboMult(streak) { for (const t of COMBO_TIERS) if (streak >= t.streak) return t.mult; return 1; }
   const MID = h / 2;
   const CTRL_H = 50; // control zone height
   const P1_SHIP_Y = h - CTRL_H - 30; // P1 ship center (above control zone)
@@ -1571,8 +1570,8 @@ function initStarClash(area, setStatus) {
   function sfxAlienDie() { SND.alienDie(); }
 
   // Players: P1 at bottom, P2 at top (inverted)
-  let p1 = {x: w/2, hp: 3, score: 0, cooldown: 0, alive: true, powerTimer: 0, powerType: null, campHeat: 0};
-  let p2 = {x: w/2, hp: 3, score: 0, cooldown: 0, alive: true, powerTimer: 0, powerType: null, campHeat: 0};
+  let p1 = {x: w/2, hp: 3, score: 0, cooldown: 0, alive: true, powerTimer: 0, powerType: null, streak: 0, nextRusherScore: RUSHER_SCORE_STEP};
+  let p2 = {x: w/2, hp: 3, score: 0, cooldown: 0, alive: true, powerTimer: 0, powerType: null, streak: 0, nextRusherScore: RUSHER_SCORE_STEP};
   let bullets = []; // {x, y, dy, owner: 0|1|2(alien), color}
   let explosions = []; // {x, y, timer}
   let stars = Array.from({length:60}, () => ({x:Math.random()*w, y:Math.random()*h, s:Math.random()*1.5+0.3}));
@@ -1624,7 +1623,9 @@ function initStarClash(area, setStatus) {
         type, alive: true, frame: 0
       });
     }
-    alienDir = 1; alienSpeed = 0.4 + wave * 0.1;
+    // Sudden death: from wave 5 onward, aliens accelerate sharply
+    const sd = Math.max(0, wave - 4);
+    alienDir = 1; alienSpeed = 0.4 + wave * 0.1 + sd * 0.35;
     // Mark up to 4 random aliens as special (power-up carriers)
     const pool = aliens.map((_,i)=>i);
     for(let i=pool.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]];}
@@ -1636,6 +1637,20 @@ function initStarClash(area, setStatus) {
     diveTimer = 0;
   }
   spawnWave();
+
+  // Rusher: a red alien that spawns mid-board, dives directly at the named target,
+  // fires a short burst, and exits off the target's side. Killing it scores 50.
+  function spawnRusher(target) {
+    const startX = w * (0.15 + Math.random() * 0.7);
+    const startY = MID + (target === 0 ? -30 : 30);
+    aliens.push({
+      x: startX, y: startY,
+      type: {color: '#FF1744', points: 50, w: 20, h: 16},
+      alive: true, frame: 0,
+      rusher: true, rusherTarget: target,
+      rusherShootCd: 18,
+    });
+  }
 
   // Touch controls
   const touches = {};
@@ -1710,23 +1725,6 @@ function initStarClash(area, setStatus) {
     if (autoFireP1 && p1.cooldown <= 0 && p1.alive) shoot(0);
     if (autoFireP2 && p2.cooldown <= 0 && p2.alive) shoot(1);
 
-    // Edge camping heat
-    for (const p of [p1, p2]) {
-      if (!p.alive) continue;
-      if (p.x < PW/2 + EDGE_ZONE || p.x > w - PW/2 - EDGE_ZONE) {
-        p.campHeat += CAMP_HEAT_RATE;
-      } else {
-        p.campHeat = Math.max(0, p.campHeat - CAMP_HEAT_COOL);
-      }
-      if (p.campHeat >= CAMP_DAMAGE_THRESHOLD) {
-        p.hp--;
-        p.campHeat = 0;
-        explosions.push({x: p.x, y: p === p1 ? P1_SHIP_Y : P2_SHIP_Y, timer: 10});
-        SND.buzz();
-        if (p.hp <= 0) p.alive = false;
-      }
-    }
-
     // Move bullets
     for (const b of bullets) b.y += b.dy;
     bullets = bullets.filter(b => {
@@ -1747,25 +1745,50 @@ function initStarClash(area, setStatus) {
           a.alive = false;
           bullets.splice(bi, 1);
           explosions.push({x: a.x, y: a.y, timer: 12});
-          if (b.owner === 0) { p1.score += a.type.points; if(a.special) { p1.powerTimer=180; p1.powerType=a.special; } }
-          else { p2.score += a.type.points; if(a.special) { p2.powerTimer=180; p2.powerType=a.special; } }
+          const shooter = b.owner === 0 ? p1 : p2;
+          shooter.streak++;
+          const mult = comboMult(shooter.streak);
+          shooter.score += a.type.points * mult;
+          if (a.special) { shooter.powerTimer = 180; shooter.powerType = a.special; }
+          // Send a rusher at the opponent every RUSHER_SCORE_STEP points
+          while (shooter.score >= shooter.nextRusherScore) {
+            spawnRusher(b.owner === 0 ? 1 : 0);
+            shooter.nextRusherScore += RUSHER_SCORE_STEP;
+          }
           sfxAlienDie();
           break;
         }
       }
     }
 
+    // Bullet vs bullet (defensive cancel) — your bullets destroy alien bullets they meet
+    const cancelled = new Set();
+    for (let i = 0; i < bullets.length; i++) {
+      if (cancelled.has(i) || bullets[i].owner === 2) continue;
+      for (let j = 0; j < bullets.length; j++) {
+        if (i === j || cancelled.has(j) || bullets[j].owner !== 2) continue;
+        const a = bullets[i], c = bullets[j];
+        if (Math.abs(a.x - c.x) < 5 && Math.abs(a.y - c.y) < 9) {
+          cancelled.add(i); cancelled.add(j);
+          explosions.push({x: (a.x + c.x) / 2, y: (a.y + c.y) / 2, timer: 5});
+          SND.click();
+          break;
+        }
+      }
+    }
+    if (cancelled.size) bullets = bullets.filter((_, i) => !cancelled.has(i));
+
     // Bullet vs player collision
     for (let bi = bullets.length - 1; bi >= 0; bi--) {
       const b = bullets[bi];
       // Alien bullets or opponent bullets can hit players
       if (b.owner !== 0 && p1.alive && b.dy > 0 && Math.abs(b.x - p1.x) < PW/2 + 3 && Math.abs(b.y - P1_SHIP_Y) < PH/2 + 3) {
-        p1.hp--; bullets.splice(bi, 1); explosions.push({x: p1.x, y: P1_SHIP_Y, timer: 10}); sfxHit();
+        p1.hp--; p1.streak = 0; bullets.splice(bi, 1); explosions.push({x: p1.x, y: P1_SHIP_Y, timer: 10}); sfxHit();
         if (p1.hp <= 0) p1.alive = false;
         continue;
       }
       if (b.owner !== 1 && p2.alive && b.dy < 0 && Math.abs(b.x - p2.x) < PW/2 + 3 && Math.abs(b.y - P2_SHIP_Y) < PH/2 + 3) {
-        p2.hp--; bullets.splice(bi, 1); explosions.push({x: p2.x, y: P2_SHIP_Y, timer: 10}); sfxHit();
+        p2.hp--; p2.streak = 0; bullets.splice(bi, 1); explosions.push({x: p2.x, y: P2_SHIP_Y, timer: 10}); sfxHit();
         if (p2.hp <= 0) p2.alive = false;
         continue;
       }
@@ -1784,10 +1807,11 @@ function initStarClash(area, setStatus) {
       if (hit) { bullets.splice(bi, 1); continue; }
     }
 
-    // Move aliens (skip diving ones)
+    // Move aliens (skip diving + rushers — they have their own movement)
     let edgeHit = false;
     for (const a of aliens) {
       if (!a.alive) continue;
+      if (a.rusher) { a.frame += 0.06; continue; }
       if (a.diving) {
         a.homeX += alienDir * alienSpeed; // track formation drift
         a.frame += 0.04;
@@ -1799,6 +1823,25 @@ function initStarClash(area, setStatus) {
     }
     if (edgeHit) {
       alienDir = -alienDir;
+    }
+
+    // Rushers — straight dive at target, then exit screen
+    for (const a of aliens) {
+      if (!a.alive || !a.rusher) continue;
+      const t = a.rusherTarget;
+      const tp = t === 0 ? p1 : p2;
+      const targetY = t === 0 ? P1_SHIP_Y : P2_SHIP_Y;
+      const dirY = targetY > a.y ? 1 : -1;
+      a.y += dirY * 3.6;
+      if (tp.alive) a.x += (tp.x - a.x) * 0.045;
+      a.rusherShootCd--;
+      if (a.rusherShootCd <= 0) {
+        a.rusherShootCd = 22;
+        const bdy = t === 0 ? ALIEN_BULLET_SPD : -ALIEN_BULLET_SPD;
+        bullets.push({x: a.x, y: a.y, dy: bdy, owner: 2, color: '#FF1744'});
+      }
+      // Exit off the target's side
+      if ((t === 0 && a.y > h + 30) || (t === 1 && a.y < -30)) a.alive = false;
     }
 
     // Trigger Galaga-style dives
@@ -1850,7 +1893,8 @@ function initStarClash(area, setStatus) {
 
     // Alien shooting
     alienShootTimer++;
-    const shootInterval = Math.max(20, 60 - wave * 5);
+    const sdShoot = Math.max(0, wave - 4);
+    const shootInterval = Math.max(12, 60 - wave * 5 - sdShoot * 8);
     if (alienShootTimer >= shootInterval) {
       alienShootTimer = 0;
       const liveAliens = aliens.filter(a => a.alive && !a.diving);
@@ -1860,8 +1904,10 @@ function initStarClash(area, setStatus) {
       }
     }
 
-    // Check if all aliens dead → next wave
-    if (aliens.every(a => !a.alive)) {
+    // Check if all formation aliens dead → next wave (rushers don't count)
+    if (aliens.every(a => !a.alive || a.rusher)) {
+      // Clear out any remaining rushers so they don't carry over
+      for (const a of aliens) if (a.rusher) a.alive = false;
       wave++;
       spawnWave();
       // Rebuild shields
@@ -1883,15 +1929,21 @@ function initStarClash(area, setStatus) {
       else msg = 'P1 wins!';
       setStatus(`${msg} P1:${p1.score} P2:${p2.score}`);
       setTimeout(() => showOverlay(area, `${msg}<br>P1: ${p1.score} | P2: ${p2.score}`, 'Rematch', () => {
-        p1 = {x:w/2,hp:3,score:0,cooldown:0,alive:true,powerTimer:0,powerType:null,campHeat:0};
-        p2 = {x:w/2,hp:3,score:0,cooldown:0,alive:true,powerTimer:0,powerType:null,campHeat:0};
+        p1 = {x:w/2,hp:3,score:0,cooldown:0,alive:true,powerTimer:0,powerType:null,streak:0,nextRusherScore:RUSHER_SCORE_STEP};
+        p2 = {x:w/2,hp:3,score:0,cooldown:0,alive:true,powerTimer:0,powerType:null,streak:0,nextRusherScore:RUSHER_SCORE_STEP};
         bullets = []; explosions = []; wave = 1;
         spawnWave(); initShields(); gameOver = false;
         raf = requestAnimationFrame(loop);
       }), 1000);
     }
 
-    if (!gameOver) setStatus(`P1:${p1.score} \u2764${p1.hp}${p1.powerTimer>0?' '+p1.powerType.label:''} | Wave ${wave} | ${p2.powerTimer>0?p2.powerType.label+' ':''}\u2764${p2.hp} P2:${p2.score}`);
+    if (!gameOver) {
+      const c1 = comboMult(p1.streak), c2 = comboMult(p2.streak);
+      const c1s = c1 > 1 ? ` x${c1}` : '';
+      const c2s = c2 > 1 ? ` x${c2}` : '';
+      const sdTag = wave >= 5 ? ' \u26a1' : '';
+      setStatus(`P1:${p1.score}${c1s} \u2764${p1.hp}${p1.powerTimer>0?' '+p1.powerType.label:''} | W${wave}${sdTag} | ${p2.powerTimer>0?p2.powerType.label+' ':''}\u2764${p2.hp}${c2s} P2:${p2.score}`);
+    }
   }
 
   function draw() {
@@ -1902,18 +1954,6 @@ function initStarClash(area, setStatus) {
       ctx.fillStyle = `rgba(255,255,255,${0.3+s.s*0.3})`;
       ctx.fillRect(s.x, s.y, s.s > 1 ? 2 : 1, s.s > 1 ? 2 : 1);
     }
-
-    // Edge danger zones
-    const zoneLeft = PW/2 + EDGE_ZONE;
-    const zoneRight = w - PW/2 - EDGE_ZONE;
-    // Check if either player is in a zone for pulse effect
-    const p1InZone = p1.alive && (p1.x < zoneLeft || p1.x > zoneRight);
-    const p2InZone = p2.alive && (p2.x < zoneLeft || p2.x > zoneRight);
-    const anyInZone = p1InZone || p2InZone;
-    const pulse = anyInZone ? 0.12 + Math.sin(Date.now() * 0.006) * 0.06 : 0.07;
-    ctx.fillStyle = `rgba(255,30,30,${pulse})`;
-    ctx.fillRect(0, 0, zoneLeft, h);
-    ctx.fillRect(zoneRight, 0, w - zoneRight, h);
 
     // Midline
     ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
@@ -1932,6 +1972,17 @@ function initStarClash(area, setStatus) {
       const t = a.type, wobble = Math.sin(a.frame * 4) * 2;
       // Diving alien trail
       if(a.diving){const tp=0.4+Math.sin(a.frame*6)*0.2;ctx.fillStyle=`rgba(255,60,60,${tp})`;ctx.beginPath();ctx.arc(a.x,a.y,12,0,Math.PI*2);ctx.fill();const dirY=a.divePhase===0?(a.diveTarget===0?-1:1):(a.homeY>a.y?-1:1);for(let t=1;t<=3;t++){ctx.fillStyle=`rgba(255,100,50,${0.2-t*0.05})`;ctx.beginPath();ctx.arc(a.x,a.y+dirY*t*7,4-t,0,Math.PI*2);ctx.fill();}}
+      // Rusher trail (longer, more menacing — they're an incoming attack)
+      if(a.rusher){
+        const rDirY = a.rusherTarget === 0 ? -1 : 1;
+        const ringP = 0.35 + Math.sin(a.frame * 6) * 0.2;
+        ctx.fillStyle = `rgba(255,23,68,${ringP})`;
+        ctx.beginPath(); ctx.arc(a.x, a.y, 16, 0, Math.PI * 2); ctx.fill();
+        for (let t = 1; t <= 5; t++) {
+          ctx.fillStyle = `rgba(255,80,80,${0.3 - t * 0.05})`;
+          ctx.beginPath(); ctx.arc(a.x, a.y + rDirY * t * 9, 5 - t * 0.7, 0, Math.PI * 2); ctx.fill();
+        }
+      }
       if(a.special){const gp=0.3+Math.sin(a.frame*8)*0.2;const sc=a.special.color;ctx.fillStyle=sc+Math.round(gp*255).toString(16).padStart(2,'0');ctx.beginPath();ctx.arc(a.x,a.y,14,0,Math.PI*2);ctx.fill();ctx.fillStyle=sc;}
       else ctx.fillStyle = t.color;
       // Body
@@ -1991,12 +2042,6 @@ function initStarClash(area, setStatus) {
       ctx.beginPath(); ctx.arc(p1.x,py-4,5,0,Math.PI*2); ctx.fill();
       ctx.fillStyle = 'rgba(255,255,255,0.35)';
       ctx.beginPath(); ctx.arc(p1.x-1.5,py-5.5,1.8,0,Math.PI*2); ctx.fill();
-      // Camp heat warning flash
-      if (p1.campHeat > CAMP_DAMAGE_THRESHOLD * 0.5) {
-        const fa = (Math.sin(Date.now()*0.02)*0.5+0.5) * 0.5;
-        ctx.fillStyle = `rgba(255,0,0,${fa})`;
-        ctx.beginPath(); ctx.arc(p1.x, py, 22, 0, Math.PI*2); ctx.fill();
-      }
     }
 
     if (p2.alive) {
@@ -2030,12 +2075,6 @@ function initStarClash(area, setStatus) {
       ctx.beginPath(); ctx.arc(p2.x,py+4,5,0,Math.PI*2); ctx.fill();
       ctx.fillStyle = 'rgba(255,255,255,0.35)';
       ctx.beginPath(); ctx.arc(p2.x-1.5,py+5.5,1.8,0,Math.PI*2); ctx.fill();
-      // Camp heat warning flash
-      if (p2.campHeat > CAMP_DAMAGE_THRESHOLD * 0.5) {
-        const fa = (Math.sin(Date.now()*0.02)*0.5+0.5) * 0.5;
-        ctx.fillStyle = `rgba(255,0,0,${fa})`;
-        ctx.beginPath(); ctx.arc(p2.x, py, 22, 0, Math.PI*2); ctx.fill();
-      }
     }
 
     // Bullets
