@@ -3,8 +3,8 @@ for two players. Play locally on one device or online with a friend. No
 accounts, no ads.
 
 ONLINE MULTIPLAYER:
-7 turn-based games support online play via room codes or quick match:
-4 in a Row, Caro, Awalé, Memory, Mastermonde, Tank Wars, Ship Battle.
+8 turn-based games support online play via room codes or quick match:
+4 in a Row, Caro, Awalé, Memory, Duck-Day Chess, Tank Wars, Word Clash, Reversi.
 
 GAMES:
 
@@ -12,17 +12,17 @@ GAMES:
 - 4 in a Row — Drop discs, connect four to win
 - Pool — Realistic 2D pool with proper physics
 - Memory — Flip cards and match pairs
-- Snakes — Two snakes, swipe to steer, don't crash
+- Word Clash — Crossword duel: swipe letters on a wheel
 - Air Hockey — Flick the puck into the opponent's goal
 - Tank Wars — Artillery duels on destructible terrain
-- Ship Battle — Classic battleship with drag-to-place ships
+- Carrom — Indian flicking board game with striker, white/black pieces, and the red Queen
 - Mini Golf — Take turns putting through tricky courses
 - Star Clash — Space invaders with two ships and control zones
-- Munch Maze — 2-player maze chase with dots, monsters, and power pellets
+- Caro — Gomoku 5-in-a-row on a 13x13 board
 - Awalé — Ancient African seed-sowing strategy game
-- Mastermonde — Crack the color code in fewest guesses
+- Duck-Day Chess — Chess with two chaotic ducks and a laser
 - Hangman — Classic turn-based letter-guessing
-- Pixel Run — Split-screen auto-runner with coins and enemies
+- Reversi — Othello on an 8x8 board: sandwich and flip opponent discs
 - Horse Jump — Split-screen horse racing over hurdles
 
 All games feature intuitive touch controls split between the two halves of the

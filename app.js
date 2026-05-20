@@ -399,14 +399,14 @@ const RULES = {
   wordclash: 'Word puzzle duel. Both players share a crossword grid built from one set of scrambled letters. Take turns swiping letters on the wheel to form words. Grid words fill in your color and score = word length. Bonus words (valid but not on grid) score 1 point. You get 3 tries per turn — each word attempt (right or wrong) and each hint counts as 1 try. Game ends when the grid is complete — highest score wins.',
   hockey: 'Air hockey. Drag your mallet (bottom = P1, top = P2) to hit the puck into the opponent\'s goal. First to 7 wins.',
   tanks: 'Artillery duel. On your turn, drag to adjust angle and power, then tap FIRE. Wind affects the shot. Damage depends on how close the shell lands. Destroy the opponent\'s tank to win.',
-  ships: 'Battleship. Place your ships on the grid, then take turns tapping squares to fire at the opponent\'s fleet. Hit all segments of every ship to win. Ships: Carrier (5), Battleship (4), Cruiser (3), Submarine (3), Destroyer (2).',
+  carrom: 'Indian flicking board game. 19 wooden pieces: 9 white, 9 black, and the red Queen. On your turn, drag the striker along your baseline to position it (tap your baseline), then drag away from the striker to aim and release to flick. Pocket your color (P1 white, P2 black) to score 1 point and play again. Pocket opponent\'s color: opponent scores, you lose your turn. Pocketing the Queen scores 3 — but only if you "cover" it by pocketing one of your own colour the same shot (otherwise the Queen returns). Pocketing the striker is a foul: return one of your pieces and lose your turn. First to pocket all 9 of your colour wins.',
   golf: 'Mini golf for 2. Take turns putting — drag from the ball to aim and set power, release to putt. Fewer strokes wins each hole. Play through all holes.',
   starclash: 'Galaga-style co-op/competitive shooter. P1 (bottom, red) and P2 (top, blue) both fight aliens in the middle. Slide your finger in your zone to move and auto-fire. Earn points by destroying aliens. If you get hit 3 times, you\'re out. Kill glowing aliens for random effects: \u26A1 Speed (rapid fire), \uD83D\uDCA5 Big Shot (huge bullets), \uD83D\uDC0C Slow (sluggish movement), \u2702\uFE0F Short Range (bullets fizzle out early). Survive waves and outscore your opponent!',
   caro: 'Gomoku variant on a 13x13 board. Place stones on intersections. Get exactly 5 in a row (horizontal, vertical, or diagonal) to win. Black goes first.',
   awale: 'West African seed-sowing game. Tap a pit on your side to sow seeds counter-clockwise. If your last seed lands in an opponent\'s pit making it 2 or 3 seeds, you capture them (plus any consecutive 2s or 3s behind). First to capture 25+ seeds wins.',
   duckchess: 'Duck-Day Chess — asymmetric chess variant with two chaotic ducks! Standard FIDE rules apply, but after each move you place the Yellow Duck (blocks all pieces). A Red Duck teleports randomly and fires a laser every 5 moves, vaporizing an adjacent piece. Kings are immune to the laser for the first 25 moves — after that, the Red Duck can vaporize Kings too! Checkmate to win!',
   hangman: 'Classic turn-based hangman. On your turn, pick a letter. Right guess: you score 1 point per matching letter and play again. Wrong guess: a body part is added to the gallows and the turn passes. Reveal the full word to win all your collected points. 6 wrong guesses total = both players lose the round.',
-  dotsboxes: 'Dots & Boxes on a 6x6 grid. Tap between two dots to draw a line. Complete the 4th side of a box to claim it (marked with your color) and take another turn. When all boxes are filled, the player with the most wins.',
+  reversi: 'Reversi / Othello on an 8×8 board. Black goes first. Place a disc so that one or more straight lines (horizontal, vertical, or diagonal) of opponent discs are sandwiched between your new disc and one of yours already on the board — every disc on those lines flips to your colour. Hint dots show your legal moves. If you have no move, you pass. Game ends when neither player can move — most discs wins.',
   horse: 'Horse racing / jumping. Each player taps their side of the screen to make their horse jump over obstacles. Time your jumps to clear hurdles. The horse that gets furthest or survives longest wins.',
 };
 
@@ -419,14 +419,14 @@ const GAMES = [
   {id:'wordclash',name:'Word Clash',icon:'📝',color:'#00897B',init:initWordClash,online:true},
   {id:'hockey',name:'Air Hockey',icon:'🏒',color:'#0097A7',init:initAirHockey},
   {id:'tanks',name:'Tank Wars',icon:'💣',color:'#F57F17',init:initTankWars,online:true},
-  {id:'ships',name:'Ship Battle',icon:'🚢',color:'#1565C0',init:initShipBattle,online:true},
+  {id:'carrom',name:'Carrom',icon:'🟤',color:'#8B4513',init:initCarrom},
   {id:'golf',name:'Mini Golf',icon:'⛳',color:'#00796B',init:initMiniGolf},
   {id:'starclash',name:'Star Clash',icon:'👾',color:'#C62828',init:initStarClash},
   {id:'caro',name:'Caro',icon:'⚫',color:'#37474F',init:initCaro,online:true},
   {id:'awale',name:'Awalé',icon:'🥜',color:'#4E342E',init:initAwale,online:true},
   {id:'duckchess',name:'Duck-Day Chess',icon:'🦆',color:'#B71C1C',init:initDuckChess,online:true},
   {id:'hangman',name:'Hangman',icon:'🪢',color:'#4A148C',init:initHangman},
-  {id:'dotsboxes',name:'Dots & Boxes',icon:'🔲',color:'#455A64',init:initDotsAndBoxes,online:true},
+  {id:'reversi',name:'Reversi',icon:'⚪',color:'#1B5E20',init:initReversi,online:true},
   {id:'horse',name:'Horse Jump',icon:'🏇',color:'#8D6E63',init:initHorseJump},
 ];
 
@@ -553,174 +553,174 @@ buildMenu();
 const mmb = document.getElementById('menu-music-btn');
 if (mmb) mmb.textContent = SND._musicOn ? '\u{1F50A}' : '\u{1F507}';
 
-// ==================== DOTS AND BOXES ====================
-function initDotsAndBoxes(area, setStatus, online) {
-  const ROWS = 6, COLS = 6, BROWS = 5, BCOLS = 5;
-  const hEdges = Array.from({length:ROWS}, () => Array(BCOLS).fill(0));
-  const vEdges = Array.from({length:BROWS}, () => Array(COLS).fill(0));
-  const boxes = Array.from({length:BROWS}, () => Array(BCOLS).fill(0));
-  let turn = 1, gameOver = false, scores = [0, 0];
-  const P1 = '#E53935', P2 = '#42A5F5', P1F = 'rgba(229,57,53,0.25)', P2F = 'rgba(66,165,245,0.25)';
-  let hoverEdge = null;
+// ==================== REVERSI / OTHELLO ====================
+function initReversi(area, setStatus, online) {
+  const SIZE = 8;
+  const board = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
+  // 1 = Black, 2 = White; standard starting position
+  board[3][3] = 2; board[3][4] = 1;
+  board[4][3] = 1; board[4][4] = 2;
+  let turn = 1, gameOver = false;
+  let lastFlips = new Set();
 
-  const {canvas, ctx, w, h} = createCanvas(area);
-  const pad = Math.min(w, h) * 0.08;
-  const gridW = w - pad * 2, gridH = h - pad * 2;
-  const sp = Math.min(gridW / BCOLS, gridH / BROWS);
-  const ox = (w - sp * BCOLS) / 2, oy = (h - sp * BROWS) / 2;
+  const wrap = document.createElement('div');
+  wrap.className = 'board-game';
+  area.appendChild(wrap);
 
+  const rect = area.getBoundingClientRect();
+  const maxW = rect.width * 0.95;
+  const maxH = rect.height * 0.82;
+  const sz = Math.min(maxW, maxH);
+  const cellSz = Math.floor(sz / SIZE);
+  const gridSz = cellSz * SIZE;
 
-  function dotX(c) { return ox + c * sp; }
-  function dotY(r) { return oy + r * sp; }
-  function pColor(p) { return p === 1 ? P1 : P2; }
+  const grid = document.createElement('div');
+  grid.style.cssText = `display:grid;grid-template-columns:repeat(${SIZE},${cellSz}px);width:${gridSz}px;height:${gridSz}px;background:#0a3a0a;border-radius:10px;overflow:hidden;border:4px solid #4b2e10;box-shadow:0 4px 24px rgba(0,0,0,0.6)`;
+  wrap.appendChild(grid);
 
-  function draw() {
-    ctx.clearRect(0, 0, w, h);
-    // filled boxes
-    for (let r = 0; r < BROWS; r++) for (let c = 0; c < BCOLS; c++) {
-      if (boxes[r][c]) {
-        ctx.fillStyle = boxes[r][c] === 1 ? P1F : P2F;
-        ctx.fillRect(dotX(c), dotY(r), sp, sp);
-        // Player initial in box
-        ctx.fillStyle = boxes[r][c] === 1 ? 'rgba(229,57,53,0.5)' : 'rgba(66,165,245,0.5)';
-        ctx.font = `bold ${Math.round(sp*0.35)}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(boxes[r][c] === 1 ? 'R' : 'B', dotX(c) + sp/2, dotY(r) + sp/2);
+  const cells = [];
+  for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+    const cell = document.createElement('div');
+    cell.style.cssText = `position:relative;width:${cellSz}px;height:${cellSz}px;background:#1B5E20;cursor:pointer;border:1px solid rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center`;
+    cell.onclick = () => {
+      if (gameOver) return;
+      if (online && turn !== online.playerId + 1) return;
+      if (tryPlace(r, c)) { if (online) online.sendMove({r, c}); }
+    };
+    grid.appendChild(cell);
+    cells.push(cell);
+  }
+  // Classic Othello star dots at the four standard intersections
+  [[2,2],[2,6],[6,2],[6,6]].forEach(([sr, sc]) => {
+    const dot = document.createElement('div');
+    dot.style.cssText = `position:absolute;width:6px;height:6px;border-radius:50%;background:rgba(0,0,0,0.55);right:-3px;bottom:-3px;pointer-events:none`;
+    cells[sr * SIZE + sc].appendChild(dot);
+  });
+
+  function discsToFlip(r, c, player) {
+    if (board[r][c] !== 0) return [];
+    const opp = 3 - player;
+    const dirs = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+    const out = [];
+    for (const [dr, dc] of dirs) {
+      const line = [];
+      let nr = r + dr, nc = c + dc;
+      while (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && board[nr][nc] === opp) {
+        line.push([nr, nc]); nr += dr; nc += dc;
       }
+      if (line.length && nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && board[nr][nc] === player) out.push(...line);
     }
-    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-    // empty edge guides
-    ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 1.5;
-    ctx.setLineDash([4, 4]);
-    for (let r = 0; r < ROWS; r++) for (let c = 0; c < BCOLS; c++) {
-      if (!hEdges[r][c]) { ctx.beginPath(); ctx.moveTo(dotX(c), dotY(r)); ctx.lineTo(dotX(c+1), dotY(r)); ctx.stroke(); }
+    return out;
+  }
+
+  function legalMoves(player) {
+    const moves = [];
+    for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+      if (board[r][c] === 0 && discsToFlip(r, c, player).length) moves.push([r, c]);
     }
-    for (let r = 0; r < BROWS; r++) for (let c = 0; c < COLS; c++) {
-      if (!vEdges[r][c]) { ctx.beginPath(); ctx.moveTo(dotX(c), dotY(r)); ctx.lineTo(dotX(c), dotY(r+1)); ctx.stroke(); }
+    return moves;
+  }
+
+  function counts() {
+    let b = 0, w = 0;
+    for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+      if (board[r][c] === 1) b++; else if (board[r][c] === 2) w++;
     }
-    ctx.setLineDash([]);
-    // placed edges
-    ctx.lineWidth = Math.max(3, sp * 0.06); ctx.lineCap = 'round';
-    for (let r = 0; r < ROWS; r++) for (let c = 0; c < BCOLS; c++) {
-      if (hEdges[r][c]) { ctx.strokeStyle = pColor(hEdges[r][c]); ctx.beginPath(); ctx.moveTo(dotX(c), dotY(r)); ctx.lineTo(dotX(c+1), dotY(r)); ctx.stroke(); }
+    return {b, w};
+  }
+
+  function tryPlace(r, c) {
+    const flips = discsToFlip(r, c, turn);
+    if (flips.length === 0) return false;
+    board[r][c] = turn;
+    lastFlips = new Set();
+    flips.forEach(([fr, fc]) => { board[fr][fc] = turn; lastFlips.add(fr * SIZE + fc); });
+    SND.drop();
+    advanceTurn();
+    return true;
+  }
+
+  function advanceTurn() {
+    const next = 3 - turn;
+    const nextHasMoves = legalMoves(next).length > 0;
+    const curHasMoves = legalMoves(turn).length > 0;
+    if (!nextHasMoves && !curHasMoves) {
+      gameOver = true;
+      render();
+      finish();
+      return;
     }
-    for (let r = 0; r < BROWS; r++) for (let c = 0; c < COLS; c++) {
-      if (vEdges[r][c]) { ctx.strokeStyle = pColor(vEdges[r][c]); ctx.beginPath(); ctx.moveTo(dotX(c), dotY(r)); ctx.lineTo(dotX(c), dotY(r+1)); ctx.stroke(); }
+    if (nextHasMoves) {
+      turn = next;
+      render();
+    } else {
+      // Next player passes — current keeps the turn
+      render();
+      setStatus((turn === 1 ? "White" : "Black") + ' passes — no legal move');
+      setTimeout(() => { if (!gameOver) { setStatus(statusText()); } }, 1100);
     }
-    // hover highlight
-    if (hoverEdge && !gameOver) {
-      ctx.strokeStyle = pColor(turn); ctx.globalAlpha = 0.45; ctx.lineWidth = Math.max(5, sp * 0.09);
-      const e = hoverEdge; ctx.beginPath();
-      if (e.type === 'h') { ctx.moveTo(dotX(e.c), dotY(e.r)); ctx.lineTo(dotX(e.c+1), dotY(e.r)); }
-      else { ctx.moveTo(dotX(e.c), dotY(e.r)); ctx.lineTo(dotX(e.c), dotY(e.r+1)); }
-      ctx.stroke(); ctx.globalAlpha = 1;
+  }
+
+  function finish() {
+    const {b, w} = counts();
+    SND.win();
+    let msg;
+    if (online) {
+      const myCount = online.playerId === 0 ? b : w;
+      const oppCount = online.playerId === 0 ? w : b;
+      msg = myCount > oppCount ? `You win ${myCount}–${oppCount}` : myCount < oppCount ? `You lose ${myCount}–${oppCount}` : `Draw ${b}–${w}`;
+    } else {
+      msg = b > w ? `Black wins ${b}–${w}` : w > b ? `White wins ${w}–${b}` : `Draw ${b}–${w}`;
     }
-    // dots
-    const dotR = Math.max(3, sp * 0.07);
-    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-      ctx.fillStyle = '#e0e0e0';
-      ctx.beginPath(); ctx.arc(dotX(c), dotY(r), dotR, 0, Math.PI * 2); ctx.fill();
-    }
+    setStatus(msg);
+    setTimeout(() => showOverlay(area, msg, 'Rematch', restart), 600);
   }
 
   function statusText() {
-    const s = `[${scores[0]} - ${scores[1]}]`;
-    if (online) return (turn === online.playerId + 1 ? 'Your turn' : "Opponent's turn") + ' ' + s;
-    return `P${turn}'s turn (${turn === 1 ? 'Red' : 'Blue'}) ${s}`;
+    const {b, w} = counts();
+    const score = `${b}–${w}`;
+    if (online) return (turn === online.playerId + 1 ? 'Your turn' : "Opponent's turn") + ` (${turn === 1 ? 'Black' : 'White'}) ${score}`;
+    return `${turn === 1 ? "Black's" : "White's"} turn ${score}`;
   }
 
-  function checkBoxes() {
-    let completed = 0;
-    for (let r = 0; r < BROWS; r++) for (let c = 0; c < BCOLS; c++) {
-      if (!boxes[r][c] && hEdges[r][c] && hEdges[r+1][c] && vEdges[r][c] && vEdges[r][c+1]) {
-        boxes[r][c] = turn; scores[turn - 1]++; completed++;
+  function render() {
+    const moves = !gameOver ? legalMoves(turn) : [];
+    const moveSet = new Set(moves.map(([r,c]) => r * SIZE + c));
+    const showHint = !gameOver && (!online || turn === online.playerId + 1);
+    for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+      const cell = cells[r * SIZE + c];
+      // wipe any previous disc/hint (keep star dot)
+      [...cell.querySelectorAll('.rv-piece, .rv-hint')].forEach(el => el.remove());
+      const v = board[r][c];
+      if (v) {
+        const disc = document.createElement('div');
+        disc.className = 'rv-piece';
+        const isB = v === 1;
+        const flipped = lastFlips.has(r * SIZE + c);
+        disc.style.cssText = `width:${cellSz*0.78}px;height:${cellSz*0.78}px;border-radius:50%;background:${isB ? 'radial-gradient(circle at 35% 30%,#555,#0a0a0a 70%)' : 'radial-gradient(circle at 35% 30%,#fff,#bbb 75%)'};box-shadow:0 2px 5px rgba(0,0,0,0.55)${flipped ? ',0 0 0 2px rgba(255,213,79,0.8)' : ''}`;
+        cell.appendChild(disc);
+      } else if (showHint && moveSet.has(r * SIZE + c)) {
+        const hint = document.createElement('div');
+        hint.className = 'rv-hint';
+        hint.style.cssText = `width:${cellSz*0.26}px;height:${cellSz*0.26}px;border-radius:50%;background:${turn === 1 ? 'rgba(0,0,0,0.32)' : 'rgba(255,255,255,0.38)'};border:1px solid ${turn === 1 ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.55)'}`;
+        cell.appendChild(hint);
       }
     }
-    return completed;
+    setStatus(statusText());
   }
-
-  function checkEnd() {
-    if (scores[0] + scores[1] === BROWS * BCOLS) {
-      gameOver = true; SND.win(); draw();
-      let msg;
-      if (scores[0] === scores[1]) msg = `Draw! ${scores[0]} - ${scores[1]}`;
-      else if (online) msg = (scores[online.playerId] > scores[1 - online.playerId] ? 'You win!' : 'You lose!') + ` ${scores[0]}-${scores[1]}`;
-      else msg = `P${scores[0] > scores[1] ? 1 : 2} wins! ${scores[0]}-${scores[1]}`;
-      setStatus(msg); setTimeout(() => showOverlay(area, msg, 'Rematch', restart), 600);
-      return true;
-    }
-    return false;
-  }
-
-  function execMove(type, r, c) {
-    const arr = type === 'h' ? hEdges : vEdges;
-    if (arr[r][c]) return;
-    arr[r][c] = turn; SND.click();
-    const gained = checkBoxes();
-    if (gained) SND.score();
-    draw();
-    if (checkEnd()) return;
-    if (!gained) turn = turn === 1 ? 2 : 1;
-    setStatus(statusText()); draw();
-  }
-
-  function nearestEdge(px, py) {
-    let best = null, bestD = sp * 0.4;
-    for (let r = 0; r < ROWS; r++) for (let c = 0; c < BCOLS; c++) {
-      if (hEdges[r][c]) continue;
-      const mx = (dotX(c) + dotX(c+1)) / 2, my = dotY(r);
-      const d = Math.hypot(px - mx, py - my);
-      if (d < bestD) { bestD = d; best = {type:'h', r, c}; }
-    }
-    for (let r = 0; r < BROWS; r++) for (let c = 0; c < COLS; c++) {
-      if (vEdges[r][c]) continue;
-      const mx = dotX(c), my = (dotY(r) + dotY(r+1)) / 2;
-      const d = Math.hypot(px - mx, py - my);
-      if (d < bestD) { bestD = d; best = {type:'v', r, c}; }
-    }
-    return best;
-  }
-
-  function getPos(e) {
-    const rect = canvas.getBoundingClientRect();
-    const t = e.touches ? e.touches[0] || e.changedTouches[0] : e;
-    return { x: t.clientX - rect.left, y: t.clientY - rect.top };
-  }
-
-  canvas.addEventListener('mousemove', e => {
-    if (gameOver) return;
-    const p = getPos(e); hoverEdge = nearestEdge(p.x, p.y); draw();
-  });
-  canvas.addEventListener('mouseleave', () => { hoverEdge = null; draw(); });
-  canvas.addEventListener('touchmove', e => {
-    e.preventDefault(); if (gameOver) return;
-    const p = getPos(e); hoverEdge = nearestEdge(p.x, p.y); draw();
-  }, {passive: false});
-
-  function handleTap(e) {
-    e.preventDefault(); if (gameOver) return;
-    if (online && turn !== online.playerId + 1) return;
-    const p = getPos(e);
-    const edge = nearestEdge(p.x, p.y);
-    if (!edge) return;
-    if (online) online.sendMove({type: edge.type, r: edge.r, c: edge.c});
-    execMove(edge.type, edge.r, edge.c);
-    hoverEdge = null;
-  }
-  canvas.addEventListener('click', handleTap);
-  canvas.addEventListener('touchstart', e => { e.preventDefault(); handleTap(e); }, {passive: false});
 
   function restart() {
-    for (let r = 0; r < ROWS; r++) hEdges[r].fill(0);
-    for (let r = 0; r < BROWS; r++) { vEdges[r].fill(0); boxes[r].fill(0); }
-    turn = 1; gameOver = false; scores = [0, 0]; hoverEdge = null;
-    setStatus(statusText()); draw();
+    for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) board[r][c] = 0;
+    board[3][3] = 2; board[3][4] = 1; board[4][3] = 1; board[4][4] = 2;
+    turn = 1; gameOver = false; lastFlips = new Set();
+    render();
   }
 
   if (online) {
-    online.listenMoves(data => execMove(data.type, data.r, data.c));
+    online.listenMoves(data => tryPlace(data.r, data.c));
     online.onOpponentDisconnect(() => { if (!gameOver) { gameOver = true; setStatus('Opponent disconnected'); } });
   }
-  setStatus(statusText()); draw();
+  render();
   return () => { if (online) online.cleanup(); };
 }
 
@@ -3380,156 +3380,359 @@ function initTankWars(area, setStatus, online) {
   return () => { cancelAnimationFrame(raf); if (online) online.cleanup(); };
 }
 
-// ==================== SHIP BATTLE ====================
-function initShipBattle(area, setStatus, online) {
-  const SZ = 10, SHIPS = [5,4,3,3,2];
-  const grids = [Array.from({length:SZ},()=>Array(SZ).fill(0)), Array.from({length:SZ},()=>Array(SZ).fill(0))];
-  const shots = [Array.from({length:SZ},()=>Array(SZ).fill(0)), Array.from({length:SZ},()=>Array(SZ).fill(0))];
-  let phase = 'place', placer = online ? online.playerId : 0, shipIdx = 0, horizontal = true;
-  let turn = 0, gameOver = false;
-  let oppGridReceived = false, myGridSent = false;
-  const wrap = document.createElement('div');
-  wrap.className = 'board-game';
-  wrap.style.overflow = 'auto';
-  area.appendChild(wrap);
-  const cont = document.createElement('div');
-  cont.style.cssText = 'width:min(95vw,400px)';
-  wrap.appendChild(cont);
-  function render() {
-    let h = '';
-    if (phase === 'place') {
-      h += `<div style="text-align:center;margin-bottom:6px">${online ? 'Place' : 'P'+(placer+1)+': Place'} ship (${SHIPS[shipIdx]} cells)</div>`;
-      h += `<div style="text-align:center;margin-bottom:6px"><button class="btn" id="sb-rotate">${horizontal?'Horizontal':'Vertical'} ↻</button></div>`;
-      h += renderGrid(grids[placer], null, true);
-    } else if (phase === 'waitopp') {
-      h += `<div style="text-align:center;font-size:1.2em;font-weight:bold;color:#888;padding:40px 0">Waiting for opponent to place ships...</div>`;
-      h += `<div style="text-align:center;margin:6px 0;font-size:.85em">Your ships:</div>`;
-      h += renderGridSmall(grids[online.playerId], shots[1-online.playerId]);
-    } else if (phase === 'battle' && !gameOver) {
-      const myId = online ? online.playerId : turn;
-      h += `<div style="text-align:center;margin-bottom:4px;font-size:.85em">${online ? 'Your shots' : 'Your shots'} (opponent's sea):</div>`;
-      h += renderGrid(null, shots[myId], false);
-      h += `<div style="text-align:center;margin:6px 0;font-size:.85em">Your ships:</div>`;
-      h += renderGridSmall(grids[myId], shots[1-myId]);
+// ==================== CARROM ====================
+function initCarrom(area, setStatus) {
+  const {canvas, ctx, w, h} = createCanvas(area);
+  const SIDE = Math.min(w * 0.96, h * 0.82);
+  const BX = (w - SIDE) / 2, BY = (h - SIDE) / 2 + 4;
+  const PR = SIDE * 0.025;
+  const SR = SIDE * 0.033;
+  const POCKET_R = SIDE * 0.052;
+  const FRICTION = 0.975;
+  const STRIKER_MASS = 2.2;
+  const PIECE_MASS = 1;
+  const POCKET_INSET = SIDE * 0.045;
+  const pockets = [
+    [BX + POCKET_INSET, BY + POCKET_INSET],
+    [BX + SIDE - POCKET_INSET, BY + POCKET_INSET],
+    [BX + POCKET_INSET, BY + SIDE - POCKET_INSET],
+    [BX + SIDE - POCKET_INSET, BY + SIDE - POCKET_INSET],
+  ];
+  const baselineY = [BY + SIDE * 0.88, BY + SIDE * 0.12];
+  const baselineMinX = BX + SIDE * 0.20;
+  const baselineMaxX = BX + SIDE * 0.80;
+
+  let pieces = [];
+  let turn = 0;
+  const playerColor = ['w', 'b'];
+  let scores = [0, 0];
+  let queenPendingCover = false, queenPendingBy = -1;
+  let aiming = false, aimStart = null, aimCurrent = null, strikerSliding = false;
+  let moving = false, gameOver = false;
+  let pocketedThisShot = [];
+  let raf;
+
+  function makeStriker() {
+    return {x: (baselineMinX + baselineMaxX) / 2, y: baselineY[turn], vx: 0, vy: 0, type: 'striker', active: true, mass: STRIKER_MASS, r: SR};
+  }
+  function initPieces() {
+    pieces = [];
+    const cx = BX + SIDE / 2, cy = BY + SIDE / 2;
+    pieces.push({x: cx, y: cy, vx: 0, vy: 0, type: 'q', active: true, mass: PIECE_MASS, r: PR});
+    const innerR = PR * 2.1;
+    for (let i = 0; i < 6; i++) {
+      const a = i * Math.PI / 3 - Math.PI / 2;
+      pieces.push({x: cx + Math.cos(a) * innerR, y: cy + Math.sin(a) * innerR, vx: 0, vy: 0, type: i % 2 ? 'w' : 'b', active: true, mass: PIECE_MASS, r: PR});
     }
-    cont.innerHTML = h;
-    cont.querySelectorAll('[data-cell]').forEach(el => {
-      el.onclick = () => {
-        const [r,c] = el.dataset.cell.split(',').map(Number);
-        if (phase === 'place') placeShip(r, c);
-        else if (phase === 'battle' && !gameOver) {
-          if (online && turn !== online.playerId) return;
-          execFireAt(r, c);
-          if (online) online.sendMove({r, c});
+    const outerR = PR * 4.1;
+    for (let i = 0; i < 12; i++) {
+      const a = (i + 0.5) * Math.PI / 6 - Math.PI / 2;
+      pieces.push({x: cx + Math.cos(a) * outerR, y: cy + Math.sin(a) * outerR, vx: 0, vy: 0, type: i % 2 ? 'b' : 'w', active: true, mass: PIECE_MASS, r: PR});
+    }
+    pieces.push(makeStriker());
+  }
+  initPieces();
+  function striker() { return pieces[pieces.length - 1]; }
+
+  function getTouch(e) {
+    const r = canvas.getBoundingClientRect();
+    const t = e.touches ? e.touches[0] : e;
+    return {x: (t.clientX - r.left) / r.width * w, y: (t.clientY - r.top) / r.height * h};
+  }
+
+  function startAim(p) {
+    if (moving || gameOver) return;
+    const s = striker();
+    if (!s.active) return;
+    const onStriker = (p.x - s.x) ** 2 + (p.y - s.y) ** 2 < (SR * 1.4) ** 2;
+    const onBaseline = Math.abs(p.y - baselineY[turn]) < SR * 1.8;
+    if (onBaseline && !onStriker && p.x >= baselineMinX && p.x <= baselineMaxX) {
+      strikerSliding = true;
+      s.x = Math.max(baselineMinX, Math.min(baselineMaxX, p.x));
+      return;
+    }
+    aiming = true; aimStart = p; aimCurrent = p;
+  }
+  function moveAim(p) {
+    if (strikerSliding) {
+      const s = striker();
+      s.x = Math.max(baselineMinX, Math.min(baselineMaxX, p.x));
+      return;
+    }
+    if (aiming) aimCurrent = p;
+  }
+  function endAim() {
+    if (strikerSliding) { strikerSliding = false; return; }
+    if (!aiming) return;
+    aiming = false;
+    const s = striker();
+    const dx = s.x - aimCurrent.x, dy = s.y - aimCurrent.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist < SR * 0.6) return;
+    const power = Math.min(dist / (SIDE * 0.45), 1) * 17;
+    s.vx = dx / dist * power; s.vy = dy / dist * power;
+    moving = true;
+    pocketedThisShot = [];
+    SND.click();
+  }
+  canvas.addEventListener('mousedown', e => startAim(getTouch(e)));
+  canvas.addEventListener('mousemove', e => { if (aiming || strikerSliding) moveAim(getTouch(e)); });
+  canvas.addEventListener('mouseup', e => endAim());
+  canvas.addEventListener('touchstart', e => { e.preventDefault(); startAim(getTouch(e)); }, {passive:false});
+  canvas.addEventListener('touchmove', e => { e.preventDefault(); moveAim(getTouch(e)); }, {passive:false});
+  canvas.addEventListener('touchend', e => { e.preventDefault(); endAim(); }, {passive:false});
+
+  function step() {
+    if (moving) {
+      for (const p of pieces) {
+        if (!p.active) continue;
+        p.x += p.vx; p.y += p.vy;
+        p.vx *= FRICTION; p.vy *= FRICTION;
+      }
+      // Walls
+      for (const p of pieces) {
+        if (!p.active) continue;
+        if (p.x < BX + p.r) { p.x = BX + p.r; p.vx = Math.abs(p.vx) * 0.9; }
+        if (p.x > BX + SIDE - p.r) { p.x = BX + SIDE - p.r; p.vx = -Math.abs(p.vx) * 0.9; }
+        if (p.y < BY + p.r) { p.y = BY + p.r; p.vy = Math.abs(p.vy) * 0.9; }
+        if (p.y > BY + SIDE - p.r) { p.y = BY + SIDE - p.r; p.vy = -Math.abs(p.vy) * 0.9; }
+      }
+      // Pockets
+      for (const p of pieces) {
+        if (!p.active) continue;
+        for (const [px, py] of pockets) {
+          if ((p.x - px) ** 2 + (p.y - py) ** 2 < (POCKET_R * 0.85) ** 2) {
+            p.active = false;
+            pocketedThisShot.push(p.type);
+            SND.score && SND.score();
+            break;
+          }
         }
-      };
-    });
-    const rotBtn = cont.querySelector('#sb-rotate');
-    if (rotBtn) rotBtn.onclick = () => { horizontal = !horizontal; render(); };
-  }
-  function renderGrid(grid, shotGrid, placing) {
-    const csz = Math.floor(Math.min(area.getBoundingClientRect().width * 0.9, 360) / SZ);
-    let h = `<div style="display:grid;grid-template-columns:repeat(${SZ},${csz}px);gap:1px;justify-content:center">`;
-    for (let r = 0; r < SZ; r++) for (let c = 0; c < SZ; c++) {
-      let bg = '#1a3a5c';
-      if (grid && grid[r][c]) bg = '#546E7A';
-      if (shotGrid) { if (shotGrid[r][c] === 1) bg = '#EF5350'; if (shotGrid[r][c] === 2) bg = '#37474F'; }
-      const marker = shotGrid ? (shotGrid[r][c]===1?'✕':shotGrid[r][c]===2?'•':'') : '';
-      h += `<div data-cell="${r},${c}" style="width:${csz}px;height:${csz}px;background:${bg};display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:${csz*0.5}px;color:#fff">${marker}</div>`;
-    }
-    return h + '</div>';
-  }
-  function renderGridSmall(grid, oppShots) {
-    const csz = Math.floor(Math.min(area.getBoundingClientRect().width * 0.9, 360) / SZ * 0.6);
-    let h = `<div style="display:grid;grid-template-columns:repeat(${SZ},${csz}px);gap:1px;justify-content:center">`;
-    for (let r = 0; r < SZ; r++) for (let c = 0; c < SZ; c++) {
-      let bg = grid[r][c] ? '#546E7A' : '#1a3a5c';
-      if (oppShots[r][c] === 1) bg = '#EF5350';
-      if (oppShots[r][c] === 2) bg = '#37474F';
-      h += `<div style="width:${csz}px;height:${csz}px;background:${bg}"></div>`;
-    }
-    return h + '</div>';
-  }
-  function checkBothReady() {
-    if (myGridSent && oppGridReceived) {
-      phase = 'battle'; turn = 0;
-      setStatus(online ? (turn === online.playerId ? 'Your turn' : "Opponent's turn") : "P1's turn");
-      render();
-    }
-  }
-  function placeShip(r, c) {
-    const len = SHIPS[shipIdx];
-    const cells = [];
-    for (let i = 0; i < len; i++) {
-      const rr = horizontal ? r : r + i, cc = horizontal ? c + i : c;
-      if (rr >= SZ || cc >= SZ || grids[placer][rr][cc]) return;
-      cells.push([rr, cc]);
-    }
-    cells.forEach(([rr,cc]) => grids[placer][rr][cc] = shipIdx + 1);
-    shipIdx++;
-    if (shipIdx >= SHIPS.length) {
-      if (online) {
-        // Send our grid and wait for opponent
-        const gridData = grids[online.playerId].map(row => row.slice());
-        online.setState('grid' + online.playerId, gridData);
-        myGridSent = true;
-        phase = 'waitopp';
-        setStatus('Waiting for opponent...');
-        checkBothReady();
-        render();
-      } else if (placer === 0) {
-        placer = 1; shipIdx = 0; horizontal = true;
-        showOverlay(area, 'Pass device to P2', 'Ready', render);
-      } else {
-        phase = 'battle'; turn = 0;
-        showOverlay(area, 'Pass device to P1', 'Ready', render);
       }
-      return;
+      // Collisions
+      for (let i = 0; i < pieces.length; i++) for (let j = i + 1; j < pieces.length; j++) {
+        const a = pieces[i], b = pieces[j];
+        if (!a.active || !b.active) continue;
+        const dx = b.x - a.x, dy = b.y - a.y, d = Math.sqrt(dx*dx + dy*dy);
+        const minD = a.r + b.r;
+        if (d < minD && d > 0) {
+          const nx = dx / d, ny = dy / d;
+          const va_n = a.vx * nx + a.vy * ny, vb_n = b.vx * nx + b.vy * ny;
+          if (va_n - vb_n > 0) {
+            const ma = a.mass, mb = b.mass;
+            const va_n_new = ((ma - mb) * va_n + 2 * mb * vb_n) / (ma + mb);
+            const vb_n_new = ((mb - ma) * vb_n + 2 * ma * va_n) / (ma + mb);
+            a.vx += (va_n_new - va_n) * nx; a.vy += (va_n_new - va_n) * ny;
+            b.vx += (vb_n_new - vb_n) * nx; b.vy += (vb_n_new - vb_n) * ny;
+            SND.clack();
+          }
+          const ov = (minD - d) / 2;
+          a.x -= ov * nx; a.y -= ov * ny;
+          b.x += ov * nx; b.y += ov * ny;
+        }
+      }
+      let allStopped = true;
+      for (const p of pieces) {
+        if (!p.active) continue;
+        if (Math.abs(p.vx) > 0.06 || Math.abs(p.vy) > 0.06) { allStopped = false; break; }
+        p.vx = 0; p.vy = 0;
+      }
+      if (allStopped) { moving = false; endShot(); }
     }
-    render();
+    draw();
+    raf = requestAnimationFrame(step);
   }
-  function execFireAt(r, c) {
-    const target = 1 - turn;
-    if (shots[turn][r][c]) return;
-    if (grids[target][r][c]) { shots[turn][r][c] = 1; SND.boom(); setStatus(online ? (turn === online.playerId ? 'Hit!' : 'They hit!') : 'Hit!'); }
-    else { shots[turn][r][c] = 2; SND.splash(); setStatus(online ? (turn === online.playerId ? 'Miss' : 'They missed') : 'Miss'); }
-    // Check win
-    let allHit = true;
-    for (let rr=0;rr<SZ;rr++) for (let cc=0;cc<SZ;cc++) if (grids[target][rr][cc] && shots[turn][rr][cc] !== 1) allHit = false;
-    if (allHit) {
+
+  function returnPieceToCenter(p) {
+    p.active = true;
+    p.x = BX + SIDE / 2;
+    p.y = BY + SIDE / 2;
+    p.vx = p.vy = 0;
+    for (let tries = 0; tries < 40; tries++) {
+      let overlap = false;
+      for (const q of pieces) {
+        if (q === p || !q.active) continue;
+        const dx = q.x - p.x, dy = q.y - p.y;
+        if (dx*dx + dy*dy < (p.r + q.r + 1) ** 2) { overlap = true; break; }
+      }
+      if (!overlap) return;
+      const a = Math.random() * Math.PI * 2;
+      p.x += Math.cos(a) * p.r * 2.3;
+      p.y += Math.sin(a) * p.r * 2.3;
+    }
+  }
+
+  function endShot() {
+    let mine = 0, opp = 0, queenIn = false, strikerIn = false;
+    for (const t of pocketedThisShot) {
+      if (t === 'striker') strikerIn = true;
+      else if (t === 'q') queenIn = true;
+      else if (t === playerColor[turn]) mine++;
+      else opp++;
+    }
+    if (mine > 0) scores[turn] += mine;
+    if (opp > 0) scores[1 - turn] += opp;
+    let queenJustCovered = false;
+    if (queenIn) {
+      if (mine > 0) { scores[turn] += 3; queenJustCovered = true; }
+      else { queenPendingCover = true; queenPendingBy = turn; }
+    } else if (queenPendingCover && queenPendingBy === turn) {
+      if (mine > 0) { scores[turn] += 3; queenPendingCover = false; queenJustCovered = true; }
+      else if (!strikerIn) {
+        const q = pieces.find(p => p.type === 'q' && !p.active);
+        if (q) returnPieceToCenter(q);
+        queenPendingCover = false;
+      }
+    }
+    if (strikerIn) {
+      const myCaptured = pieces.find(p => !p.active && p.type === playerColor[turn]);
+      if (myCaptured) { returnPieceToCenter(myCaptured); scores[turn] = Math.max(0, scores[turn] - 1); }
+      if (queenIn) {
+        const q = pieces.find(p => p.type === 'q' && !p.active);
+        if (q) returnPieceToCenter(q);
+        queenPendingCover = false;
+      }
+    }
+    const myLeft = pieces.filter(p => p.type === playerColor[turn] && p.active).length;
+    const oppLeft = pieces.filter(p => p.type === playerColor[1 - turn] && p.active).length;
+    let winner = -1;
+    if (myLeft === 0) {
+      if (queenPendingCover && queenPendingBy === turn) {
+        const q = pieces.find(p => p.type === 'q' && !p.active);
+        if (q) returnPieceToCenter(q);
+        queenPendingCover = false;
+      }
+      winner = turn;
+    } else if (oppLeft === 0) {
+      winner = 1 - turn;
+    }
+    if (winner >= 0) {
       gameOver = true; SND.win();
-      const m = online ? (turn === online.playerId ? 'You win!' : 'You lose!') : `P${turn+1} wins!`;
-      setStatus(m); render();
-      setTimeout(() => showOverlay(area, m), 600);
+      const m = `P${winner + 1} wins! ${scores[0]}–${scores[1]}`;
+      setStatus(m);
+      setTimeout(() => showOverlay(area, m, 'Rematch', restart), 600);
       return;
     }
-    const prevTurn = turn;
-    render();
-    setTimeout(() => {
-      turn = 1 - prevTurn;
-      if (online) {
-        flashTurn(area, turn + 1);
-        setStatus(turn === online.playerId ? 'Your turn' : "Opponent's turn");
-        render();
-      } else {
-        showOverlay(area, `Pass device to P${turn+1}`, 'Ready', render);
-      }
-    }, 800);
+    const stay = !strikerIn && (mine > 0 || queenJustCovered);
+    const prev = turn;
+    if (!stay) turn = 1 - turn;
+    const s = striker();
+    s.active = true;
+    s.x = (baselineMinX + baselineMaxX) / 2;
+    s.y = baselineY[turn];
+    s.vx = s.vy = 0;
+    if (prev !== turn) flashTurn(area, turn + 1, turn === 0 ? '#f3ead4' : '#666');
+    updateStatus();
   }
-  if (online) {
-    // Listen for opponent's grid
-    const oppId = 1 - online.playerId;
-    online.onState('grid' + oppId, data => {
-      for (let r = 0; r < SZ; r++) for (let c = 0; c < SZ; c++) grids[oppId][r][c] = data[r][c];
-      oppGridReceived = true;
-      checkBothReady();
+
+  function restart() {
+    initPieces();
+    scores = [0, 0]; turn = 0; gameOver = false;
+    queenPendingCover = false; queenPendingBy = -1;
+    pocketedThisShot = [];
+    updateStatus();
+  }
+
+  function updateStatus() {
+    const cover = queenPendingCover && queenPendingBy === turn ? ' • Cover Queen!' : '';
+    setStatus(`P${turn + 1} (${turn === 0 ? 'White' : 'Black'}) — ${scores[0]}–${scores[1]}${cover}`);
+  }
+
+  function draw() {
+    ctx.fillStyle = '#1a0f06';
+    ctx.fillRect(0, 0, w, h);
+    // Wooden frame
+    const FW = SIDE * 0.04;
+    ctx.fillStyle = '#5b3a17';
+    ctx.fillRect(BX - FW, BY - FW, SIDE + FW * 2, SIDE + FW * 2);
+    // Board surface
+    const grad = ctx.createLinearGradient(BX, BY, BX + SIDE, BY + SIDE);
+    grad.addColorStop(0, '#e8cc8a'); grad.addColorStop(1, '#c69d5d');
+    ctx.fillStyle = grad;
+    ctx.fillRect(BX, BY, SIDE, SIDE);
+    // Center circle + queen ring
+    ctx.strokeStyle = 'rgba(110,70,20,0.5)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(BX + SIDE/2, BY + SIDE/2, PR * 4.9, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(BX + SIDE/2, BY + SIDE/2, PR * 1.2, 0, Math.PI * 2); ctx.stroke();
+    // Baselines
+    [0, 1].forEach(p => {
+      ctx.strokeStyle = turn === p ? (p === 0 ? 'rgba(220,90,90,0.95)' : 'rgba(90,140,220,0.95)') : 'rgba(110,70,20,0.4)';
+      ctx.lineWidth = turn === p ? 3 : 1.5;
+      ctx.beginPath();
+      ctx.moveTo(baselineMinX, baselineY[p]);
+      ctx.lineTo(baselineMaxX, baselineY[p]);
+      ctx.stroke();
+      // small end circles
+      ctx.beginPath(); ctx.arc(baselineMinX, baselineY[p], 4, 0, Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(baselineMaxX, baselineY[p], 4, 0, Math.PI*2); ctx.stroke();
     });
-    online.listenMoves(data => execFireAt(data.r, data.c));
-    online.onOpponentDisconnect(() => { if (!gameOver) { gameOver = true; setStatus('Opponent disconnected'); } });
+    // Pockets
+    for (const [px, py] of pockets) {
+      ctx.fillStyle = '#0a0a0a';
+      ctx.beginPath(); ctx.arc(px, py, POCKET_R, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#3a230d'; ctx.lineWidth = 2; ctx.stroke();
+    }
+    // Pieces
+    for (const p of pieces) {
+      if (!p.active) continue;
+      let fill, edge, hi;
+      if (p.type === 'striker') { fill = '#f7f2dd'; edge = '#333'; hi = 'rgba(255,255,255,0.6)'; }
+      else if (p.type === 'w') { fill = '#f3ead4'; edge = '#7a6020'; hi = 'rgba(255,255,255,0.5)'; }
+      else if (p.type === 'b') { fill = '#1a1a1a'; edge = '#000'; hi = 'rgba(120,120,120,0.4)'; }
+      else if (p.type === 'q') { fill = '#d83838'; edge = '#7a1010'; hi = 'rgba(255,180,180,0.6)'; }
+      ctx.fillStyle = fill;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+      // tiny highlight
+      ctx.fillStyle = hi;
+      ctx.beginPath(); ctx.arc(p.x - p.r * 0.3, p.y - p.r * 0.3, p.r * 0.35, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = edge; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.stroke();
+      if (p.type === 'striker') {
+        ctx.fillStyle = '#666';
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 0.18, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    // Aim line
+    if (aiming && aimCurrent) {
+      const s = striker();
+      const dx = s.x - aimCurrent.x, dy = s.y - aimCurrent.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      if (dist > 1) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.moveTo(s.x, s.y);
+        ctx.lineTo(s.x + dx / dist * SIDE * 0.7, s.y + dy / dist * SIDE * 0.7);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        // pull-back marker
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.beginPath(); ctx.arc(aimCurrent.x, aimCurrent.y, 6, 0, Math.PI * 2); ctx.fill();
+        // power bar
+        const pct = Math.min(dist / (SIDE * 0.45), 1);
+        ctx.fillStyle = pct < 0.5 ? '#4CAF50' : pct < 0.85 ? '#FFC107' : '#F44336';
+        ctx.fillRect(BX, BY + SIDE + 10, SIDE * pct, 5);
+        ctx.strokeStyle = '#555'; ctx.lineWidth = 1;
+        ctx.strokeRect(BX, BY + SIDE + 10, SIDE, 5);
+        ctx.restore();
+      }
+    }
+    // HUD (above board)
+    ctx.font = 'bold 13px sans-serif';
+    ctx.fillStyle = turn === 0 ? '#FFD54F' : '#bbb';
+    ctx.textAlign = 'left';
+    ctx.fillText(`P1 (W): ${scores[0]}`, BX, BY - 6);
+    ctx.fillStyle = turn === 1 ? '#FFD54F' : '#bbb';
+    ctx.textAlign = 'right';
+    ctx.fillText(`P2 (B): ${scores[1]}`, BX + SIDE, BY - 6);
+    ctx.textAlign = 'left';
   }
-  render();
-  setStatus(online ? 'Place your ships' : 'P1: Place ships');
-  return () => { if (online) online.cleanup(); };
+
+  updateStatus();
+  step();
+  return () => { cancelAnimationFrame(raf); };
 }
 
 // ==================== POOL ====================

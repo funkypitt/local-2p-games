@@ -1,0 +1,5 @@
+v1.29 — Carrom and Reversi join the roster
+
+- New: Carrom — Indian flicking board game. 9 white + 9 black + the red Queen on a wooden board. Tap your baseline to slide the striker, then drag away from it to aim and release. Pocket your colour to score and play again; cover the Queen for +3.
+- New: Reversi (Othello) — 8×8 disc-flipping classic. Hint dots show your legal moves. Sandwich opponent discs to flip them.
+- Removed Ship Battle and Dots & Boxes to make room.
