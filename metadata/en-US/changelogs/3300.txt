@@ -1,0 +1,5 @@
+v1.30 — Carrom physics + Reversi polish (tuned against open-source refs)
+
+Carrom: friction relaxed 0.975 → 0.985 so pieces actually glide (less arcadey). Wall restitution dropped 0.9 → 0.75 so rail bounces lose energy like felt-on-wood. Striker now 2.7× piece mass and slightly larger to match the ICF ratio. Pocket hit test tightened to "piece half-inside" instead of "centre within 85% of pocket radius" — fewer cheap pockets. Queen rule: pocketing the Queen keeps your turn so you can attempt the cover next shot (per ICF rulebook). A foul while the Queen is pending now returns her to the centre.
+
+Reversi: flipped discs now physically flip (scaleX animation with mid-flip colour swap). New discs scale in instead of popping. Disc DOM nodes are preserved between renders so animations don't get torn down.

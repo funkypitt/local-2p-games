@@ -399,7 +399,7 @@ const RULES = {
   wordclash: 'Word puzzle duel. Both players share a crossword grid built from one set of scrambled letters. Take turns swiping letters on the wheel to form words. Grid words fill in your color and score = word length. Bonus words (valid but not on grid) score 1 point. You get 3 tries per turn — each word attempt (right or wrong) and each hint counts as 1 try. Game ends when the grid is complete — highest score wins.',
   hockey: 'Air hockey. Drag your mallet (bottom = P1, top = P2) to hit the puck into the opponent\'s goal. First to 7 wins.',
   tanks: 'Artillery duel. On your turn, drag to adjust angle and power, then tap FIRE. Wind affects the shot. Damage depends on how close the shell lands. Destroy the opponent\'s tank to win.',
-  carrom: 'Indian flicking board game. 19 wooden pieces: 9 white, 9 black, and the red Queen. On your turn, drag the striker along your baseline to position it (tap your baseline), then drag away from the striker to aim and release to flick. Pocket your color (P1 white, P2 black) to score 1 point and play again. Pocket opponent\'s color: opponent scores, you lose your turn. Pocketing the Queen scores 3 — but only if you "cover" it by pocketing one of your own colour the same shot (otherwise the Queen returns). Pocketing the striker is a foul: return one of your pieces and lose your turn. First to pocket all 9 of your colour wins.',
+  carrom: 'Indian flicking board game. 19 pieces: 9 white, 9 black, and the red Queen. Tap your baseline to slide the striker laterally, then drag away from the striker (slingshot) to aim and release to flick. Pocket your colour (P1 white, P2 black) to score 1 point and play again. Pocket opponent\'s colour: they score, your turn ends. Pocket the Queen: you keep flicking, but you must "cover" the Queen by pocketing one of your own pieces in the same or next shot — succeed and you score 3, fail and the Queen returns to the centre. Pocketing the striker is a foul: return one of your pieces, the Queen returns if pending, and your turn ends. First to pocket all 9 of your colour wins.',
   golf: 'Mini golf for 2. Take turns putting — drag from the ball to aim and set power, release to putt. Fewer strokes wins each hole. Play through all holes.',
   starclash: 'Galaga-style co-op/competitive shooter. P1 (bottom, red) and P2 (top, blue) both fight aliens in the middle. Slide your finger in your zone to move and auto-fire. Earn points by destroying aliens. If you get hit 3 times, you\'re out. Kill glowing aliens for random effects: \u26A1 Speed (rapid fire), \uD83D\uDCA5 Big Shot (huge bullets), \uD83D\uDC0C Slow (sluggish movement), \u2702\uFE0F Short Range (bullets fizzle out early). Survive waves and outscore your opponent!',
   caro: 'Gomoku variant on a 13x13 board. Place stones on intersections. Get exactly 5 in a row (horizontal, vertical, or diagonal) to win. Black goes first.',
@@ -683,27 +683,57 @@ function initReversi(area, setStatus, online) {
     return `${turn === 1 ? "Black's" : "White's"} turn ${score}`;
   }
 
+  const discEls = {}; // key 'r,c' -> {el, color}
+  function bgFor(v) {
+    return v === 1
+      ? 'radial-gradient(circle at 35% 30%,#555,#0a0a0a 70%)'
+      : 'radial-gradient(circle at 35% 30%,#fff,#bbb 75%)';
+  }
+  function boxShadowFor(flipped) {
+    return flipped ? '0 2px 5px rgba(0,0,0,0.55),0 0 0 2px rgba(255,213,79,0.85)' : '0 2px 5px rgba(0,0,0,0.55)';
+  }
+
   function render() {
     const moves = !gameOver ? legalMoves(turn) : [];
     const moveSet = new Set(moves.map(([r,c]) => r * SIZE + c));
     const showHint = !gameOver && (!online || turn === online.playerId + 1);
     for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
       const cell = cells[r * SIZE + c];
-      // wipe any previous disc/hint (keep star dot)
-      [...cell.querySelectorAll('.rv-piece, .rv-hint')].forEach(el => el.remove());
+      cell.querySelectorAll('.rv-hint').forEach(el => el.remove());
       const v = board[r][c];
+      const key = r + ',' + c;
+      const cached = discEls[key];
       if (v) {
-        const disc = document.createElement('div');
-        disc.className = 'rv-piece';
-        const isB = v === 1;
         const flipped = lastFlips.has(r * SIZE + c);
-        disc.style.cssText = `width:${cellSz*0.78}px;height:${cellSz*0.78}px;border-radius:50%;background:${isB ? 'radial-gradient(circle at 35% 30%,#555,#0a0a0a 70%)' : 'radial-gradient(circle at 35% 30%,#fff,#bbb 75%)'};box-shadow:0 2px 5px rgba(0,0,0,0.55)${flipped ? ',0 0 0 2px rgba(255,213,79,0.8)' : ''}`;
-        cell.appendChild(disc);
-      } else if (showHint && moveSet.has(r * SIZE + c)) {
-        const hint = document.createElement('div');
-        hint.className = 'rv-hint';
-        hint.style.cssText = `width:${cellSz*0.26}px;height:${cellSz*0.26}px;border-radius:50%;background:${turn === 1 ? 'rgba(0,0,0,0.32)' : 'rgba(255,255,255,0.38)'};border:1px solid ${turn === 1 ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.55)'}`;
-        cell.appendChild(hint);
+        if (!cached) {
+          const disc = document.createElement('div');
+          disc.className = 'rv-piece';
+          disc.style.cssText = `width:${cellSz*0.78}px;height:${cellSz*0.78}px;border-radius:50%;background:${bgFor(v)};box-shadow:${boxShadowFor(flipped)};animation:rvPlace 0.22s ease-out`;
+          cell.appendChild(disc);
+          discEls[key] = {el: disc, color: v};
+        } else if (cached.color !== v) {
+          const disc = cached.el;
+          disc.style.transition = 'transform 0.15s ease-in';
+          disc.style.transform = 'scaleX(0)';
+          const targetV = v;
+          setTimeout(() => {
+            disc.style.background = bgFor(targetV);
+            disc.style.boxShadow = boxShadowFor(true);
+            disc.style.transition = 'transform 0.15s ease-out';
+            disc.style.transform = 'scaleX(1)';
+          }, 150);
+          cached.color = v;
+        } else {
+          cached.el.style.boxShadow = boxShadowFor(flipped);
+        }
+      } else {
+        if (cached) { cached.el.remove(); delete discEls[key]; }
+        if (showHint && moveSet.has(r * SIZE + c)) {
+          const hint = document.createElement('div');
+          hint.className = 'rv-hint';
+          hint.style.cssText = `width:${cellSz*0.26}px;height:${cellSz*0.26}px;border-radius:50%;background:${turn === 1 ? 'rgba(0,0,0,0.32)' : 'rgba(255,255,255,0.38)'};border:1px solid ${turn === 1 ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.55)'}`;
+          cell.appendChild(hint);
+        }
       }
     }
     setStatus(statusText());
@@ -713,6 +743,9 @@ function initReversi(area, setStatus, online) {
     for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) board[r][c] = 0;
     board[3][3] = 2; board[3][4] = 1; board[4][3] = 1; board[4][4] = 2;
     turn = 1; gameOver = false; lastFlips = new Set();
+    // Clear all discs
+    Object.values(discEls).forEach(d => d.el.remove());
+    for (const k in discEls) delete discEls[k];
     render();
   }
 
@@ -3386,10 +3419,12 @@ function initCarrom(area, setStatus) {
   const SIDE = Math.min(w * 0.96, h * 0.82);
   const BX = (w - SIDE) / 2, BY = (h - SIDE) / 2 + 4;
   const PR = SIDE * 0.025;
-  const SR = SIDE * 0.033;
-  const POCKET_R = SIDE * 0.052;
-  const FRICTION = 0.975;
-  const STRIKER_MASS = 2.2;
+  const SR = SIDE * 0.035;
+  const POCKET_R = SIDE * 0.050;
+  const FRICTION = 0.985;
+  const WALL_E = 0.75;
+  const STOP_THRESHOLD = 0.18;
+  const STRIKER_MASS = 2.7;
   const PIECE_MASS = 1;
   const POCKET_INSET = SIDE * 0.045;
   const pockets = [
@@ -3492,16 +3527,17 @@ function initCarrom(area, setStatus) {
       // Walls
       for (const p of pieces) {
         if (!p.active) continue;
-        if (p.x < BX + p.r) { p.x = BX + p.r; p.vx = Math.abs(p.vx) * 0.9; }
-        if (p.x > BX + SIDE - p.r) { p.x = BX + SIDE - p.r; p.vx = -Math.abs(p.vx) * 0.9; }
-        if (p.y < BY + p.r) { p.y = BY + p.r; p.vy = Math.abs(p.vy) * 0.9; }
-        if (p.y > BY + SIDE - p.r) { p.y = BY + SIDE - p.r; p.vy = -Math.abs(p.vy) * 0.9; }
+        if (p.x < BX + p.r) { p.x = BX + p.r; p.vx = Math.abs(p.vx) * WALL_E; }
+        if (p.x > BX + SIDE - p.r) { p.x = BX + SIDE - p.r; p.vx = -Math.abs(p.vx) * WALL_E; }
+        if (p.y < BY + p.r) { p.y = BY + p.r; p.vy = Math.abs(p.vy) * WALL_E; }
+        if (p.y > BY + SIDE - p.r) { p.y = BY + SIDE - p.r; p.vy = -Math.abs(p.vy) * WALL_E; }
       }
-      // Pockets
+      // Pockets — piece must be at least half inside (centre within POCKET_R - 0.5*r of pocket centre)
       for (const p of pieces) {
         if (!p.active) continue;
+        const hitR = POCKET_R - p.r * 0.5;
         for (const [px, py] of pockets) {
-          if ((p.x - px) ** 2 + (p.y - py) ** 2 < (POCKET_R * 0.85) ** 2) {
+          if ((p.x - px) ** 2 + (p.y - py) ** 2 < hitR * hitR) {
             p.active = false;
             pocketedThisShot.push(p.type);
             SND.score && SND.score();
@@ -3534,8 +3570,9 @@ function initCarrom(area, setStatus) {
       let allStopped = true;
       for (const p of pieces) {
         if (!p.active) continue;
-        if (Math.abs(p.vx) > 0.06 || Math.abs(p.vy) > 0.06) { allStopped = false; break; }
-        p.vx = 0; p.vy = 0;
+        const speed = Math.hypot(p.vx, p.vy);
+        if (speed > STOP_THRESHOLD) { allStopped = false; }
+        else { p.vx = 0; p.vy = 0; }
       }
       if (allStopped) { moving = false; endShot(); }
     }
@@ -3587,7 +3624,8 @@ function initCarrom(area, setStatus) {
     if (strikerIn) {
       const myCaptured = pieces.find(p => !p.active && p.type === playerColor[turn]);
       if (myCaptured) { returnPieceToCenter(myCaptured); scores[turn] = Math.max(0, scores[turn] - 1); }
-      if (queenIn) {
+      // Foul also clears any queen-pending state (queen returns)
+      if (queenIn || (queenPendingCover && queenPendingBy === turn)) {
         const q = pieces.find(p => p.type === 'q' && !p.active);
         if (q) returnPieceToCenter(q);
         queenPendingCover = false;
@@ -3613,7 +3651,9 @@ function initCarrom(area, setStatus) {
       setTimeout(() => showOverlay(area, m, 'Rematch', restart), 600);
       return;
     }
-    const stay = !strikerIn && (mine > 0 || queenJustCovered);
+    // Per ICF / samiran: pocketing the queen (covered or not) earns another shot to cover.
+    // Pocketing only opponent's coin ends your turn. Foul (strikerIn) ends your turn.
+    const stay = !strikerIn && (mine > 0 || queenJustCovered || queenIn);
     const prev = turn;
     if (!stay) turn = 1 - turn;
     const s = striker();
