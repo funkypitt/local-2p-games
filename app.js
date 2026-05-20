@@ -659,7 +659,7 @@ function initDotsAndBoxes(area, setStatus, online) {
     if (gained) SND.score();
     draw();
     if (checkEnd()) return;
-    if (!gained) { turn = turn === 1 ? 2 : 1; flashTurn(area, turn, turn === 1 ? P1 : P2); }
+    if (!gained) turn = turn === 1 ? 2 : 1;
     setStatus(statusText()); draw();
   }
 
@@ -764,7 +764,6 @@ function initFourInARow(area, setStatus, online) {
     if (checkWin(r, c)) { SND.win(); const m = online ? (turn === online.playerId + 1 ? 'You win!' : 'You lose!') : `${turn===1?'Red':'Yellow'} wins!`; setStatus(m); gameOver = true; setTimeout(() => showOverlay(area, m, 'Rematch', restart), 600); return; }
     if (board[0].every(v => v)) { setStatus('Draw!'); gameOver = true; setTimeout(() => showOverlay(area, 'Draw!', 'Rematch', restart), 600); return; }
     turn = 3 - turn;
-    flashTurn(area, turn, turn === 1 ? '#F44336' : '#FFEB3B');
     setStatus(online ? (turn === online.playerId + 1 ? 'Your turn' : "Opponent's turn") : `${turn===1?'Red':'Yellow'}'s turn`);
   }
   function checkWin(r, c) {
@@ -1013,7 +1012,6 @@ function initAwale(area, setStatus, online) {
     if (!hasSeeds) { for(let i=0;i<12;i++){scores[turn]+=board[i];board[i]=0;} gameOver=true; }
     turn = 1 - turn;
     animating = false;
-    if (!gameOver) flashTurn(area, turn + 1);
     render();
   }
   if (online) {
@@ -1307,7 +1305,6 @@ function initDuckChess(area, setStatus, online) {
       }
       if(inCheck(turn)) log.push({text:'⚠️ '+(turn==='w'?'White':'Black')+' is in check!', imp:true});
       phase='move'; sel=null; legal=[];
-      flashTurn(area, turn === 'w' ? 1 : 2, turn === 'w' ? '#eee' : '#666');
       updStatus(); render();
     });
   }
@@ -4077,7 +4074,6 @@ function initCaro(area, setStatus, online) {
     }
 
     turn = 3 - turn;
-    flashTurn(area, turn, turn === 1 ? '#333' : '#fff');
     setStatus(online ? (turn === online.playerId + 1 ? 'Your Turn' : "Opponent's Turn") : (turn === 1 ? "Black's Turn" : "White's Turn"));
   }
   if (online) {

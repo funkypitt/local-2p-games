@@ -1,0 +1,4 @@
+v1.28 — Trim turn flash to games that need it
+
+- The "Player X, your turn!" flash now only fires in games where the board doesn't already show whose turn it is (Memory, Word Clash, Hangman, Pool, Mini Golf, Tank Wars, online Ship Battle).
+- Removed it from Dots & Boxes, 4 in a Row, Caro, Awalé, and Duck-Day Chess, where the piece colors already make the active player obvious.
