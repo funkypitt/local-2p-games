@@ -2687,10 +2687,10 @@ function initWordClash(area, setStatus, online) {
 
   const wrap = document.createElement('div');
   wrap.className = 'board-game';
-  wrap.style.cssText = 'overflow:auto;user-select:none;-webkit-user-select:none';
+  wrap.style.cssText = 'overflow-y:auto;justify-content:flex-start;user-select:none;-webkit-user-select:none';
   area.appendChild(wrap);
   const cont = document.createElement('div');
-  cont.style.cssText = 'width:min(98vw,480px);margin:0 auto';
+  cont.style.cssText = 'width:min(98vw,480px);margin:auto auto;padding:4px 0';
   wrap.appendChild(cont);
 
   // --- Language picker ---
