@@ -442,6 +442,12 @@ function buildMenu() {
     card.onclick = () => startGame(g);
     menu.appendChild(card);
   });
+  // Credits footer (discreet, spans both columns)
+  const credits = document.createElement('div');
+  credits.className = 'menu-credits';
+  credits.style.cssText = 'grid-column:1/-1;text-align:center;font-size:.7em;color:#777;padding:12px 0 16px';
+  credits.textContent = 'Pierre Gallaz \u00b7 developed with Claude Code';
+  menu.appendChild(credits);
 }
 function makeMusicBtn(parent) {
   const btn = document.createElement('button');

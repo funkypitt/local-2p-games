@@ -1,0 +1,14 @@
+2P Games rassemble 16 mini-jeux multijoueurs tactiles pensés pour deux joueurs. Partagez un même appareil, l'écran divisé en deux moitiés, ou jouez en ligne avec un ami via un code de salle ou un match rapide. Tous les jeux gèrent la revanche et embarquent un mode d'emploi.
+
+8 jeux supportent le multijoueur en ligne : 4 in a Row, Caro, Awalé, Memory, Duck-Day Chess, Tank Wars, Word Clash et Reversi.
+
+La sélection locale comprend Tennis (avec power-ups), Pool, Carrom, Air Hockey, Mini Golf, Star Clash, Hangman (Pendu) et Horse Jump.
+
+- 16 jeux multijoueurs réunis dans une seule app
+- Mode 2-joueurs sur un même appareil, plus multijoueur en ligne
+- Codes de salle et match rapide pour le jeu en ligne
+- Musique d'ambiance apaisante, activable / désactivable
+- Mode d'emploi intégré à chaque jeu
+- Sans pub, sans pistage, sans achats intégrés
+
+Pierre Gallaz · développé avec Claude Code

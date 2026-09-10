@@ -1,0 +1,14 @@
+2P Games is a collection of 16 touch-friendly multiplayer games designed for two players. Share one device, with the screen split into two halves, or play online with a friend over a room code or quick match. Every game has rematch support and built-in instructions.
+
+8 games support online multiplayer: 4 in a Row, Caro, Awalé, Memory, Duck-Day Chess, Tank Wars, Word Clash, and Reversi.
+
+The local-only roster includes Tennis (with power-ups), Pool, Carrom, Air Hockey, Mini Golf, Star Clash, Hangman, and Horse Jump.
+
+- 16 multiplayer games in one app
+- Local 2-player on a single device, plus online multiplayer
+- Room codes and quick match for online play
+- Calming background music with toggle
+- Built-in instructions for every game
+- No ads, no tracking, no in-app purchases
+
+Pierre Gallaz · developed with Claude Code
