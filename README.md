@@ -1,3 +1,5 @@
+![Funky's 2P Games](docs/banner.png)
+
 # 2P Games
 
 **FR** — 2P Games rassemble 16 mini-jeux multijoueurs tactiles pensés pour deux joueurs : partagez un même appareil (écran divisé en deux moitiés) ou jouez en ligne avec un ami via un code de salle ou un match rapide. Chaque jeu embarque un mode d'emploi et la revanche. Sans pub, sans compte, sans pistage.
@@ -28,3 +30,7 @@ Licence MIT, voir `LICENSE`.
 
 © 2026 Pierre Gallaz. Developed with [Claude Code](https://claude.com/claude-code) (Anthropic).
 MIT licence, see `LICENSE`.
+
+## Captures d'écran
+
+<img src="docs/screenshot-1.png" width="30%"> <img src="docs/screenshot-2.png" width="30%">
