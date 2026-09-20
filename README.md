@@ -2,11 +2,23 @@
 
 # 2P Games
 
-**FR** — 2P Games rassemble 16 mini-jeux multijoueurs tactiles pensés pour deux joueurs : partagez un même appareil (écran divisé en deux moitiés) ou jouez en ligne avec un ami via un code de salle ou un match rapide. Chaque jeu embarque un mode d'emploi et la revanche. Sans pub, sans compte, sans pistage.
+**FR** — 16 jeux tactiles pour deux : sur un même téléphone, écran partagé en deux moitiés, ou en ligne pour 8 d'entre eux. Les règles sont derrière un ? dans chaque jeu. Sans pub, sans compte, sans achat.
 
-**EN** — 16 touch-friendly multiplayer games for two players: share one device (split screen) or play online with a friend via room codes or quick match. Built-in instructions and rematch in every game. No ads, no accounts, no tracking.
+**EN** — 16 touch games for two: on one phone, the screen split in two halves, or online for 8 of them. Rules behind a ? in each game. No ads, no accounts, no purchases.
 
-Games: 4 in a Row, Caro, Awalé, Memory, Duck-Day Chess, Tank Wars, Word Clash, Reversi (online-capable), Tennis, Pool, Carrom, Air Hockey, Mini Golf, Star Clash, Hangman, Horse Jump.
+## Key points
+
+- Also online: 4 in a Row, Caro, Awalé, Memory, Duck-Day Chess, Tank Wars, Word Clash, Reversi.
+- One phone only: Tennis, Pool, Carrom, Air Hockey, Mini Golf, Star Clash, Hangman, Horse Jump.
+- Online: **Create Room** gives a code for the other player to enter under **Join Room**,
+  or **Quick Match**. Moves go through a Firebase Realtime Database; no account.
+- Every game ends on a **Rematch** button.
+- Sounds are synthesised; there are no audio files. No tracking.
+
+## Install
+
+Install the generated APK (`android/app/build/outputs/apk/release/`) on an Android
+device (min SDK 24), or grab it from the author's [F-Droid repository](https://funkypitt.github.io/fdroid-repo/).
 
 ## Build
 
@@ -18,10 +30,6 @@ mkdir -p www && cp index.html app.js felix.png www/
 npx cap sync android
 cd android && ./gradlew assembleRelease
 ```
-
-## Install
-
-Install the generated APK (`android/app/build/outputs/apk/release/`) on an Android device (min SDK 24), or grab it from the author's F-Droid repository.
 
 ## Crédits / Credits
 
