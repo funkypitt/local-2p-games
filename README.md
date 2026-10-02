@@ -2,17 +2,16 @@
 
 # 2P Games
 
-**FR** — 16 jeux tactiles pour deux : sur un même téléphone, écran partagé en deux moitiés, ou en ligne pour 8 d'entre eux. Les règles sont derrière un ? dans chaque jeu. Sans pub, sans compte, sans achat.
+**FR** — 16 jeux tactiles pour deux, sur un même téléphone : écran partagé en deux moitiés, ou chacun son tour. Les règles sont derrière un ? dans chaque jeu. Sans pub, sans compte, sans achat, sans connexion.
 
-**EN** — 16 touch games for two: on one phone, the screen split in two halves, or online for 8 of them. Rules behind a ? in each game. No ads, no accounts, no purchases.
+**EN** — 16 touch games for two, on one phone: the screen split in two halves, or turn by turn. Rules behind a ? in each game. No ads, no accounts, no purchases, no connection.
 
 ## Key points
 
-- Also online: 4 in a Row, Caro, Awalé, Memory, Duck-Day Chess, Tank Wars, Word Clash, Reversi.
-- One phone only: Tennis, Pool, Carrom, Air Hockey, Mini Golf, Star Clash, Hangman, Horse Jump.
-- Online: **Create Room** gives a code for the other player to enter under **Join Room**,
-  or **Quick Match**. Moves go through a Firebase Realtime Database; no account.
-- Every game ends on a **Rematch** button.
+- The games: Tennis, 4 in a Row, Pool, Memory, Word Clash, Air Hockey, Tank Wars, Carrom,
+  Mini Golf, Star Clash, Caro, Awalé, Duck-Day Chess, Hangman, Reversi, Horse Jump.
+- Two players on one phone. The app needs no connection and asks for no permission.
+- A game ends on a button to play again, except Pool and Mini Golf: reopen them from the menu.
 - Sounds are synthesised; there are no audio files. No tracking.
 
 ## Install

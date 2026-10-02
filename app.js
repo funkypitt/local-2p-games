@@ -179,217 +179,6 @@ const SND = {
   seedDrop() { this._sfx(function() { const t=this._ctx.currentTime; this._tone(400+Math.random()*200,0.04,'triangle',0.08,t,this._sfxGain); }); },
 };
 
-// === ONLINE MULTIPLAYER MODULE ===
-const ONLINE = (function() {
-  if (typeof firebase === 'undefined' || !firebase.database) return null;
-  firebase.initializeApp({
-    projectId: 'tankwars-mobile',
-    appId: '1:1006160242389:web:6b476c740b22a8c682a45c',
-    storageBucket: 'tankwars-mobile.firebasestorage.app',
-    apiKey: 'AIzaSyAXBa8oFAuXFUge2HrpZ3N-5kUrkiDJnS0',
-    authDomain: 'tankwars-mobile.firebaseapp.com',
-    messagingSenderId: '1006160242389',
-    databaseURL: 'https://tankwars-mobile-default-rtdb.firebaseio.com',
-  });
-  const db = firebase.database();
-  const BASE = '2p-rooms/';
-
-  // Seeded PRNG (mulberry32)
-  function mulberry32(seed) {
-    return function() {
-      seed |= 0; seed = seed + 0x6D2B79F5 | 0;
-      let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
-      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-      return ((t ^ t >>> 14) >>> 0) / 4294967296;
-    };
-  }
-
-  // Room code
-  const CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-  function makeCode() {
-    let c = '';
-    for (let i = 0; i < 4; i++) c += CHARS[Math.floor(Math.random() * CHARS.length)];
-    return c;
-  }
-
-  function buildContext(ref, playerId, seed, code) {
-    const rng = mulberry32(seed);
-    const movesRef = ref.child('moves');
-    const stateRef = ref.child('state');
-    const listeners = [];
-
-    function addListener(ref, event, cb) {
-      ref.on(event, cb);
-      listeners.push({ ref, event, cb });
-    }
-
-    return {
-      playerId, seed, code, rng,
-      sendMove(data) {
-        movesRef.push({ p: playerId, d: data });
-      },
-      listenMoves(cb) {
-        let initial = true;
-        const snap = movesRef.orderByKey();
-        addListener(snap, 'child_added', s => {
-          const v = s.val();
-          if (v.p !== playerId) {
-            cb(v.d);
-            s.ref.remove();
-          } else if (!initial) {
-            s.ref.remove();
-          }
-        });
-        // Mark initial load complete after a tick
-        setTimeout(() => { initial = false; }, 500);
-      },
-      setState(key, data) {
-        stateRef.child(key).set(data);
-      },
-      onState(key, cb) {
-        addListener(stateRef.child(key), 'value', s => {
-          if (s.val() !== null) cb(s.val());
-        });
-      },
-      onOpponentDisconnect(cb) {
-        addListener(ref.child('players'), 'value', s => {
-          const v = s.val();
-          if (v && v[playerId] && !v[1 - playerId]) cb();
-        });
-      },
-      cleanup() {
-        for (const l of listeners) l.ref.off(l.event, l.cb);
-        listeners.length = 0;
-        ref.child('players/' + playerId).remove();
-      }
-    };
-  }
-
-  function createRoom(gameId, onReady) {
-    const code = makeCode();
-    const seed = Math.floor(Math.random() * 2147483647);
-    const ref = db.ref(BASE + code);
-    ref.set({
-      game: gameId, status: 'waiting', seed,
-      players: { 0: true },
-      created: firebase.database.ServerValue.TIMESTAMP
-    });
-    ref.child('players/0').onDisconnect().remove();
-    // Listen for player 1
-    const p1Ref = ref.child('players/1');
-    p1Ref.on('value', s => {
-      if (s.val()) {
-        p1Ref.off();
-        ref.child('status').set('playing');
-        onReady(buildContext(ref, 0, seed, code));
-      }
-    });
-    return code;
-  }
-
-  function joinRoom(code, gameId, onReady, onError) {
-    code = code.toUpperCase().trim();
-    const ref = db.ref(BASE + code);
-    ref.once('value', s => {
-      const v = s.val();
-      if (!v) { onError('Room not found'); return; }
-      if (v.game !== gameId) { onError('Wrong game'); return; }
-      if (v.status !== 'waiting') { onError('Room full'); return; }
-      ref.child('players/1').set(true);
-      ref.child('players/1').onDisconnect().remove();
-      onReady(buildContext(ref, 1, v.seed, code));
-    });
-  }
-
-  function autoMatch(gameId, onReady, onWaiting) {
-    const roomsRef = db.ref(BASE);
-    roomsRef.orderByChild('game').equalTo(gameId).once('value', s => {
-      let joined = false;
-      s.forEach(child => {
-        if (joined) return;
-        const v = child.val();
-        if (v.status === 'waiting') {
-          joined = true;
-          const code = child.key;
-          const ref = db.ref(BASE + code);
-          ref.child('players/1').set(true);
-          ref.child('players/1').onDisconnect().remove();
-          ref.child('status').set('playing');
-          onReady(buildContext(ref, 1, v.seed, code));
-        }
-      });
-      if (!joined) {
-        const code = createRoom(gameId, onReady);
-        onWaiting(code);
-      }
-    });
-  }
-
-  function showLobby(area, gameId, onStart, onCancel) {
-    const ov = document.createElement('div');
-    ov.className = 'overlay';
-    ov.style.gap = '14px';
-
-    function showMain() {
-      ov.innerHTML = `
-        <div style="font-size:1.3em;font-weight:bold">Online Play</div>
-        <button class="btn" id="ol-create" style="padding:12px 32px;font-size:1em">Create Room</button>
-        <button class="btn" id="ol-join" style="padding:12px 32px;font-size:1em">Join Room</button>
-        <button class="btn" id="ol-quick" style="padding:12px 32px;font-size:1em">Quick Match</button>
-        <button class="btn" id="ol-back" style="padding:12px 32px;font-size:.9em;background:#555">Back</button>
-      `;
-      ov.querySelector('#ol-create').onclick = () => {
-        showWaiting('Creating...');
-        const code = createRoom(gameId, ctx => { ov.remove(); onStart(ctx); });
-        showWaiting('Room: ' + code + '\\nWaiting for opponent...');
-      };
-      ov.querySelector('#ol-join').onclick = showJoin;
-      ov.querySelector('#ol-quick').onclick = () => {
-        showWaiting('Searching...');
-        autoMatch(gameId, ctx => { ov.remove(); onStart(ctx); }, code => {
-          showWaiting('Room: ' + code + '\\nWaiting for opponent...');
-        });
-      };
-      ov.querySelector('#ol-back').onclick = () => { ov.remove(); onCancel(); };
-    }
-
-    function showWaiting(msg) {
-      ov.innerHTML = `
-        <div style="font-size:1.2em;font-weight:bold;text-align:center;white-space:pre-line">${msg}</div>
-        <div style="font-size:.85em;color:#888">Share the room code with your friend</div>
-        <button class="btn" id="ol-cancel" style="padding:10px 24px">Cancel</button>
-      `;
-      ov.querySelector('#ol-cancel').onclick = () => { ov.remove(); onCancel(); };
-    }
-
-    function showJoin() {
-      ov.innerHTML = `
-        <div style="font-size:1.1em;font-weight:bold">Enter Room Code</div>
-        <input id="ol-code" type="text" maxlength="4" placeholder="ABCD" style="font-size:1.5em;text-align:center;width:140px;padding:10px;border-radius:8px;border:2px solid #555;background:#1a1a2e;color:#fff;text-transform:uppercase;letter-spacing:6px" autocomplete="off" autocapitalize="characters">
-        <div id="ol-error" style="color:#F44336;font-size:.85em;min-height:1.2em"></div>
-        <button class="btn" id="ol-go" style="padding:10px 28px;font-size:1em">Join</button>
-        <button class="btn" id="ol-back2" style="padding:8px 20px;font-size:.85em;background:#555">Back</button>
-      `;
-      const inp = ov.querySelector('#ol-code');
-      const errEl = ov.querySelector('#ol-error');
-      setTimeout(() => inp.focus(), 100);
-      ov.querySelector('#ol-go').onclick = () => {
-        const code = inp.value;
-        if (code.length < 4) { errEl.textContent = 'Enter 4-char code'; return; }
-        errEl.textContent = 'Joining...';
-        joinRoom(code, gameId, ctx => { ov.remove(); onStart(ctx); }, err => { errEl.textContent = err; });
-      };
-      ov.querySelector('#ol-back2').onclick = showMain;
-    }
-
-    showMain();
-    area.appendChild(ov);
-    return ov;
-  }
-
-  return { createRoom, joinRoom, autoMatch, showLobby, mulberry32 };
-})();
-
 // --- Game Instructions ---
 const RULES = {
   tennis: 'Pong-style tennis. Slide your finger on your half of the screen to move your paddle. Bounce the ball past your opponent to score. Collect power-ups when the ball hits them: BIG = bigger paddle, TINY = shrink opponent, MAGNET = ball curves toward you, GHOST = invisible ball, QUAKE = jittery paddles, 2x = double ball! First to 5 wins.',
@@ -413,20 +202,20 @@ const RULES = {
 // --- Framework ---
 const GAMES = [
   {id:'tennis',name:'Tennis',icon:'🎾',color:'#388E3C',init:initTennis},
-  {id:'four',name:'4 in a Row',icon:'🔴',color:'#D32F2F',init:initFourInARow,online:true},
+  {id:'four',name:'4 in a Row',icon:'🔴',color:'#D32F2F',init:initFourInARow},
   {id:'pool',name:'Pool',icon:'🎱',color:'#1B5E20',init:initPool},
-  {id:'memory',name:'Memory',icon:'🃏',color:'#7B1FA2',init:initMemory,online:true},
-  {id:'wordclash',name:'Word Clash',icon:'📝',color:'#00897B',init:initWordClash,online:true},
+  {id:'memory',name:'Memory',icon:'🃏',color:'#7B1FA2',init:initMemory},
+  {id:'wordclash',name:'Word Clash',icon:'📝',color:'#00897B',init:initWordClash},
   {id:'hockey',name:'Air Hockey',icon:'🏒',color:'#0097A7',init:initAirHockey},
-  {id:'tanks',name:'Tank Wars',icon:'💣',color:'#F57F17',init:initTankWars,online:true},
+  {id:'tanks',name:'Tank Wars',icon:'💣',color:'#F57F17',init:initTankWars},
   {id:'carrom',name:'Carrom',icon:'🟤',color:'#8B4513',init:initCarrom},
   {id:'golf',name:'Mini Golf',icon:'⛳',color:'#00796B',init:initMiniGolf},
   {id:'starclash',name:'Star Clash',icon:'👾',color:'#C62828',init:initStarClash},
-  {id:'caro',name:'Caro',icon:'⚫',color:'#37474F',init:initCaro,online:true},
-  {id:'awale',name:'Awalé',icon:'🥜',color:'#4E342E',init:initAwale,online:true},
-  {id:'duckchess',name:'Duck-Day Chess',icon:'🦆',color:'#B71C1C',init:initDuckChess,online:true},
+  {id:'caro',name:'Caro',icon:'⚫',color:'#37474F',init:initCaro},
+  {id:'awale',name:'Awalé',icon:'🥜',color:'#4E342E',init:initAwale},
+  {id:'duckchess',name:'Duck-Day Chess',icon:'🦆',color:'#B71C1C',init:initDuckChess},
   {id:'hangman',name:'Hangman',icon:'🪢',color:'#4A148C',init:initHangman},
-  {id:'reversi',name:'Reversi',icon:'⚪',color:'#1B5E20',init:initReversi,online:true},
+  {id:'reversi',name:'Reversi',icon:'⚪',color:'#1B5E20',init:initReversi},
   {id:'horse',name:'Horse Jump',icon:'🏇',color:'#8D6E63',init:initHorseJump},
 ];
 
@@ -438,7 +227,7 @@ function buildMenu() {
     const card = document.createElement('div');
     card.className = 'card';
     card.style.background = `linear-gradient(135deg,${g.color},${darkenColor(g.color,.18)})`;
-    card.innerHTML = `<span class="icon">${g.icon}</span><span class="name">${g.name}</span>${g.online?'<span class="online-dot"></span>':''}`;
+    card.innerHTML = `<span class="icon">${g.icon}</span><span class="name">${g.name}</span>`;
     card.onclick = () => startGame(g);
     menu.appendChild(card);
   });
@@ -505,42 +294,14 @@ function startGame(g) {
   hdr.insertBefore(infoBtn, hdr.querySelector('#music-btn') || null);
   if (!hdr.querySelector('#music-btn')) makeMusicBtn(hdr);
   SND.musicStart();
-  if (g.online && ONLINE) {
-    // Show Local vs Online choice
-    const ov = document.createElement('div');
-    ov.className = 'overlay';
-    ov.innerHTML = '<div style="font-size:1.3em;font-weight:bold;margin-bottom:8px">Play Mode</div>' +
-      '<button class="btn" id="pm-local" style="padding:14px 36px;font-size:1.1em">Local</button>' +
-      '<button class="btn" id="pm-online" style="padding:14px 36px;font-size:1.1em;background:#1565C0">Online</button>';
-    function setStatusFn(s) {
-      let h = s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
-      h = h.replace(/(P[12])'s turn/g, '<span class="turn-active" style="color:#FFD54F">$1\'s turn</span>');
-      h = h.replace(/Your [Tt]urn/g, '<span class="turn-active" style="color:#69F0AE">Your turn</span>');
-      h = h.replace(/(Opponent's [Tt]urn|Waiting)/g, '<span class="turn-idle">$1</span>');
-      h = h.replace(/(Black's Turn)/g, '<span class="turn-active" style="color:#ccc">$1</span>');
-      h = h.replace(/(White's Turn)/g, '<span class="turn-active" style="color:#fff">$1</span>');
-      status.innerHTML = h;
-    }
-    ov.querySelector('#pm-local').onclick = () => { ov.remove(); currentDestroy = g.init(area, setStatusFn); };
-    ov.querySelector('#pm-online').onclick = () => {
-      ov.remove();
-      ONLINE.showLobby(area, g.id, online => {
-        currentDestroy = g.init(area, setStatusFn, online);
-      }, () => endGame());
-    };
-    area.appendChild(ov);
-  } else {
-    function setStatusFn(s) {
-      let h = s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
-      h = h.replace(/(P[12])'s turn/g, '<span class="turn-active" style="color:#FFD54F">$1\'s turn</span>');
-      h = h.replace(/Your [Tt]urn/g, '<span class="turn-active" style="color:#69F0AE">Your turn</span>');
-      h = h.replace(/(Opponent's [Tt]urn|Waiting)/g, '<span class="turn-idle">$1</span>');
-      h = h.replace(/(Black's Turn)/g, '<span class="turn-active" style="color:#ccc">$1</span>');
-      h = h.replace(/(White's Turn)/g, '<span class="turn-active" style="color:#fff">$1</span>');
-      status.innerHTML = h;
-    }
-    currentDestroy = g.init(area, setStatusFn);
+  function setStatusFn(s) {
+    let h = s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+    h = h.replace(/(P[12])'s turn/g, '<span class="turn-active" style="color:#FFD54F">$1\'s turn</span>');
+    h = h.replace(/(Black's Turn)/g, '<span class="turn-active" style="color:#ccc">$1</span>');
+    h = h.replace(/(White's Turn)/g, '<span class="turn-active" style="color:#fff">$1</span>');
+    status.innerHTML = h;
   }
+  currentDestroy = g.init(area, setStatusFn);
 }
 
 function endGame() {
@@ -560,7 +321,7 @@ const mmb = document.getElementById('menu-music-btn');
 if (mmb) mmb.textContent = SND._musicOn ? '\u{1F50A}' : '\u{1F507}';
 
 // ==================== REVERSI / OTHELLO ====================
-function initReversi(area, setStatus, online) {
+function initReversi(area, setStatus) {
   const SIZE = 8;
   const board = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
   // 1 = Black, 2 = White; standard starting position
@@ -590,8 +351,7 @@ function initReversi(area, setStatus, online) {
     cell.style.cssText = `position:relative;width:${cellSz}px;height:${cellSz}px;background:#1B5E20;cursor:pointer;border:1px solid rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center`;
     cell.onclick = () => {
       if (gameOver) return;
-      if (online && turn !== online.playerId + 1) return;
-      if (tryPlace(r, c)) { if (online) online.sendMove({r, c}); }
+      tryPlace(r, c);
     };
     grid.appendChild(cell);
     cells.push(cell);
@@ -670,14 +430,7 @@ function initReversi(area, setStatus, online) {
   function finish() {
     const {b, w} = counts();
     SND.win();
-    let msg;
-    if (online) {
-      const myCount = online.playerId === 0 ? b : w;
-      const oppCount = online.playerId === 0 ? w : b;
-      msg = myCount > oppCount ? `You win ${myCount}–${oppCount}` : myCount < oppCount ? `You lose ${myCount}–${oppCount}` : `Draw ${b}–${w}`;
-    } else {
-      msg = b > w ? `Black wins ${b}–${w}` : w > b ? `White wins ${w}–${b}` : `Draw ${b}–${w}`;
-    }
+    const msg = b > w ? `Black wins ${b}–${w}` : w > b ? `White wins ${w}–${b}` : `Draw ${b}–${w}`;
     setStatus(msg);
     setTimeout(() => showOverlay(area, msg, 'Rematch', restart), 600);
   }
@@ -685,7 +438,6 @@ function initReversi(area, setStatus, online) {
   function statusText() {
     const {b, w} = counts();
     const score = `${b}–${w}`;
-    if (online) return (turn === online.playerId + 1 ? 'Your turn' : "Opponent's turn") + ` (${turn === 1 ? 'Black' : 'White'}) ${score}`;
     return `${turn === 1 ? "Black's" : "White's"} turn ${score}`;
   }
 
@@ -702,7 +454,6 @@ function initReversi(area, setStatus, online) {
   function render() {
     const moves = !gameOver ? legalMoves(turn) : [];
     const moveSet = new Set(moves.map(([r,c]) => r * SIZE + c));
-    const showHint = !gameOver && (!online || turn === online.playerId + 1);
     for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
       const cell = cells[r * SIZE + c];
       cell.querySelectorAll('.rv-hint').forEach(el => el.remove());
@@ -734,7 +485,7 @@ function initReversi(area, setStatus, online) {
         }
       } else {
         if (cached) { cached.el.remove(); delete discEls[key]; }
-        if (showHint && moveSet.has(r * SIZE + c)) {
+        if (moveSet.has(r * SIZE + c)) {
           const hint = document.createElement('div');
           hint.className = 'rv-hint';
           hint.style.cssText = `width:${cellSz*0.26}px;height:${cellSz*0.26}px;border-radius:50%;background:${turn === 1 ? 'rgba(0,0,0,0.32)' : 'rgba(255,255,255,0.38)'};border:1px solid ${turn === 1 ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.55)'}`;
@@ -755,16 +506,12 @@ function initReversi(area, setStatus, online) {
     render();
   }
 
-  if (online) {
-    online.listenMoves(data => tryPlace(data.r, data.c));
-    online.onOpponentDisconnect(() => { if (!gameOver) { gameOver = true; setStatus('Opponent disconnected'); } });
-  }
   render();
-  return () => { if (online) online.cleanup(); };
+  return () => {};
 }
 
 // ==================== 4 IN A ROW ====================
-function initFourInARow(area, setStatus, online) {
+function initFourInARow(area, setStatus) {
   const ROWS = 6, COLS = 7;
   const board = Array.from({length:ROWS}, () => Array(COLS).fill(0));
   let turn = 1, gameOver = false;
@@ -779,20 +526,16 @@ function initFourInARow(area, setStatus, online) {
   for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
     const cell = document.createElement('div');
     cell.style.cssText = 'aspect-ratio:1;border-radius:50%;background:#0a0a1a;cursor:pointer;transition:background .15s';
-    cell.onclick = () => {
-      if (online && turn !== online.playerId + 1) return;
-      execDrop(c);
-      if (online) online.sendMove({c});
-    };
+    cell.onclick = () => execDrop(c);
     grid.appendChild(cell);
     cells.push(cell);
   }
   function restart() {
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) { board[r][c] = 0; cells[r * COLS + c].style.background = '#0a0a1a'; }
     turn = 1; gameOver = false;
-    setStatus(online ? (online.playerId === 0 ? "Your turn (Red)" : "Opponent's turn") : "Red's turn");
+    setStatus("Red's turn");
   }
-  setStatus(online ? (online.playerId === 0 ? "Your turn (Red)" : "Opponent's turn") : "Red's turn");
+  setStatus("Red's turn");
   function execDrop(c) {
     if (gameOver) return;
     let r = ROWS - 1;
@@ -800,10 +543,10 @@ function initFourInARow(area, setStatus, online) {
     if (r < 0) return;
     board[r][c] = turn; SND.drop();
     cells[r * COLS + c].style.background = turn === 1 ? '#F44336' : '#FFEB3B';
-    if (checkWin(r, c)) { SND.win(); const m = online ? (turn === online.playerId + 1 ? 'You win!' : 'You lose!') : `${turn===1?'Red':'Yellow'} wins!`; setStatus(m); gameOver = true; setTimeout(() => showOverlay(area, m, 'Rematch', restart), 600); return; }
+    if (checkWin(r, c)) { SND.win(); const m = `${turn===1?'Red':'Yellow'} wins!`; setStatus(m); gameOver = true; setTimeout(() => showOverlay(area, m, 'Rematch', restart), 600); return; }
     if (board[0].every(v => v)) { setStatus('Draw!'); gameOver = true; setTimeout(() => showOverlay(area, 'Draw!', 'Rematch', restart), 600); return; }
     turn = 3 - turn;
-    setStatus(online ? (turn === online.playerId + 1 ? 'Your turn' : "Opponent's turn") : `${turn===1?'Red':'Yellow'}'s turn`);
+    setStatus(`${turn===1?'Red':'Yellow'}'s turn`);
   }
   function checkWin(r, c) {
     for (const [dr,dc] of [[0,1],[1,0],[1,1],[1,-1]]) {
@@ -814,22 +557,17 @@ function initFourInARow(area, setStatus, online) {
     }
     return false;
   }
-  if (online) {
-    online.listenMoves(data => execDrop(data.c));
-    online.onOpponentDisconnect(() => { if (!gameOver) { gameOver = true; setStatus('Opponent disconnected'); } });
-  }
-  return () => { if (online) online.cleanup(); };
+  return () => {};
 }
 
 // ==================== MEMORY ====================
-function initMemory(area, setStatus, online) {
+function initMemory(area, setStatus) {
   const PAIRS = 16, TOTAL = 32;
   const symbols = ['🍎','🍊','🍋','🍇','🍉','🍓','🫐','🥝','🍌','🥭','🍑','🍒','🍍','🥥','🍆','🫑'];
   const FELIX = '\u{1F431}felix';
   let felixMode = false;
   let cards = [...symbols, ...symbols];
-  const rngFn = online ? online.rng : Math.random;
-  for (let i = cards.length - 1; i > 0; i--) { const j = Math.floor(rngFn()*(i+1)); [cards[i],cards[j]]=[cards[j],cards[i]]; }
+  for (let i = cards.length - 1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [cards[i],cards[j]]=[cards[j],cards[i]]; }
   let matched = Array(TOTAL).fill(false);
   let first = -1, second = -1, busy = false;
   let turn = 1, scores = [0, 0];
@@ -860,27 +598,21 @@ function initMemory(area, setStatus, online) {
   for (let i = 0; i < TOTAL; i++) {
     const el = document.createElement('div');
     el.style.cssText = 'width:' + cardSz + 'px;height:' + cardSz + 'px;background:#2a2a4a;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:' + emojiSz + 'em;cursor:pointer;transition:background .2s;box-shadow:0 2px 6px rgba(0,0,0,0.3)';
-    el.onclick = () => {
-      if (online && turn !== online.playerId + 1) return;
-      execFlip(i);
-      if (online) online.sendMove({i});
-    };
+    el.onclick = () => execFlip(i);
     grid.appendChild(el);
     cardEls.push(el);
   }
   function restart() {
     felixMode = false;
     cards = [...symbols, ...symbols];
-    const rf = online ? online.rng : Math.random;
-    for (let i = cards.length - 1; i > 0; i--) { const j = Math.floor(rf()*(i+1)); [cards[i],cards[j]]=[cards[j],cards[i]]; }
+    for (let i = cards.length - 1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [cards[i],cards[j]]=[cards[j],cards[i]]; }
     matched = Array(TOTAL).fill(false); first = -1; second = -1; busy = false; turn = 1; scores = [0, 0];
     for (let i = 0; i < TOTAL; i++) { cardEls[i].innerHTML = ''; cardEls[i].style.background = '#2a2a4a'; }
     updateStatus();
   }
   updateStatus();
   function updateStatus() {
-    if (online) setStatus(`You: ${scores[online.playerId]}  Opp: ${scores[1-online.playerId]} — ${turn === online.playerId+1 ? 'Your turn' : "Opponent's turn"}`);
-    else setStatus(`P1: ${scores[0]}  P2: ${scores[1]} — P${turn}'s turn`);
+    setStatus(`P1: ${scores[0]}  P2: ${scores[1]} — P${turn}'s turn`);
   }
   function showCard(i) {
     if (cards[i] === FELIX) {
@@ -899,7 +631,7 @@ function initMemory(area, setStatus, online) {
       matched[first] = matched[second] = true;
       scores[turn - 1]++; SND.chime();
       first = second = -1; busy = false;
-      if (matched.every(v => v)) { SND.win(); const m = online ? (scores[online.playerId] > scores[1-online.playerId] ? 'You win!' : scores[online.playerId] < scores[1-online.playerId] ? 'You lose!' : 'Draw!') : (scores[0] > scores[1] ? 'P1 wins!' : scores[1] > scores[0] ? 'P2 wins!' : 'Draw!'); setStatus(m); setTimeout(() => showOverlay(area, `${m}<br>P1: ${scores[0]} | P2: ${scores[1]}`, 'Rematch', restart), 600); return; }
+      if (matched.every(v => v)) { SND.win(); const m = scores[0] > scores[1] ? 'P1 wins!' : scores[1] > scores[0] ? 'P2 wins!' : 'Draw!'; setStatus(m); setTimeout(() => showOverlay(area, `${m}<br>P1: ${scores[0]} | P2: ${scores[1]}`, 'Rematch', restart), 600); return; }
       updateStatus();
     } else {
       SND.buzz();
@@ -910,10 +642,6 @@ function initMemory(area, setStatus, online) {
         turn = 3 - turn; flashTurn(area, turn); updateStatus();
       }, 800);
     }
-  }
-  if (online) {
-    online.listenMoves(data => execFlip(data.i));
-    online.onOpponentDisconnect(() => setStatus('Opponent disconnected'));
   }
 
   // Felix easter egg — double-tap empty space to replace a random fruit with felix.png
@@ -935,11 +663,11 @@ function initMemory(area, setStatus, online) {
     lastTapTime = now;
   });
 
-  return () => { if (online) online.cleanup(); };
+  return () => {};
 }
 
 // ==================== AWALÉ ====================
-function initAwale(area, setStatus, online) {
+function initAwale(area, setStatus) {
   let board = Array(12).fill(4);
   let scores = [0, 0], turn = 0, gameOver = false, animating = false, activePit = -1;
   const delay = ms => new Promise(r => setTimeout(r, ms));
@@ -972,10 +700,10 @@ function initAwale(area, setStatus, online) {
     return h;
   }
   function render() {
-    let h = `<div style="text-align:center;margin-bottom:6px;font-weight:bold;font-size:${turn===1?'1.3em':'0.95em'};color:${turn===1?'#fff':'#666'};${turn===1?'text-shadow:0 0 10px rgba(255,255,255,0.6),0 0 20px rgba(255,255,255,0.3)':'opacity:0.5'};transition:all 0.3s">▲ ${online ? (online.playerId===1?'You':'Opp') : 'P2'}: ${scores[1]}</div>`;
+    let h = `<div style="text-align:center;margin-bottom:6px;font-weight:bold;font-size:${turn===1?'1.3em':'0.95em'};color:${turn===1?'#fff':'#666'};${turn===1?'text-shadow:0 0 10px rgba(255,255,255,0.6),0 0 20px rgba(255,255,255,0.3)':'opacity:0.5'};transition:all 0.3s">▲ P2: ${scores[1]}</div>`;
     h += '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:6px">';
     for (let i = 11; i >= 6; i--) {
-      const a = !animating && turn===1 && board[i]>0 && !gameOver && (!online || online.playerId===1);
+      const a = !animating && turn===1 && board[i]>0 && !gameOver;
       const glow = i===activePit ? 'box-shadow:0 0 12px 4px rgba(255,200,50,0.7);' : '';
       h += `<div data-pit="${i}" style="background:${a?'#6D4C41':'#3E2723'};padding:8px 4px;border-radius:12px;text-align:center;cursor:${a?'pointer':'default'};min-height:70px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;${glow}">`;
       h += renderBeans(board[i], a);
@@ -983,29 +711,27 @@ function initAwale(area, setStatus, online) {
     }
     h += '</div><div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px">';
     for (let i = 0; i <= 5; i++) {
-      const a = !animating && turn===0 && board[i]>0 && !gameOver && (!online || online.playerId===0);
+      const a = !animating && turn===0 && board[i]>0 && !gameOver;
       const glow = i===activePit ? 'box-shadow:0 0 12px 4px rgba(255,200,50,0.7);' : '';
       h += `<div data-pit="${i}" style="background:${a?'#6D4C41':'#3E2723'};padding:8px 4px;border-radius:12px;text-align:center;cursor:${a?'pointer':'default'};min-height:70px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;${glow}">`;
       h += renderBeans(board[i], a);
       h += `<div style="font-size:.65em;color:#aaa;margin-top:1px">${board[i]}</div></div>`;
     }
-    h += `</div><div style="text-align:center;margin-top:6px;font-weight:bold;font-size:${turn===0?'1.3em':'0.95em'};color:${turn===0?'#fff':'#666'};${turn===0?'text-shadow:0 0 10px rgba(255,255,255,0.6),0 0 20px rgba(255,255,255,0.3)':'opacity:0.5'};transition:all 0.3s">▼ ${online ? (online.playerId===0?'You':'Opp') : 'P1'}: ${scores[0]}</div>`;
+    h += `</div><div style="text-align:center;margin-top:6px;font-weight:bold;font-size:${turn===0?'1.3em':'0.95em'};color:${turn===0?'#fff':'#666'};${turn===0?'text-shadow:0 0 10px rgba(255,255,255,0.6),0 0 20px rgba(255,255,255,0.3)':'opacity:0.5'};transition:all 0.3s">▼ P1: ${scores[0]}</div>`;
     cont.innerHTML = h;
     cont.querySelectorAll('[data-pit]').forEach(el => {
       el.onclick = () => {
         if (animating) return;
         const pit = parseInt(el.dataset.pit);
-        if (online && turn !== online.playerId) return;
         execPlay(pit);
-        if (online) online.sendMove({pit});
       };
     });
     if (gameOver) {
-      const m = online ? (scores[online.playerId]>scores[1-online.playerId]?'You win!':scores[online.playerId]<scores[1-online.playerId]?'You lose!':'Draw!') : (scores[0]>scores[1]?'P1 wins!':scores[1]>scores[0]?'P2 wins!':'Draw!');
+      const m = scores[0]>scores[1]?'P1 wins!':scores[1]>scores[0]?'P2 wins!':'Draw!';
       setStatus(m);
       setTimeout(() => showOverlay(area, `${m}<br>P1: ${scores[0]} | P2: ${scores[1]}`, 'Rematch', () => { board = Array(12).fill(4); scores = [0,0]; turn = 0; gameOver = false; animating = false; activePit = -1; render(); }), 600);
     } else {
-      setStatus(online ? (turn===online.playerId?'Your turn':"Opponent's turn") : `P${turn+1}'s turn`);
+      setStatus(`P${turn+1}'s turn`);
     }
   }
   async function execPlay(pit) {
@@ -1053,16 +779,12 @@ function initAwale(area, setStatus, online) {
     animating = false;
     render();
   }
-  if (online) {
-    online.listenMoves(data => execPlay(data.pit));
-    online.onOpponentDisconnect(() => { if (!gameOver) { gameOver = true; setStatus('Opponent disconnected'); } });
-  }
   render();
-  return () => { window.removeEventListener('resize',applyOrientation); if (online) online.cleanup(); };
+  return () => { window.removeEventListener('resize',applyOrientation); };
 }
 
 // ==================== DUCK-DAY CHESS ====================
-function initDuckChess(area, setStatus, online) {
+function initDuckChess(area, setStatus) {
   const SYMS = {wK:'♔',wQ:'♕',wR:'♖',wB:'♗',wN:'♘',wP:'♙',bK:'♚',bQ:'♛',bR:'♜',bB:'♝',bN:'♞',bP:'♟'};
   const PN = {K:'King',Q:'Queen',R:'Rook',B:'Bishop',N:'Knight',P:'Pawn'};
   const FL = 'abcdefgh', RK = '87654321';
@@ -1070,8 +792,6 @@ function initDuckChess(area, setStatus, online) {
   let board, turn, phase, sel, legal, moveNum, yd, rd;
   let castleR, ep, log, promoting, gameOver, lastMv;
   let laserPh, laserSrc, laserTgt, animTmr;
-  const flipped = online && online.playerId === 1;
-  const rng = online ? online.rng : () => Math.random();
 
   function restart() {
     board = [
@@ -1243,7 +963,7 @@ function initDuckChess(area, setStatus, online) {
     const e=[];
     for(let r=0;r<8;r++) for(let c=0;c<8;c++)
       if(!board[r][c]&&!(yd&&yd.r===r&&yd.c===c)&&!(rd&&rd.r===r&&rd.c===c)) e.push({r,c});
-    if(e.length>0) rd=e[Math.floor(rng()*e.length)];
+    if(e.length>0) rd=e[Math.floor(Math.random()*e.length)];
   }
 
   function findLaserTarget() {
@@ -1253,7 +973,7 @@ function initDuckChess(area, setStatus, online) {
       const nr=rd.r+dr, nc=rd.c+dc;
       if(inB(nr,nc)&&board[nr][nc]&&(moveNum>=50||pT(board[nr][nc])!=='K')) t.push({r:nr,c:nc});
     }
-    return t.length>0 ? t[Math.floor(rng()*t.length)] : null;
+    return t.length>0 ? t[Math.floor(Math.random()*t.length)] : null;
   }
 
   function fireLaser(target, cb) {
@@ -1276,7 +996,7 @@ function initDuckChess(area, setStatus, online) {
             const w=pc==='White'?'Black':'White';
             log.push({text:'💀 '+pc+' King vaporized! '+w+' wins!', imp:true});
             phase='done'; gameOver=true; SND.win();
-            const msg=online?((pc==='White'&&online.playerId===0)||(pc==='Black'&&online.playerId===1)?'Your King was vaporized! You lose!':'Enemy King vaporized! You win!'):w+' wins — King vaporized!';
+            const msg=w+' wins — King vaporized!';
             setStatus(msg); render();
             setTimeout(() => showOverlay(area,msg,'Rematch',restart),800);
             return;
@@ -1296,7 +1016,7 @@ function initDuckChess(area, setStatus, online) {
       for(const row of far) for(let c=0;c<8;c++)
         if(!board[row][c]&&!(yd&&yd.r===row&&yd.c===c)) e.push({r:row,c:c});
       if(e.length>0) {
-        rd=e[Math.floor(rng()*e.length)];
+        rd=e[Math.floor(Math.random()*e.length)];
         if(hasLegal(turn)) { log.push({text:'🚨 Canard de Secours! Red Duck emergency teleport!', imp:true}); SND.chime(); return; }
       }
       rd=oldRd;
@@ -1313,7 +1033,7 @@ function initDuckChess(area, setStatus, online) {
       const far=oR.r<4?[4,5,6,7]:[0,1,2,3], e=[];
       for(const row of far) for(let c=0;c<8;c++) if(!board[row][c]) e.push({r:row,c:c});
       if(e.length>0) {
-        rd=e[Math.floor(rng()*e.length)];
+        rd=e[Math.floor(Math.random()*e.length)];
         if(hasLegal(turn)) { log.push({text:'🚨 Canard de Secours! Both ducks repositioned!', imp:true}); SND.chime(); return; }
       }
       rd=oR; yd=oY;
@@ -1332,7 +1052,7 @@ function initDuckChess(area, setStatus, online) {
           const w=turn==='w'?'Black':'White';
           log.push({text:'👑 Checkmate! '+w+' wins!', imp:true});
           phase='done'; gameOver=true; SND.win();
-          const msg=online?((turn==='w'&&online.playerId===0)||(turn==='b'&&online.playerId===1)?'You lose by checkmate!':'You win by checkmate!'):w+' wins by checkmate!';
+          const msg=w+' wins by checkmate!';
           setStatus(msg); render();
           setTimeout(() => showOverlay(area,msg,'Rematch',restart),800);
           return;
@@ -1351,21 +1071,12 @@ function initDuckChess(area, setStatus, online) {
   function updStatus() {
     if(gameOver) return;
     const c=turn==='w'?'White':'Black';
-    if(online) {
-      const my=(turn==='w'&&online.playerId===0)||(turn==='b'&&online.playerId===1);
-      setStatus(phase==='duck'?(my?'Place the Yellow Duck 🐥':'Opponent placing duck...'):(my?'Your move':'Opponent\'s move'));
-    } else {
-      setStatus(phase==='duck'?c+': Place 🐥 Yellow Duck':c+'\'s move');
-    }
+    setStatus(phase==='duck'?c+': Place 🐥 Yellow Duck':c+'\'s move');
   }
 
   // --- Click Handler ---
   function handleClick(r,c) {
     if(gameOver||laserPh) return;
-    if(online) {
-      const my=(turn==='w'&&online.playerId===0)||(turn==='b'&&online.playerId===1);
-      if(!my) return;
-    }
     if(phase==='move') {
       if(promoting) return;
       const lm=legal.find(m=>m.r===r&&m.c===c);
@@ -1375,7 +1086,6 @@ function initDuckChess(area, setStatus, online) {
         lastMv={from:{...sel},to:lm};
         doMove(sel,lm,null);
         yd=null; phase='duck'; sel=null; legal=[];
-        if(online) online.sendMove({t:'mv',fr:lastMv.from.r,fc:lastMv.from.c,tr:lastMv.to.r,tc:lastMv.to.c,cs:lm.castle||'',ep:lm.ep||false,pr:''});
         updStatus(); render();
         return;
       }
@@ -1384,7 +1094,6 @@ function initDuckChess(area, setStatus, online) {
     } else if(phase==='duck') {
       if(!board[r][c]&&!(rd&&rd.r===r&&rd.c===c)) {
         yd={r,c};
-        if(online) online.sendMove({t:'dk',yr:r,yc:c});
         placeRD();
         SND.drop();
         afterDucks();
@@ -1397,29 +1106,7 @@ function initDuckChess(area, setStatus, online) {
     lastMv={from:promoting.from,to:promoting.to,promo:type};
     doMove(promoting.from, promoting.to, type);
     promoting=null; yd=null; phase='duck'; sel=null; legal=[];
-    if(online) online.sendMove({t:'mv',fr:lastMv.from.r,fc:lastMv.from.c,tr:lastMv.to.r,tc:lastMv.to.c,cs:lastMv.to.castle||'',ep:lastMv.to.ep||false,pr:type});
     updStatus(); render();
-  }
-
-  // --- Online ---
-  if(online) {
-    online.listenMoves(data => {
-      if(data.t==='dk') {
-        yd={r:data.yr,c:data.yc};
-        placeRD();
-        SND.drop();
-        afterDucks();
-        return;
-      }
-      // Chess move
-      const from={r:data.fr,c:data.fc}, to={r:data.tr,c:data.tc};
-      if(data.cs) to.castle=data.cs;
-      if(data.ep) to.ep=true;
-      doMove(from, to, data.pr||null);
-      yd=null; phase='duck';
-      updStatus(); render();
-    });
-    online.onOpponentDisconnect(() => { if(!gameOver){gameOver=true;phase='done';setStatus('Opponent disconnected');render();} });
   }
 
   // --- Rendering ---
@@ -1446,8 +1133,7 @@ function initDuckChess(area, setStatus, online) {
 
     const kInCheck = inCheck(turn) ? findK(turn) : null;
 
-    for(let ri=0;ri<8;ri++) for(let ci=0;ci<8;ci++) {
-      const r=flipped?7-ri:ri, c=flipped?7-ci:ci;
+    for(let r=0;r<8;r++) for(let c=0;c<8;c++) {
       const isLt=(r+c)%2===0;
       const p=board[r][c];
       const isSel=sel&&sel.r===r&&sel.c===c;
@@ -1488,8 +1174,8 @@ function initDuckChess(area, setStatus, online) {
 
       let lbl='';
       const lblCol=isLt?'#769656':'#EEEED2';
-      if(ci===0) lbl+='<span style="position:absolute;top:1px;left:2px;font-size:8px;color:'+lblCol+';font-weight:bold;pointer-events:none;opacity:.8">'+RK[r]+'</span>';
-      if(ri===7) lbl+='<span style="position:absolute;bottom:0;right:2px;font-size:8px;color:'+lblCol+';font-weight:bold;pointer-events:none;opacity:.8">'+FL[c]+'</span>';
+      if(c===0) lbl+='<span style="position:absolute;top:1px;left:2px;font-size:8px;color:'+lblCol+';font-weight:bold;pointer-events:none;opacity:.8">'+RK[r]+'</span>';
+      if(r===7) lbl+='<span style="position:absolute;bottom:0;right:2px;font-size:8px;color:'+lblCol+';font-weight:bold;pointer-events:none;opacity:.8">'+FL[c]+'</span>';
 
       const duckPhClick=phase==='duck'&&!board[r][c]&&!(rd&&rd.r===r&&rd.c===c);
       const cursor=(phase==='move'||duckPhClick)?'pointer':'default';
@@ -1543,8 +1229,8 @@ function initDuckChess(area, setStatus, online) {
     const bd=cont.querySelector('#dc-board');
     if(!svg||!bd||!laserSrc||!laserTgt) return;
     const sq=bd.offsetWidth/8;
-    const fR=flipped?7-laserSrc.r:laserSrc.r, fC=flipped?7-laserSrc.c:laserSrc.c;
-    const tR=flipped?7-laserTgt.r:laserTgt.r, tC=flipped?7-laserTgt.c:laserTgt.c;
+    const fR=laserSrc.r, fC=laserSrc.c;
+    const tR=laserTgt.r, tC=laserTgt.c;
     const x1=(fC+.5)*sq, y1=(fR+.5)*sq, x2=(tC+.5)*sq, y2=(tR+.5)*sq;
     svg.innerHTML='<defs><filter id="gl"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>'+
       '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="#ff0000" stroke-width="5" filter="url(#gl)" opacity=".7"/>'+
@@ -1556,7 +1242,7 @@ function initDuckChess(area, setStatus, online) {
   }
 
   restart();
-  return () => { if(animTmr) clearTimeout(animTmr); if(online) online.cleanup(); };
+  return () => { if(animTmr) clearTimeout(animTmr); };
 }
 // ==================== STAR CLASH (Galaga-style 2P) ====================
 function initStarClash(area, setStatus) {
@@ -2680,8 +2366,7 @@ const WORD_DATA = {
   ]
 };
 
-function initWordClash(area, setStatus, online) {
-  const rng = online ? online.rng : Math.random;
+function initWordClash(area, setStatus) {
   const defaultLang = navigator.language.startsWith('fr') ? 'fr' : 'en';
 
   let lang, puzzle, gridWords, bonusWords, foundGrid, foundBonus, hinted;
@@ -2701,18 +2386,13 @@ function initWordClash(area, setStatus, online) {
 
   // --- Language picker ---
   function showLangPicker() {
-    if (online && online.playerId !== 0) {
-      cont.innerHTML = '<div style="text-align:center;padding:40px;color:#aaa;font-size:1.1em">Waiting for host to pick language...</div>';
-      online.onState('lang', l => { lang = l; beginGame(); });
-      return;
-    }
     const defFr = defaultLang === 'fr';
     cont.innerHTML = '<div style="text-align:center;padding:30px">' +
       '<div style="font-size:1.3em;font-weight:bold;margin-bottom:20px;color:#B2DFDB">Choose Language</div>' +
       '<button class="btn" id="wc-en" style="margin:8px;padding:14px 32px;font-size:1.1em;background:' + (defFr ? '#37474F' : '#00897B') + '">English</button>' +
       '<button class="btn" id="wc-fr" style="margin:8px;padding:14px 32px;font-size:1.1em;background:' + (defFr ? '#00897B' : '#37474F') + '">Fran\u00e7ais</button>' +
       '</div>';
-    const pick = l => { lang = l; if (online) online.setState('lang', l); beginGame(); };
+    const pick = l => { lang = l; beginGame(); };
     cont.querySelector('#wc-en').onclick = () => pick('en');
     cont.querySelector('#wc-fr').onclick = () => pick('fr');
   }
@@ -2726,11 +2406,11 @@ function initWordClash(area, setStatus, online) {
 
   function generatePuzzle() {
     const data = WORD_DATA[lang] || WORD_DATA.en;
-    const idx = Math.floor(rng() * data.length);
+    const idx = Math.floor(Math.random() * data.length);
     puzzle = data[idx];
     wheelLetters = puzzle.anchor.split('');
     for (let i = wheelLetters.length - 1; i > 0; i--) {
-      const j = Math.floor(rng() * (i + 1));
+      const j = Math.floor(Math.random() * (i + 1));
       [wheelLetters[i], wheelLetters[j]] = [wheelLetters[j], wheelLetters[i]];
     }
     buildCrossword();
@@ -2804,7 +2484,7 @@ function initWordClash(area, setStatus, online) {
     const anchor = puzzle.anchor;
     addWord(anchor, 10, Math.max(0, Math.floor((14 - anchor.length) / 2)), 'h');
 
-    // Group remaining words by length, shuffle each group with rng
+    // Group remaining words by length, shuffle each group
     const others = puzzle.words.filter(w => w !== anchor);
     const byLen = {};
     others.forEach(w => {
@@ -2815,7 +2495,7 @@ function initWordClash(area, setStatus, online) {
     for (const len in byLen) {
       const arr = byLen[len];
       for (let i = arr.length - 1; i > 0; i--) {
-        const j = Math.floor(rng() * (i + 1));
+        const j = Math.floor(Math.random() * (i + 1));
         [arr[i], arr[j]] = [arr[j], arr[i]];
       }
     }
@@ -2882,11 +2562,7 @@ function initWordClash(area, setStatus, online) {
   // --- Turn / tries ---
   function startTurn() {
     triesLeft = MAX_TRIES;
-    if (online) {
-      setStatus(turn === online.playerId ? 'Your turn' : "Opponent's turn");
-    } else {
-      setStatus('P' + (turn + 1) + "'s turn");
-    }
+    setStatus('P' + (turn + 1) + "'s turn");
     render();
   }
 
@@ -2910,7 +2586,7 @@ function initWordClash(area, setStatus, online) {
   function switchTurn() {
     turn = 1 - turn;
     if (checkEnd()) return;
-    if (!online) flashTurn(area, turn + 1, '#80CBC4');
+    flashTurn(area, turn + 1, '#80CBC4');
     startTurn();
   }
 
@@ -2919,10 +2595,7 @@ function initWordClash(area, setStatus, online) {
     if (!allFound) return false;
     gameOver = true;
     SND.win();
-    const w = scores[0] > scores[1] ? 'P1 wins!' : scores[1] > scores[0] ? 'P2 wins!' : "It's a tie!";
-    const msg = online
-      ? (scores[online.playerId] > scores[1 - online.playerId] ? 'You win!' : scores[online.playerId] < scores[1 - online.playerId] ? 'You lose!' : "It's a tie!")
-      : w;
+    const msg = scores[0] > scores[1] ? 'P1 wins!' : scores[1] > scores[0] ? 'P2 wins!' : "It's a tie!";
     setStatus(msg);
     render();
     setTimeout(() => showOverlay(area, msg + '<br>P1: ' + scores[0] + ' | P2: ' + scores[1], 'Rematch', restart), 700);
@@ -2949,7 +2622,6 @@ function initWordClash(area, setStatus, online) {
 
   function revealLetter() {
     if (gameOver) return;
-    if (online && turn !== online.playerId) return;
     if (triesLeft <= 0) return;
     const candidates = [];
     for (const key in gridCells) {
@@ -2959,7 +2631,6 @@ function initWordClash(area, setStatus, online) {
     const pick = candidates[Math.floor(Math.random() * candidates.length)];
     hinted.add(pick);
     SND.pop();
-    if (online) online.sendMove({type: 'reveal', cell: pick});
     render();
     consumeTry();
   }
@@ -2967,7 +2638,6 @@ function initWordClash(area, setStatus, online) {
   // --- Word submission ---
   function submitWord(word) {
     if (gameOver) return;
-    if (online && turn !== online.playerId) return;
     if (triesLeft <= 0) return;
     if (word.length < 3) return;
 
@@ -2984,7 +2654,6 @@ function initWordClash(area, setStatus, online) {
         if (cell) cell.foundBy = turn;
       }
       SND.chime();
-      if (online) online.sendMove({word: word, type: 'grid'});
       render();
       consumeTry();
       return;
@@ -2995,7 +2664,6 @@ function initWordClash(area, setStatus, online) {
       foundBonus.add(word);
       scores[turn] += 1;
       SND.pop();
-      if (online) online.sendMove({word: word, type: 'bonus'});
       render();
       consumeTry();
       return;
@@ -3003,41 +2671,6 @@ function initWordClash(area, setStatus, online) {
 
     // Already found or invalid — still consumes a try
     SND.buzz();
-    if (online) online.sendMove({word: word, type: 'miss'});
-    consumeTry();
-  }
-
-  function applyOpponentMove(data) {
-    const word = data.word;
-    if (data.type === 'grid') {
-      const gw = gridWords.find(g => g.word === word && g.foundBy < 0);
-      if (gw) {
-        gw.foundBy = turn;
-        foundGrid.add(word);
-        scores[turn] += word.length;
-        for (let i = 0; i < gw.word.length; i++) {
-          const r = gw.dir === 'h' ? gw.row : gw.row + i;
-          const c = gw.dir === 'h' ? gw.col + i : gw.col;
-          const cell = gridCells[r + ',' + c];
-          if (cell) cell.foundBy = turn;
-        }
-        SND.chime();
-      }
-    } else if (data.type === 'bonus') {
-      if (!foundBonus.has(word)) {
-        foundBonus.add(word);
-        scores[turn] += 1;
-        SND.pop();
-      }
-    } else if (data.type === 'reveal') {
-      if (data.cell && !hinted.has(data.cell)) {
-        hinted.add(data.cell);
-        SND.pop();
-      }
-    } else if (data.type === 'miss') {
-      SND.buzz();
-    }
-    render();
     consumeTry();
   }
 
@@ -3116,14 +2749,11 @@ function initWordClash(area, setStatus, online) {
     h += '<div id="wc-shuffle" style="position:absolute;left:' + (wheelCx - 20) + 'px;top:' + (wheelCy - 20) + 'px;width:40px;height:40px;border-radius:50%;background:#37474F;border:1.5px solid #546E7A;display:flex;align-items:center;justify-content:center;font-size:1.2em;cursor:pointer;color:#B0BEC5">\u21BB</div>';
     h += '</div></div>';
 
-    // Hint button (below wheel) — only show when it's your turn
+    // Hint button (below wheel)
     if (!gameOver) {
-      const canAct = !online || turn === online.playerId;
-      if (canAct) {
-        h += '<div style="display:flex;justify-content:center;margin:4px 0">';
-        h += '<button id="wc-reveal" style="padding:6px 20px;font-size:0.95em;background:#37474F;border:1.5px solid #546E7A;border-radius:8px;color:#B0BEC5;cursor:pointer">Hint (uses 1 try)</button>';
-        h += '</div>';
-      }
+      h += '<div style="display:flex;justify-content:center;margin:4px 0">';
+      h += '<button id="wc-reveal" style="padding:6px 20px;font-size:0.95em;background:#37474F;border:1.5px solid #546E7A;border-radius:8px;color:#B0BEC5;cursor:pointer">Hint (uses 1 try)</button>';
+      h += '</div>';
     }
 
     // Bonus words found
@@ -3152,7 +2782,6 @@ function initWordClash(area, setStatus, online) {
 
     function canInteract() {
       if (gameOver) return false;
-      if (online && turn !== online.playerId) return false;
       return true;
     }
 
@@ -3205,34 +2834,20 @@ function initWordClash(area, setStatus, online) {
     wheel.addEventListener('touchcancel', e => { endSel(); });
   }
 
-  // --- Online sync ---
-  if (online) {
-    online.listenMoves(data => applyOpponentMove(data));
-    online.onOpponentDisconnect(() => {
-      if (!gameOver) {
-        gameOver = true;
-        setStatus('Opponent disconnected');
-        render();
-      }
-    });
-  }
-
   // --- Start ---
   showLangPicker();
 
   return () => {
     destroyed = true;
-    if (online) online.cleanup();
   };
 }
 
 // ==================== TANK WARS ====================
-function initTankWars(area, setStatus, online) {
+function initTankWars(area, setStatus) {
   const {canvas, ctx, w, h} = createCanvas(area);
   const GRAVITY = 0.15, HUD_H = 40, CTRL_H = 90;
   const GAME_TOP = HUD_H, GAME_BOT = h - CTRL_H;
   const TANK_W = 24, TANK_H = 12, BARREL_LEN = 16;
-  const rng = online ? online.rng : Math.random;
 
   // Pixel-block terrain
   const BK = 5; // block size in pixels
@@ -3241,13 +2856,13 @@ function initTankWars(area, setStatus, online) {
   const grid = new Uint8Array(gridCols * gridRows); // 0=empty, 1=filled
   (function genTerrain() {
     const minH = 60, maxH = (GAME_BOT - GAME_TOP) * 0.65;
-    let ht = minH + rng() * (maxH - minH) * 0.5;
+    let ht = minH + Math.random() * (maxH - minH) * 0.5;
     const midH = (minH + maxH) / 2;
     const heights = new Float32Array(gridCols);
     for (let c = 0; c < gridCols; c++) {
       heights[c] = ht;
       const drift = (midH - ht) * 0.02;
-      ht += (rng() - 0.5) * 8 + drift;
+      ht += (Math.random() - 0.5) * 8 + drift;
       ht = Math.max(minH, Math.min(maxH, ht));
     }
     for (let p = 0; p < 3; p++) {
@@ -3277,7 +2892,7 @@ function initTankWars(area, setStatus, online) {
 
   let turn = 0, state = 'aim', gameOver = false;
   let proj = null, explosions = [], trail = [];
-  let wind = (rng() - 0.5) * 20;
+  let wind = (Math.random() - 0.5) * 20;
   let dragStart = null, dragAngle = 0, dragPower = 0;
 
   function sfxFire() { SND.shoot(); }
@@ -3336,7 +2951,7 @@ function initTankWars(area, setStatus, online) {
       gameOver = true;
       state = 'done';
       const winner = tanks[0].alive ? 0 : 1;
-      const label = online ? (winner === online.playerId ? 'You win!' : 'You lose!') : `P${winner+1} wins!`;
+      const label = `P${winner+1} wins!`;
       setStatus(label);
       showOverlay(area, label, 'Rematch', () => location.reload());
       return;
@@ -3345,7 +2960,7 @@ function initTankWars(area, setStatus, online) {
     state = 'aim';
     flashTurn(area, turn + 1, turn === 0 ? '#FF4444' : '#4488FF');
     const windStr = `Wind: ${wind > 0 ? '→' : '←'} ${Math.abs(wind).toFixed(0)}`;
-    setStatus(online ? (turn === online.playerId ? `Your turn | ${windStr}` : `Opponent's turn | ${windStr}`) : `P${turn+1}'s turn | ${windStr}`);
+    setStatus(`P${turn+1}'s turn | ${windStr}`);
   }
 
   // Input
@@ -3359,11 +2974,9 @@ function initTankWars(area, setStatus, online) {
 
   function handleDown(p) {
     if (state !== 'aim' || gameOver) return;
-    if (online && turn !== online.playerId) return;
     // Check fire button
     const fbx = w/2, fby = h - CTRL_H/2;
     if (Math.sqrt((p.x-fbx)**2+(p.y-fby)**2) < 28) {
-      if (online) online.sendMove({angle: tanks[turn].angle, power: tanks[turn].power});
       fire(); return;
     }
     dragStart = p;
@@ -3377,15 +2990,6 @@ function initTankWars(area, setStatus, online) {
     tanks[turn].power = Math.max(50, Math.min(1000, dragPower - dy * 3));
   }
   function handleUp() { dragStart = null; }
-
-  if (online) {
-    online.listenMoves(data => {
-      tanks[turn].angle = data.angle;
-      tanks[turn].power = data.power;
-      fire();
-    });
-    online.onOpponentDisconnect(() => { if (!gameOver) { gameOver = true; state = 'done'; setStatus('Opponent disconnected'); } });
-  }
 
   let raf;
   function update() {
@@ -3528,9 +3132,9 @@ function initTankWars(area, setStatus, online) {
   }
 
   const windStr0 = `Wind: ${wind > 0 ? '→' : '←'} ${Math.abs(wind).toFixed(0)}`;
-  setStatus(online ? (turn === online.playerId ? `Your turn | ${windStr0}` : `Opponent's turn | ${windStr0}`) : `P1's turn | ${windStr0}`);
+  setStatus(`P1's turn | ${windStr0}`);
   raf = requestAnimationFrame(update);
-  return () => { cancelAnimationFrame(raf); if (online) online.cleanup(); };
+  return () => cancelAnimationFrame(raf);
 }
 
 // ==================== CARROM ====================
@@ -4365,7 +3969,7 @@ function initMiniGolf(area, setStatus) {
 }
 
 // ==================== CARO (Gomoku Variant - 13x13) ====================
-function initCaro(area, setStatus, online) {
+function initCaro(area, setStatus) {
   const SIZE = 13;
   const board = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
   let turn = 1; // 1 = Black, 2 = White
@@ -4407,11 +4011,7 @@ function initCaro(area, setStatus, online) {
     stone.style.cssText = 'position:absolute;inset:12%;border-radius:50%;transition:transform .1s,box-shadow .1s;z-index:1';
     cell.appendChild(stone);
 
-    cell.onclick = () => {
-      if (online && turn !== online.playerId + 1) return;
-      execPlace(r, c);
-      if (online) online.sendMove({r, c});
-    };
+    cell.onclick = () => execPlace(r, c);
     grid.appendChild(cell);
     cells.push({cell, stone, inner});
   }
@@ -4424,7 +4024,7 @@ function initCaro(area, setStatus, online) {
     cells[sr * SIZE + sc].inner.appendChild(dot);
   }
 
-  setStatus(online ? (online.playerId === 0 ? "Your Turn (Black)" : "Opponent's Turn") : "Black's Turn");
+  setStatus("Black's Turn");
 
   function execPlace(r, c) {
     if (gameOver || board[r][c]) return;
@@ -4450,7 +4050,7 @@ function initCaro(area, setStatus, online) {
       for (const [wr, wc] of win) {
         cells[wr * SIZE + wc].stone.style.boxShadow = '0 0 12px 4px #FFD700';
       }
-      const label = online ? (turn === online.playerId + 1 ? 'You Win!' : 'You Lose!') : (turn === 1 ? 'Black' : 'White') + ' Wins!';
+      const label = (turn === 1 ? 'Black' : 'White') + ' Wins!';
       setStatus(label);
       setTimeout(() => showOverlay(area, label, 'Restart', restart), 600);
       return;
@@ -4468,11 +4068,7 @@ function initCaro(area, setStatus, online) {
     }
 
     turn = 3 - turn;
-    setStatus(online ? (turn === online.playerId + 1 ? 'Your Turn' : "Opponent's Turn") : (turn === 1 ? "Black's Turn" : "White's Turn"));
-  }
-  if (online) {
-    online.listenMoves(data => execPlace(data.r, data.c));
-    online.onOpponentDisconnect(() => { if (!gameOver) { gameOver = true; setStatus('Opponent disconnected'); } });
+    setStatus(turn === 1 ? "Black's Turn" : "White's Turn");
   }
 
   function checkWin(r, c, player) {
@@ -4534,10 +4130,10 @@ function initCaro(area, setStatus, online) {
     turn = 1;
     gameOver = false;
     winCells = null;
-    setStatus(online ? (online.playerId === 0 ? "Your Turn (Black)" : "Opponent's Turn") : "Black's Turn");
+    setStatus("Black's Turn");
   }
 
-  return () => { if (online) online.cleanup(); };
+  return () => {};
 }
 
 // ==================== HANGMAN ====================

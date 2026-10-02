@@ -1,32 +1,28 @@
 [en]
-16 multiplayer games — play locally or online. No ads, no accounts.
+16 games for two players on one phone. No ads, no accounts.
 
-2P Games is a collection of 16 touch-friendly multiplayer games designed for two players. Share one device, with the screen split into two halves, or play online with a friend over a room code or quick match. Every game has rematch support and built-in instructions.
+2P Games is a collection of 16 touch-friendly multiplayer games designed for two players. Share one device, with the screen split into two halves or each player in turn. Every game has built-in instructions. The app needs no connection and asks for no permission.
 
-8 games support online multiplayer: 4 in a Row, Caro, Awalé, Memory, Duck-Day Chess, Tank Wars, Word Clash, and Reversi.
-
-The local-only roster includes Tennis (with power-ups), Pool, Carrom, Air Hockey, Mini Golf, Star Clash, Hangman, and Horse Jump.
+The games: Tennis (with power-ups), 4 in a Row, Pool, Memory, Word Clash, Air Hockey, Tank Wars, Carrom, Mini Golf, Star Clash, Caro, Awalé, Duck-Day Chess, Hangman, Reversi, and Horse Jump.
 
 - 16 multiplayer games in one app
-- Local 2-player on a single device, plus online multiplayer
-- Room codes and quick match for online play
+- Two players on a single device
+- Works without any connection
 - Calming background music with toggle
 - Built-in instructions for every game
 - No ads, no tracking, no in-app purchases
 
 ---
 [fr]
-16 jeux multijoueurs — local ou en ligne. Sans pub, sans compte.
+16 jeux pour deux sur un même téléphone. Sans pub, sans compte.
 
-2P Games rassemble 16 mini-jeux multijoueurs tactiles pensés pour deux joueurs. Partagez un même appareil, l'écran divisé en deux moitiés, ou jouez en ligne avec un ami via un code de salle ou un match rapide. Tous les jeux gèrent la revanche et embarquent un mode d'emploi.
+2P Games rassemble 16 mini-jeux multijoueurs tactiles pensés pour deux joueurs. Partagez un même appareil, l'écran divisé en deux moitiés ou chacun son tour. Tous les jeux embarquent un mode d'emploi. L'app n'a besoin d'aucune connexion et ne demande aucune autorisation.
 
-8 jeux supportent le multijoueur en ligne : 4 in a Row, Caro, Awalé, Memory, Duck-Day Chess, Tank Wars, Word Clash et Reversi.
-
-La sélection locale comprend Tennis (avec power-ups), Pool, Carrom, Air Hockey, Mini Golf, Star Clash, Hangman (Pendu) et Horse Jump.
+Les jeux : Tennis (avec power-ups), 4 in a Row, Pool, Memory, Word Clash, Air Hockey, Tank Wars, Carrom, Mini Golf, Star Clash, Caro, Awalé, Duck-Day Chess, Hangman (Pendu), Reversi et Horse Jump.
 
 - 16 jeux multijoueurs réunis dans une seule app
-- Mode 2-joueurs sur un même appareil, plus multijoueur en ligne
-- Codes de salle et match rapide pour le jeu en ligne
+- Deux joueurs sur un même appareil
+- Fonctionne sans aucune connexion
 - Musique d'ambiance apaisante, activable / désactivable
 - Mode d'emploi intégré à chaque jeu
 - Sans pub, sans pistage, sans achats intégrés

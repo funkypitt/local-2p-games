@@ -1,0 +1,4 @@
+v1.36 — Two players, one phone
+
+- Every game is played on a single phone. Online play is removed.
+- The app no longer uses the internet and asks for no permission.

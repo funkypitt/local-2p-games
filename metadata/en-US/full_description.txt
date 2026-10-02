@@ -1,10 +1,6 @@
 2P Games is a collection of 16 touch-friendly multiplayer games designed
-for two players. Play locally on one device or online with a friend. No
-accounts, no ads.
-
-ONLINE MULTIPLAYER:
-8 turn-based games support online play via room codes or quick match:
-4 in a Row, Caro, Awalé, Memory, Duck-Day Chess, Tank Wars, Word Clash, Reversi.
+for two players, played on one device. No accounts, no ads, no connection
+needed, no permission asked.
 
 GAMES:
 
@@ -27,6 +23,6 @@ GAMES:
 
 All games feature intuitive touch controls split between the two halves of the
 screen (left/right or top/bottom). Built-in calming background music with
-toggle. Every game has rematch support.
+toggle. A button to play again ends every game except Pool and Mini Golf.
 
 Free and open source. No ads. No tracking. No in-app purchases.
