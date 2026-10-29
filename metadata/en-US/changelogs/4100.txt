@@ -1,0 +1,4 @@
+v1.38 — Real sounds and music
+
+- Every sound effect is now a recorded sample (Kenney CC0 packs) instead of a synthesized beep, with a touch of random pitch so repeats never sound mechanical.
+- Two real music loops ("Sherwood" by Chris Murphy, "Lofi Hip Hop Loop" by omfgdude, both CC0), one picked at each game, fading in and out.

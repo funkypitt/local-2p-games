@@ -31,7 +31,7 @@ Capacitor (Android) wrapping a vanilla HTML/JS web app. All the game logic lives
 
 ```
 npm install
-mkdir -p www && cp index.html app.js felix.png www/
+mkdir -p www && cp -r index.html app.js felix.png audio www/
 npx cap sync android
 cd android && ./gradlew assembleRelease
 ```
@@ -39,6 +39,9 @@ cd android && ./gradlew assembleRelease
 Word Clash word lists: `tools/build_words.py` rebuilds the `WORD_DATA` block of `app.js` from frequency-ranked vocabulary (French forms with part of speech from the Plume keyboard project, the system English dictionary, `wordfreq` for frequencies, `tools/word_blocklist.json` last).
 
 ## Crédits / Credits
+
+Sons : packs CC0 de [Kenney](https://kenney.nl) (interface, casino, sci-fi). Musique : « Sherwood » de Chris Murphy (CC0) et « Lofi Hip Hop Loop » d'omfgdude (CC0), via OpenGameArt.
+Sounds: CC0 packs by [Kenney](https://kenney.nl) (interface, casino, sci-fi). Music: "Sherwood" by Chris Murphy (CC0) and "Lofi Hip Hop Loop" by omfgdude (CC0), via OpenGameArt.
 
 © 2026 Pierre Gallaz. Développé avec [Claude Code](https://claude.com/claude-code) (Anthropic).
 Licence MIT, voir `LICENSE`.

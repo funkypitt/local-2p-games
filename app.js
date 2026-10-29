@@ -50,133 +50,132 @@ function flashTurn(area, player, color) {
 }
 
 // === GLOBAL AUDIO ENGINE ===
+// Sampled sounds (CC0: Kenney interface / casino / sci-fi packs) and two music loops
+// (CC0: "Sherwood" by Chris Murphy, "Lofi Hip Hop Loop" by omfgdude), all in audio/.
 const SND = {
-  _ctx: null, _musicGain: null, _sfxGain: null, _convolver: null,
+  _ctx: null, _musicGain: null, _sfxGain: null,
   _musicOn: localStorage.getItem('2pg-music') !== 'off',
-  _playing: false, _nextTime: 0, _timer: null, _bar: 0,
+  _playing: false, _musicSrc: null, _musicIdx: -1,
+  _buf: {}, _loading: {},
+  // name -> [files...]: one of the files is picked at random each time
+  _S: {
+    click: ['click_001','click_002','click_003','click_004','click_005'],
+    tick: ['tick_001','tick_002'],
+    pop: ['select_001','select_002','select_003','select_004'],
+    flip: ['card-place-1','card-place-2','card-place-3','card-place-4'],
+    drop: ['chip-lay-1','chip-lay-2','chip-lay-3'],
+    clack: ['chips-collide-1','chips-collide-2','chips-collide-3','chips-collide-4'],
+    pong: ['drop_001','drop_002','drop_003','drop_004'],
+    score: ['confirmation_001','confirmation_002','confirmation_003','confirmation_004'],
+    chime: ['glass_001','glass_002','glass_003','glass_004','glass_005','glass_006'],
+    buzz: ['error_001','error_002','error_003','error_004','error_005','error_006','error_007','error_008'],
+    bong: ['bong_001'],
+    pluck: ['pluck_001','pluck_002'],
+    laser: ['laserSmall_000','laserSmall_001','laserSmall_002'],
+    cannon: ['laserLarge_000','laserLarge_001'],
+    crunch: ['explosionCrunch_000','explosionCrunch_001','explosionCrunch_002','explosionCrunch_003'],
+    rumble: ['lowFrequency_explosion_000','lowFrequency_explosion_001'],
+    metal: ['impactMetal_000','impactMetal_001','impactMetal_002','impactMetal_003'],
+    stack: ['chips-stack-1','chips-stack-2'],
+    slide: ['card-slide-1','card-slide-2'],
+  },
+  _MUSIC: ['music-sherwood', 'music-lofi'],
   init() {
     if (this._ctx) return;
     this._ctx = new (window.AudioContext || window.webkitAudioContext)();
-    this._musicGain = this._ctx.createGain(); this._musicGain.gain.value = 0.12;
+    this._musicGain = this._ctx.createGain(); this._musicGain.gain.value = 0.5;
     this._musicGain.connect(this._ctx.destination);
-    this._sfxGain = this._ctx.createGain(); this._sfxGain.gain.value = 0.35;
+    this._sfxGain = this._ctx.createGain(); this._sfxGain.gain.value = 0.7;
     this._sfxGain.connect(this._ctx.destination);
-    // Simple reverb impulse for SFX richness
-    const sr = this._ctx.sampleRate, len = sr * 0.6;
-    const buf = this._ctx.createBuffer(2, len, sr);
-    for (let ch = 0; ch < 2; ch++) { const d = buf.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.2) * 0.3; }
-    this._convolver = this._ctx.createConvolver(); this._convolver.buffer = buf;
-    this._reverbGain = this._ctx.createGain(); this._reverbGain.gain.value = 0.15;
-    this._convolver.connect(this._reverbGain); this._reverbGain.connect(this._ctx.destination);
+    for (const k in this._S) this._S[k].forEach(f => this._load(f));
   },
-  hz(m) { return 440 * Math.pow(2, (m - 69) / 12); },
-  _tone(freq, dur, type, vol, t, dest) {
-    const o = this._ctx.createOscillator(), g = this._ctx.createGain();
-    o.type = type; o.frequency.value = freq;
-    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    o.connect(g); g.connect(dest); o.start(t); o.stop(t + dur + 0.01);
+  _load(name) {
+    if (this._buf[name] || this._loading[name]) return this._loading[name];
+    this._loading[name] = fetch('audio/' + name + '.ogg')
+      .then(r => r.arrayBuffer())
+      .then(ab => this._ctx.decodeAudioData(ab))
+      .then(b => { this._buf[name] = b; return b; })
+      .catch(e => { console.warn('audio load failed', name, e); delete this._loading[name]; });
+    return this._loading[name];
   },
-  _pad(notes, dur, vol, t) {
-    notes.forEach(m => {
-      const f = this.hz(m);
-      ['sine','triangle'].forEach((type, ti) => {
-        const o = this._ctx.createOscillator(), g = this._ctx.createGain();
-        o.type = type; o.frequency.value = f * (ti === 1 ? 1.002 : 1); // slight detune for warmth
-        g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol * (ti === 0 ? 1 : 0.4), t + dur * 0.3);
-        g.gain.setValueAtTime(vol * (ti === 0 ? 0.7 : 0.3), t + dur * 0.7); g.gain.linearRampToValueAtTime(0, t + dur);
-        o.connect(g); g.connect(this._musicGain); o.start(t); o.stop(t + dur + 0.05);
-      });
-    });
+  // Play one sample. rate: playback speed (1 = original), vol: linear gain, at: delay in s
+  _play(set, vol, rate, at, dest) {
+    const files = this._S[set]; if (!files) return;
+    const name = files[Math.floor(Math.random() * files.length)];
+    const b = this._buf[name]; if (!b) { this._load(name); return; }
+    const src = this._ctx.createBufferSource(); src.buffer = b;
+    src.playbackRate.value = rate || 1;
+    const g = this._ctx.createGain(); g.gain.value = vol == null ? 1 : vol;
+    src.connect(g); g.connect(dest || this._sfxGain);
+    src.start(this._ctx.currentTime + (at || 0));
   },
-  _hat(vol, t) {
-    const a = this._ctx, b = a.createBuffer(1, a.sampleRate * 0.04, a.sampleRate), d = b.getChannelData(0);
-    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 6);
-    const s = a.createBufferSource(); s.buffer = b;
-    const f = a.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 7000;
-    const g = a.createGain(); g.gain.value = vol;
-    s.connect(f); f.connect(g); g.connect(this._musicGain); s.start(t);
-  },
-  // Chord progressions: Am - F - C - G (i-VI-III-VII in A minor)
-  _chords: [[57,60,64],[53,57,60],[48,52,55],[55,59,62], [57,60,64],[53,57,60],[48,52,55],[55,59,62]],
-  // Melodies in A minor pentatonic (A=69 C=72 D=74 E=76 G=79) — more expressive
-  _mel: [
-    [69,0,72,0,74,0,76,0, 79,0,76,0,74,0,72,0],
-    [76,0,74,0,72,0,69,0, 72,0,74,0,76,0,79,0],
-    [79,0,81,0,79,0,76,0, 74,0,72,0,69,0,72,0],
-    [74,0,0,0,76,0,74,0, 72,0,69,0,67,0,69,0],
-    [69,0,72,0,76,0,79,0, 81,0,79,0,76,0,74,0],
-    [72,0,74,0,76,0,0,0, 74,0,72,0,69,0,67,0],
-    [79,0,76,0,79,0,81,0, 79,0,76,0,74,0,72,0],
-    [69,0,0,0,72,0,74,0, 76,0,79,0,76,0,74,0],
-  ],
-  // Walking bass
-  _bas: [
-    [45,0,0,0,48,0,0,0, 45,0,0,0,43,0,0,0],
-    [41,0,0,0,43,0,0,0, 45,0,0,0,48,0,0,0],
-    [36,0,0,0,40,0,0,0, 43,0,0,0,40,0,0,0],
-    [43,0,0,0,47,0,0,0, 50,0,0,0,47,0,0,0],
-  ],
-  _scheduleBar() {
-    if (!this._playing) return;
-    const bpm = 82, step = 60 / bpm / 2; // 82 BPM, 8th notes
-    const m = this._mel[this._bar % 8], b = this._bas[this._bar % 4];
-    const barDur = 16 * step;
-    // Chord pad — sustained underneath
-    this._pad(this._chords[this._bar % 8], barDur, 0.025, this._nextTime);
-    for (let i = 0; i < 16; i++) {
-      const t = this._nextTime + i * step;
-      // Melody: warm sine + triangle layer
-      if (m[i]) {
-        this._tone(this.hz(m[i]), step * 2.2, 'sine', 0.045, t, this._musicGain);
-        this._tone(this.hz(m[i]) * 1.001, step * 1.8, 'triangle', 0.02, t, this._musicGain);
-      }
-      // Bass: triangle with sub
-      if (b[i]) {
-        this._tone(this.hz(b[i]), step * 3.5, 'triangle', 0.04, t, this._musicGain);
-        this._tone(this.hz(b[i] - 12), step * 2, 'sine', 0.02, t, this._musicGain);
-      }
-      // Hi-hat rhythm: soft on offbeats for groove
-      if (i % 4 === 2) this._hat(0.012, t);
-      if (i % 4 === 0 && i > 0) this._hat(0.006, t);
-    }
-    this._bar++;
-    this._nextTime += barDur;
-    this._timer = setTimeout(() => this._scheduleBar(), (barDur - 0.2) * 1000);
-  },
+  // Small random pitch variation so repeated hits do not sound mechanical
+  _vary(base, spread) { return (base || 1) * (1 + (Math.random() * 2 - 1) * (spread == null ? 0.06 : spread)); },
+  _sfx(fn) { try { this.init(); if (this._ctx.state === 'suspended') this._ctx.resume(); fn.call(this); } catch(e) {} },
+
+  // --- Music: one of the loops, chosen at each start ---
   musicStart() {
     if (!this._musicOn || this._playing) return;
     this.init();
     if (this._ctx.state === 'suspended') this._ctx.resume();
-    this._playing = true; this._bar = 0;
-    this._nextTime = this._ctx.currentTime + 0.05;
-    this._scheduleBar();
+    this._playing = true;
+    let idx = Math.floor(Math.random() * this._MUSIC.length);
+    if (this._MUSIC.length > 1 && idx === this._musicIdx) idx = (idx + 1) % this._MUSIC.length;
+    this._musicIdx = idx;
+    const name = this._MUSIC[idx];
+    const token = {};
+    this._musicToken = token;
+    this._load(name).then(b => {
+      if (!b || !this._playing || this._musicToken !== token) return;
+      const src = this._ctx.createBufferSource(); src.buffer = b; src.loop = true;
+      const g = this._ctx.createGain();
+      g.gain.setValueAtTime(0, this._ctx.currentTime);
+      g.gain.linearRampToValueAtTime(1, this._ctx.currentTime + 1.5);
+      src.connect(g); g.connect(this._musicGain); src.start();
+      this._musicSrc = {src, g};
+    });
   },
-  musicStop() { this._playing = false; if (this._timer) clearTimeout(this._timer); },
+  musicStop() {
+    this._playing = false; this._musicToken = null;
+    const m = this._musicSrc; this._musicSrc = null;
+    if (m) {
+      const t = this._ctx.currentTime;
+      m.g.gain.cancelScheduledValues(t); m.g.gain.setValueAtTime(m.g.gain.value, t);
+      m.g.gain.linearRampToValueAtTime(0, t + 0.6);
+      try { m.src.stop(t + 0.65); } catch(e) {}
+    }
+  },
   musicToggle() {
     this._musicOn = !this._musicOn;
     localStorage.setItem('2pg-music', this._musicOn ? 'on' : 'off');
     if (this._musicOn) this.musicStart(); else this.musicStop();
     return this._musicOn;
   },
-  // --- SFX Library (richer multi-layered sounds) ---
-  _sfx(fn) { try { this.init(); if (this._ctx.state === 'suspended') this._ctx.resume(); fn.call(this); } catch(e){} },
-  pong() { this._sfx(function() { const t=this._ctx.currentTime; this._tone(660,0.06,'square',0.15,t,this._sfxGain); this._tone(990,0.04,'sine',0.05,t,this._sfxGain); }); },
-  pop() { this._sfx(function() { const a=this._ctx,t=a.currentTime; const o=a.createOscillator(),g=a.createGain(); o.type='sine'; o.frequency.setValueAtTime(600,t); o.frequency.exponentialRampToValueAtTime(150,t+0.12); g.gain.setValueAtTime(0.2,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.12); o.connect(g); g.connect(this._sfxGain); o.start(t); o.stop(t+0.13); this._tone(900,0.05,'triangle',0.06,t,this._sfxGain); }); },
-  score() { this._sfx(function() { const t=this._ctx.currentTime; [523,659,784,1047].forEach((f,i) => { this._tone(f,0.15,'sine',0.1,t+i*0.08,this._sfxGain); this._tone(f*1.5,0.1,'triangle',0.03,t+i*0.08,this._sfxGain); }); }); },
-  drop() { this._sfx(function() { const a=this._ctx,t=a.currentTime; this._tone(200,0.12,'triangle',0.2,t,this._sfxGain); this._tone(120,0.18,'sine',0.1,t+0.02,this._sfxGain); const b=a.createBuffer(1,a.sampleRate*0.04,a.sampleRate),d=b.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,4)*0.3; const s=a.createBufferSource(); s.buffer=b; const g=a.createGain(); g.gain.value=0.12; s.connect(g); g.connect(this._sfxGain); s.start(t); }); },
-  click() { this._sfx(function() { const t=this._ctx.currentTime; this._tone(1200,0.025,'square',0.08,t,this._sfxGain); this._tone(800,0.03,'triangle',0.1,t,this._sfxGain); }); },
-  buzz() { this._sfx(function() { const a=this._ctx,t=a.currentTime; [120,180].forEach(f => { const o=a.createOscillator(),g=a.createGain(); o.type='sawtooth'; o.frequency.value=f; g.gain.setValueAtTime(0.08,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.3); o.connect(g); g.connect(this._sfxGain); o.start(t); o.stop(t+0.3); }); this._tone(90,0.25,'square',0.05,t,this._sfxGain); }); },
-  win() { this._sfx(function() { const t=this._ctx.currentTime; const notes = [523,659,784,1047,1319]; notes.forEach((f,i) => { this._tone(f,0.35,'sine',0.1,t+i*0.1,this._sfxGain); this._tone(f*2,0.25,'triangle',0.03,t+i*0.1,this._sfxGain); this._tone(f*0.5,0.4,'triangle',0.04,t+i*0.1,this._sfxGain); }); [523,784,1047].forEach(f => this._tone(f,0.8,'sine',0.04,t+0.5,this._convolver)); }); },
-  boom() { this._sfx(function() { const a=this._ctx,t=a.currentTime; const b=a.createBuffer(1,a.sampleRate*0.6,a.sampleRate),d=b.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,2)*0.5; const s=a.createBufferSource(); s.buffer=b; const f=a.createBiquadFilter(); f.type='lowpass'; f.frequency.setValueAtTime(800,t); f.frequency.exponentialRampToValueAtTime(60,t+0.5); const g=a.createGain(); g.gain.setValueAtTime(0.4,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.6); s.connect(f); f.connect(g); g.connect(this._sfxGain); s.start(t); this._tone(40,0.4,'sine',0.2,t,this._sfxGain); this._tone(60,0.3,'triangle',0.1,t,this._sfxGain); }); },
-  shoot() { this._sfx(function() { const a=this._ctx,t=a.currentTime; const o=a.createOscillator(),g=a.createGain(); o.type='square'; o.frequency.setValueAtTime(900,t); o.frequency.exponentialRampToValueAtTime(100,t+0.12); g.gain.setValueAtTime(0.1,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.12); o.connect(g); g.connect(this._sfxGain); o.start(t); o.stop(t+0.12); const b=a.createBuffer(1,a.sampleRate*0.06,a.sampleRate),d=b.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,3)*0.15; const s=a.createBufferSource(); s.buffer=b; s.connect(this._sfxGain); s.start(t); }); },
-  clack() { this._sfx(function() { const t=this._ctx.currentTime; this._tone(900,0.04,'triangle',0.22,t,this._sfxGain); this._tone(1400,0.025,'sine',0.1,t+0.008,this._sfxGain); this._tone(600,0.03,'square',0.05,t+0.015,this._sfxGain); }); },
-  chime() { this._sfx(function() { const t=this._ctx.currentTime; [784,1047,1319].forEach((f,i) => { this._tone(f,0.25,'sine',0.1,t+i*0.06,this._sfxGain); this._tone(f*2.01,0.18,'sine',0.03,t+i*0.06,this._sfxGain); }); this._tone(784,0.4,'sine',0.04,t,this._convolver); }); },
-  splash() { this._sfx(function() { const a=this._ctx,t=a.currentTime; const b=a.createBuffer(2,a.sampleRate*0.25,a.sampleRate); for(let ch=0;ch<2;ch++) { const d=b.getChannelData(ch); for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,1.3)*0.3; } const s=a.createBufferSource(); s.buffer=b; const f=a.createBiquadFilter(); f.type='bandpass'; f.frequency.value=2500; f.Q.value=0.4; const g=a.createGain(); g.gain.value=0.28; s.connect(f); f.connect(g); g.connect(this._sfxGain); s.start(t); this._tone(200,0.08,'sine',0.06,t,this._sfxGain); }); },
-  alienDie() { this._sfx(function() { const a=this._ctx,t=a.currentTime; const o=a.createOscillator(),g=a.createGain(); o.type='sawtooth'; o.frequency.setValueAtTime(600,t); o.frequency.exponentialRampToValueAtTime(40,t+0.3); g.gain.setValueAtTime(0.12,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.3); o.connect(g); g.connect(this._sfxGain); o.start(t); o.stop(t+0.3); this._tone(300,0.15,'square',0.05,t+0.05,this._sfxGain); }); },
-  tick() { this._sfx(function() { const t=this._ctx.currentTime; this._tone(1100,0.03,'square',0.06,t,this._sfxGain); this._tone(2200,0.015,'sine',0.03,t,this._sfxGain); }); },
-  spinTick() { this._sfx(function() { const f=600+Math.random()*600; const t=this._ctx.currentTime; this._tone(f,0.04,'triangle',0.08,t,this._sfxGain); this._tone(f*1.5,0.02,'sine',0.03,t,this._sfxGain); }); },
-  gallop() { this._sfx(function() { const t=this._ctx.currentTime; this._tone(180,0.05,'triangle',0.15,t,this._sfxGain); this._tone(240,0.05,'triangle',0.12,t+0.05,this._sfxGain); this._tone(300,0.03,'sine',0.04,t+0.03,this._sfxGain); }); },
-  seedDrop() { this._sfx(function() { const t=this._ctx.currentTime; this._tone(400+Math.random()*200,0.04,'triangle',0.08,t,this._sfxGain); }); },
+
+  // --- SFX library (same names as before, so every game keeps its calls) ---
+  click() { this._sfx(function() { this._play('click', 0.6, this._vary(1, 0.08)); }); },
+  tick() { this._sfx(function() { this._play('tick', 0.5, this._vary(1, 0.08)); }); },
+  spinTick() { this._sfx(function() { this._play('tick', 0.45, this._vary(1.1, 0.25)); }); },
+  pop() { this._sfx(function() { this._play('pop', 0.6, this._vary(1, 0.08)); }); },
+  flip() { this._sfx(function() { this._play('flip', 0.9, this._vary(1, 0.08)); }); },
+  drop() { this._sfx(function() { this._play('drop', 0.9, this._vary(1, 0.1)); }); },
+  seedDrop() { this._sfx(function() { this._play('drop', 0.5, this._vary(1.25, 0.15)); }); },
+  clack() { this._sfx(function() { this._play('clack', 0.8, this._vary(1, 0.12)); }); },
+  pong() { this._sfx(function() { this._play('pong', 0.8, this._vary(1.1, 0.1)); }); },
+  score() { this._sfx(function() { this._play('score', 0.7); }); },
+  chime() { this._sfx(function() { this._play('chime', 0.7, this._vary(1, 0.04)); }); },
+  buzz() { this._sfx(function() { this._play('buzz', 0.55); }); },
+  win() { this._sfx(function() {
+    this._play('score', 0.7);
+    [1, 1.26, 1.5, 2].forEach((r, i) => this._play('chime', 0.55, r, 0.25 + i * 0.13));
+  }); },
+  boom() { this._sfx(function() { this._play('crunch', 0.8, this._vary(1, 0.1)); this._play('rumble', 0.6, this._vary(1, 0.1)); }); },
+  shoot() { this._sfx(function() { this._play('laser', 0.5, this._vary(1, 0.1)); }); },
+  cannon() { this._sfx(function() { this._play('cannon', 0.6, this._vary(0.8, 0.08)); this._play('rumble', 0.3, 1.4, 0.03); }); },
+  alienDie() { this._sfx(function() { this._play('metal', 0.5, this._vary(1.2, 0.15)); this._play('crunch', 0.3, 1.6); }); },
+  gallop() { this._sfx(function() { this._play('drop', 0.5, 0.6); this._play('drop', 0.4, 0.7, 0.07); }); },
+  splash() { this._sfx(function() { this._play('slide', 0.7, this._vary(0.9, 0.1)); }); },
+  stack() { this._sfx(function() { this._play('stack', 0.7, this._vary(1, 0.08)); }); },
 };
 
 // --- Game Instructions ---
@@ -629,7 +628,7 @@ function initMemory(area, setStatus) {
   function execFlip(i) {
     if (busy || matched[i] || (first === i)) return;
     showCard(i);
-    cardEls[i].style.background = '#3a3a6a'; SND.pop();
+    cardEls[i].style.background = '#3a3a6a'; SND.flip();
     if (first === -1) { first = i; return; }
     second = i; busy = true;
     if (cards[first] === cards[second]) {
@@ -2976,7 +2975,7 @@ function initTankWars(area, setStatus) {
   let wind = (Math.random() - 0.5) * 20;
   let dragStart = null, dragAngle = 0, dragPower = 0;
 
-  function sfxFire() { SND.shoot(); }
+  function sfxFire() { SND.cannon(); }
   function sfxBoom() { SND.boom(); }
 
   function createCrater(cx, cy, radius) {
