@@ -36,6 +36,8 @@ npx cap sync android
 cd android && ./gradlew assembleRelease
 ```
 
+Word Clash word lists: `tools/build_words.py` rebuilds the `WORD_DATA` block of `app.js` from frequency-ranked vocabulary (French forms with part of speech from the Plume keyboard project, the system English dictionary, `wordfreq` for frequencies, `tools/word_blocklist.json` last).
+
 ## Crédits / Credits
 
 © 2026 Pierre Gallaz. Développé avec [Claude Code](https://claude.com/claude-code) (Anthropic).

@@ -1,0 +1,5 @@
+v1.37 — Memory, Word Clash, home screen
+
+- Memory: the hidden guest pair is dealt face down in about one game out of three, and never changes a card during play.
+- Word Clash: the grid always fits above the letter wheel (7 rows at most, cells sized to the screen); word lists rebuilt from everyday vocabulary, no rare conjugations.
+- New look for the home screen.
