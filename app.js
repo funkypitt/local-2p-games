@@ -200,41 +200,67 @@ const RULES = {
 
 // --- Framework ---
 const GAMES = [
-  {id:'tennis',name:'Tennis',icon:'🎾',color:'#388E3C',init:initTennis},
-  {id:'four',name:'4 in a Row',icon:'🔴',color:'#D32F2F',init:initFourInARow},
-  {id:'pool',name:'Pool',icon:'🎱',color:'#1B5E20',init:initPool},
-  {id:'memory',name:'Memory',icon:'🃏',color:'#7B1FA2',init:initMemory},
-  {id:'wordclash',name:'Word Clash',icon:'📝',color:'#00897B',init:initWordClash},
-  {id:'hockey',name:'Air Hockey',icon:'🏒',color:'#0097A7',init:initAirHockey},
-  {id:'tanks',name:'Tank Wars',icon:'💣',color:'#F57F17',init:initTankWars},
-  {id:'carrom',name:'Carrom',icon:'🟤',color:'#8B4513',init:initCarrom},
-  {id:'golf',name:'Mini Golf',icon:'⛳',color:'#00796B',init:initMiniGolf},
-  {id:'starclash',name:'Star Clash',icon:'👾',color:'#C62828',init:initStarClash},
-  {id:'caro',name:'Caro',icon:'⚫',color:'#37474F',init:initCaro},
-  {id:'awale',name:'Awalé',icon:'🥜',color:'#4E342E',init:initAwale},
-  {id:'duckchess',name:'Duck-Day Chess',icon:'🦆',color:'#B71C1C',init:initDuckChess},
-  {id:'hangman',name:'Hangman',icon:'🪢',color:'#4A148C',init:initHangman},
-  {id:'reversi',name:'Reversi',icon:'⚪',color:'#1B5E20',init:initReversi},
-  {id:'horse',name:'Horse Jump',icon:'🏇',color:'#8D6E63',init:initHorseJump},
+  {id:'tennis',name:'Tennis',icon:'🎾',color:'#388E3C',init:initTennis,
+   desc:{en:'Pong with power-ups, first to 5',fr:'Pong avec bonus, premier à 5'}},
+  {id:'four',name:'4 in a Row',icon:'🔴',color:'#D32F2F',init:initFourInARow,
+   desc:{en:'Drop discs, line up four',fr:'Alignez quatre jetons'}},
+  {id:'pool',name:'Pool',icon:'🎱',color:'#1B5E20',init:initPool,
+   desc:{en:'8-ball: drag the cue to shoot',fr:'8-ball : visez et lâchez pour tirer'}},
+  {id:'memory',name:'Memory',icon:'🃏',color:'#7B1FA2',init:initMemory,
+   desc:{en:'Flip cards, collect the most pairs',fr:'Trouvez le plus de paires'}},
+  {id:'wordclash',name:'Word Clash',icon:'📝',color:'#00897B',init:initWordClash,
+   desc:{en:'Swipe letters, fill the crossword',fr:'Formez des mots, remplissez la grille'}},
+  {id:'hockey',name:'Air Hockey',icon:'🏒',color:'#0097A7',init:initAirHockey,
+   desc:{en:'Smash the puck into their goal',fr:'Le palet dans le but adverse'}},
+  {id:'tanks',name:'Tank Wars',icon:'💣',color:'#F57F17',init:initTankWars,
+   desc:{en:'Artillery duel with wind',fr:'Duel d\u2019artillerie, avec le vent'}},
+  {id:'carrom',name:'Carrom',icon:'🟤',color:'#8B4513',init:initCarrom,
+   desc:{en:'Flick the striker, pocket your colour',fr:'Empochez vos pions d\u2019une pichenette'}},
+  {id:'golf',name:'Mini Golf',icon:'⛳',color:'#00796B',init:initMiniGolf,
+   desc:{en:'Fewest strokes on every hole',fr:'Le moins de coups par trou'}},
+  {id:'starclash',name:'Star Clash',icon:'👾',color:'#C62828',init:initStarClash,
+   desc:{en:'Alien wave, combos, power-ups',fr:'Aliens partagés, combos et bonus'}},
+  {id:'caro',name:'Caro',icon:'⚫',color:'#37474F',init:initCaro,
+   desc:{en:'Five in a row on a 13\u00d713 board',fr:'Cinq à la suite, grille 13\u00d713'}},
+  {id:'awale',name:'Awalé',icon:'🥜',color:'#4E342E',init:initAwale,
+   desc:{en:'Sow seeds, capture 25 to win',fr:'Semez, capturez 25 graines'}},
+  {id:'duckchess',name:'Duck-Day Chess',icon:'🦆',color:'#B71C1C',init:initDuckChess,
+   desc:{en:'Chess with two chaotic ducks',fr:'Échecs avec deux canards fous'}},
+  {id:'hangman',name:'Hangman',icon:'🪢',color:'#4A148C',init:initHangman,
+   desc:{en:'Guess letters, reveal the word',fr:'Devinez les lettres, trouvez le mot'}},
+  {id:'reversi',name:'Reversi',icon:'⚪',color:'#1B5E20',init:initReversi,
+   desc:{en:'Flip discs, own the board',fr:'Retournez les pions, dominez'}},
+  {id:'horse',name:'Horse Jump',icon:'🏇',color:'#8D6E63',init:initHorseJump,
+   desc:{en:'Tap to jump the hurdles',fr:'Tapez pour sauter les haies'}},
 ];
+// Home-screen language: French on a French phone, English otherwise (games stay in English).
+const HOME_LANG = (new URLSearchParams(location.search).get('lang') || navigator.language || '').toLowerCase().startsWith('fr') ? 'fr' : 'en';
+const HOME_TEXT = {
+  sub: {en:'16 games \u00b7 two players \u00b7 one phone', fr:'16 jeux \u00b7 deux joueurs \u00b7 un téléphone'},
+  credits: {en:'Pierre Gallaz \u00b7 developed with Claude Code', fr:'Pierre Gallaz \u00b7 développé avec Claude Code'},
+};
 
 let currentDestroy = null;
 
 function buildMenu() {
   const menu = document.getElementById('menu');
+  const sub = menu.querySelector('#menu-head .sub');
+  if (sub) sub.textContent = HOME_TEXT.sub[HOME_LANG];
   GAMES.forEach((g, i) => {
     const card = document.createElement('div');
     card.className = 'card';
     card.style.setProperty('--i', i);
-    card.style.background = `linear-gradient(145deg,${g.color},${darkenColor(g.color,.22)})`;
-    card.innerHTML = `<span class="icon">${g.icon}</span><span class="name">${g.name}</span>`;
+    card.style.background = `linear-gradient(135deg,${g.color},${darkenColor(g.color,.28)})`;
+    card.innerHTML = `<span class="ghost" aria-hidden="true">${g.icon}</span>` +
+      `<span class="icon">${g.icon}</span>` +
+      `<span class="text"><span class="name">${g.name}</span><span class="desc">${g.desc[HOME_LANG]}</span></span>`;
     card.onclick = () => startGame(g);
     menu.appendChild(card);
   });
   // Credits footer (discreet, spans all columns)
   const credits = document.createElement('div');
   credits.className = 'menu-credits';
-  credits.textContent = 'Pierre Gallaz \u00b7 developed with Claude Code';
+  credits.textContent = HOME_TEXT.credits[HOME_LANG];
   menu.appendChild(credits);
 }
 function makeMusicBtn(parent) {

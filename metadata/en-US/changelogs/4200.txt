@@ -1,0 +1,4 @@
+v1.39 — New home screen
+
+- One tile per row: a bigger medallion, the game's name and a one-line description of how it plays, with a watermark icon in the corner.
+- Descriptions are in French on a French phone, in English otherwise.
