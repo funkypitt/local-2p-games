@@ -36,7 +36,7 @@ function showOverlay(area, msg, btnText, cb) {
 
 // Flash "Player X, your turn!" briefly over the game area on turn switch.
 // player: 1 or 2. color (optional) overrides the default per-player color.
-function flashTurn(area, player, color) {
+function flashTurn(area, player, color, text) {
   if (!area) return;
   const prev = area.querySelector('.turn-flash');
   if (prev) prev.remove();
@@ -44,7 +44,7 @@ function flashTurn(area, player, color) {
   const el = document.createElement('div');
   el.className = 'turn-flash';
   el.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:30;pointer-events:none;animation:flashTurn 1.1s ease-out forwards';
-  el.innerHTML = `<div style="background:rgba(15,15,26,0.65);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:18px 32px;border-radius:14px;border:2px solid ${c};box-shadow:0 0 24px ${c},0 0 48px ${c}40;font-size:1.6em;font-weight:900;color:${c};text-shadow:0 0 12px ${c};letter-spacing:1px">Player ${player}, your turn!</div>`;
+  el.innerHTML = `<div style="background:rgba(15,15,26,0.65);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:18px 32px;border-radius:14px;border:2px solid ${c};box-shadow:0 0 24px ${c},0 0 48px ${c}40;font-size:1.6em;font-weight:900;color:${c};text-shadow:0 0 12px ${c};letter-spacing:1px">${text || `Player ${player}, your turn!`}</div>`;
   area.appendChild(el);
   setTimeout(() => { if (el.parentNode) el.remove(); }, 1100);
 }
@@ -176,6 +176,15 @@ const SND = {
   gallop() { this._sfx(function() { this._play('drop', 0.5, 0.6); this._play('drop', 0.4, 0.7, 0.07); }); },
   splash() { this._sfx(function() { this._play('slide', 0.7, this._vary(0.9, 0.1)); }); },
   stack() { this._sfx(function() { this._play('stack', 0.7, this._vary(1, 0.08)); }); },
+  // --- Devine-moi duel (same map as the Devine-moi app, devine-moi/snd.js) ---
+  key() { this._sfx(function() { this._play('click', 0.32, this._vary(1.15, 0.06)); }); },
+  erase() { this._sfx(function() { this._play('tick', 0.35, this._vary(0.9, 0.05)); }); },
+  reveal() { this._sfx(function() { this._play('flip', 0.42, this._vary(1, 0.08)); }); },
+  tileCorrect(k) { this._sfx(function() { this._play('chime', 0.5, Math.pow(1.19, k || 0)); }); },
+  tilePresent() { this._sfx(function() { this._play('pop', 0.42, this._vary(1, 0.06)); }); },
+  invalid() { this._sfx(function() { this._play('buzz', 0.5); }); },
+  lose() { this._sfx(function() { this._play('bong', 0.6, 0.8); this._play('bong', 0.5, 0.6, 0.22); }); },
+  turn() { this._sfx(function() { this._play('pop', 0.5, 1); this._play('pop', 0.5, 1.25, 0.09); }); },
 };
 
 // --- Game Instructions ---
@@ -193,12 +202,15 @@ const RULES = {
   caro: 'Gomoku variant on a 13x13 board. Place stones on intersections. Get exactly 5 in a row (horizontal, vertical, or diagonal) to win. Black goes first.',
   awale: 'West African seed-sowing game. Tap a pit on your side to sow seeds counter-clockwise. If your last seed lands in an opponent\'s pit making it 2 or 3 seeds, you capture them (plus any consecutive 2s or 3s behind). First to capture 25+ seeds wins.',
   duckchess: 'Duck-Day Chess — asymmetric chess variant with two chaotic ducks! Standard FIDE rules apply, but after each move you place the Yellow Duck (blocks all pieces). A Red Duck teleports randomly and fires a laser every 5 moves, vaporizing an adjacent piece. Kings are immune to the laser for the first 25 moves — after that, the Red Duck can vaporize Kings too! Checkmate to win!',
+  devine: 'Duel de mots. Chaque manche tire au sort un nouveau mot de 5 lettres, jamais un mot déjà joué récemment : rejouez et prenez votre revanche autant que vous voulez. Vous partagez la même grille et proposez un mot chacun votre tour : 6 essais en tout, trois chacun. Après chaque essai, les lettres se colorent : vert = bien placée, ambre = dans le mot mais ailleurs, gris = absente. Les accents ne comptent pas. Points : 2 par lettre que vous placez en vert pour la première fois, 1 par lettre que vous révélez en ambre pour la première fois, +5 si vous trouvez le mot. Un mot hors dictionnaire ne compte pas : vous rejouez. Partie en 3 manches, le premier joueur change à chaque manche ; égalité = manche décisive.',
   hangman: 'Classic turn-based hangman. On your turn, pick a letter. Right guess: you score 1 point per matching letter and play again. Wrong guess: a body part is added to the gallows and the turn passes. Reveal the full word to win all your collected points. 6 wrong guesses total = both players lose the round.',
   reversi: 'Reversi / Othello on an 8×8 board. Black goes first. Place a disc so that one or more straight lines (horizontal, vertical, or diagonal) of opponent discs are sandwiched between your new disc and one of yours already on the board — every disc on those lines flips to your colour. Hint dots show your legal moves. If you have no move, you pass. Game ends when neither player can move — most discs wins.',
   horse: 'Horse racing / jumping. Each player taps their side of the screen to make their horse jump over obstacles. Time your jumps to clear hurdles. The horse that gets furthest or survives longest wins.',
 };
 
 // --- Framework ---
+// Home-screen language: French on a French phone, English otherwise (games stay in English).
+const HOME_LANG = (new URLSearchParams(location.search).get('lang') || navigator.language || '').toLowerCase().startsWith('fr') ? 'fr' : 'en';
 const GAMES = [
   {id:'tennis',name:'Tennis',icon:'🎾',color:'#388E3C',init:initTennis,
    desc:{en:'Pong with power-ups, first to 5',fr:'Pong avec bonus, premier à 5'}},
@@ -226,15 +238,17 @@ const GAMES = [
    desc:{en:'Sow seeds, capture 25 to win',fr:'Semez, capturez 25 graines'}},
   {id:'duckchess',name:'Duck-Day Chess',icon:'🦆',color:'#B71C1C',init:initDuckChess,
    desc:{en:'Chess with two chaotic ducks',fr:'Échecs avec deux canards fous'}},
-  {id:'hangman',name:'Hangman',icon:'🪢',color:'#4A148C',init:initHangman,
-   desc:{en:'Guess letters, reveal the word',fr:'Devinez les lettres, trouvez le mot'}},
+  // On a French phone the word duel Devine-moi takes Hangman's place (same slot, same purple family).
+  ...(HOME_LANG === 'fr'
+    ? [{id:'devine',name:'Devine-moi',icon:'🔤',color:'#3F2A8C',init:initDevine,
+        desc:{en:'Guess the 5-letter word, turn by turn',fr:'Le mot de 5 lettres, à tour de rôle'}}]
+    : [{id:'hangman',name:'Hangman',icon:'🪢',color:'#4A148C',init:initHangman,
+        desc:{en:'Guess letters, reveal the word',fr:'Devinez les lettres, trouvez le mot'}}]),
   {id:'reversi',name:'Reversi',icon:'⚪',color:'#1B5E20',init:initReversi,
    desc:{en:'Flip discs, own the board',fr:'Retournez les pions, dominez'}},
   {id:'horse',name:'Horse Jump',icon:'🏇',color:'#8D6E63',init:initHorseJump,
    desc:{en:'Tap to jump the hurdles',fr:'Tapez pour sauter les haies'}},
 ];
-// Home-screen language: French on a French phone, English otherwise (games stay in English).
-const HOME_LANG = (new URLSearchParams(location.search).get('lang') || navigator.language || '').toLowerCase().startsWith('fr') ? 'fr' : 'en';
 const HOME_TEXT = {
   sub: {en:'16 games \u00b7 two players \u00b7 one phone', fr:'16 jeux \u00b7 deux joueurs \u00b7 un téléphone'},
   credits: {en:'Pierre Gallaz \u00b7 developed with Claude Code', fr:'Pierre Gallaz \u00b7 développé avec Claude Code'},
@@ -311,7 +325,7 @@ function startGame(g) {
     ro.innerHTML = `<button style="position:absolute;top:12px;right:16px;background:none;border:none;color:#fff;font-size:2em;cursor:pointer;line-height:1;opacity:0.85" id="rules-x">&times;</button>` +
       `<div style="font-size:1.2em;font-weight:bold;margin-bottom:12px">${g.icon} ${g.name}</div>` +
       `<div style="max-width:340px;text-align:center;font-size:.9em;line-height:1.5;color:#ccc;padding:0 16px">${RULES[g.id] || 'No instructions available.'}</div>` +
-      `<button class="btn" style="margin-top:16px">Got it</button>`;
+      `<button class="btn" style="margin-top:16px">${g.id === 'devine' ? 'Compris' : 'Got it'}</button>`;
     ro.querySelector('#rules-x').onclick = () => ro.remove();
     ro.querySelector('.btn').onclick = () => ro.remove();
     area.appendChild(ro);
@@ -322,6 +336,7 @@ function startGame(g) {
   function setStatusFn(s) {
     let h = s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
     h = h.replace(/(P[12])'s turn/g, '<span class="turn-active" style="color:#FFD54F">$1\'s turn</span>');
+    h = h.replace(/(J[12] joue)/g, '<span class="turn-active" style="color:#FFD54F">$1</span>');
     h = h.replace(/(Black's Turn)/g, '<span class="turn-active" style="color:#ccc">$1</span>');
     h = h.replace(/(White's Turn)/g, '<span class="turn-active" style="color:#fff">$1</span>');
     status.innerHTML = h;
@@ -4242,6 +4257,174 @@ function initCaro(area, setStatus) {
   }
 
   return () => {};
+}
+
+// ==================== DEVINE-MOI (word duel, French phones) ====================
+// Shared logic and widgets come from the Devine-moi app (devine-core.js, devine-ui.js, devine-ui.css,
+// devine-words.js), copied here by devine-moi/tools/sync_to_2p.sh: fix them there, not here.
+function initDevine(area, setStatus) {
+  const C = DevineCore, UI = DevineUI, W = C.prepare(window.DEVINE_WORDS);
+  const LEN = 5, ROWS = 6, ROUNDS = 3;
+  const COL = ['#FF6B6B', '#64B5F6'];                 // P1 red, P2 blue, as everywhere in 2P Games
+  let round = 0, scores = [0, 0], turn = 0, starter = 0;
+  let answer = '', guesses = [], evals = [], input = '', busy = false, over = false, destroyed = false;
+  const timers = [];
+  // No word of the day here: every round draws a random word, so a rematch can follow at once.
+  // The last 300 words drawn on this phone are remembered so a rematch never brings one back.
+  const RECENT_KEY = 'devine-duel-recent', RECENT_MAX = 300;
+  let recent = [];
+  try { recent = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); } catch (e) {}
+  function drawWord() {
+    const w = C.randomAnswer(W, LEN, Math.random, new Set(recent));
+    recent = recent.filter(x => x !== w).concat(w).slice(-RECENT_MAX);
+    try { localStorage.setItem(RECENT_KEY, JSON.stringify(recent)); } catch (e) {}
+    return w;
+  }
+  const later = (fn, ms) => timers.push(setTimeout(() => { if (!destroyed) fn(); }, ms));
+
+  const wrap = document.createElement('div');
+  wrap.className = 'dv-wrap';
+  wrap.innerHTML =
+    '<div class="dv-score">' +
+      '<div class="dv-player" data-p="0"><span class="dv-name">Joueur 1</span><b class="dv-pts">0</b><i class="dv-gain"></i></div>' +
+      '<div class="dv-round"></div>' +
+      '<div class="dv-player" data-p="1"><span class="dv-name">Joueur 2</span><b class="dv-pts">0</b><i class="dv-gain"></i></div>' +
+    '</div>' +
+    '<div class="dv-stage"><div class="dv-board"></div></div>' +
+    '<div class="dv-kbd"></div>';
+  area.appendChild(wrap);
+  const stage = wrap.querySelector('.dv-stage');
+  const board = UI.createBoard(wrap.querySelector('.dv-board'), { len: LEN, rows: ROWS });
+  const kb = UI.createKeyboard(wrap.querySelector('.dv-kbd'), {
+    onKey, onEnter, onBackspace, enterLabel: 'Entrée',
+    layout: C.keyboardLayoutFor((navigator.languages && navigator.languages[0]) || navigator.language),
+  });
+
+  function fit() {
+    const r = stage.getBoundingClientRect();
+    board.fit(Math.min(r.width - 40, 400), r.height - 8, 58);
+  }
+  function renderScores() {
+    wrap.querySelectorAll('.dv-player').forEach(el => {
+      const p = +el.dataset.p;
+      el.classList.toggle('dv-active', !over && p === turn);
+      el.style.setProperty('--pc', COL[p]);
+      el.querySelector('.dv-pts').textContent = scores[p];
+    });
+    wrap.querySelector('.dv-round').textContent = round < ROUNDS ? `Manche ${round + 1}/${ROUNDS}` : 'Manche décisive';
+  }
+  function gain(p, pts) {
+    if (!pts) return;
+    const g = wrap.querySelector(`.dv-player[data-p="${p}"] .dv-gain`);
+    g.textContent = '+' + pts; g.classList.remove('dv-show'); void g.offsetWidth; g.classList.add('dv-show');
+  }
+  function setTurn(p) {
+    turn = p;
+    kb.setAccent(COL[p]);
+    board.markRow(guesses.length, COL[p]);
+    renderScores();
+    setStatus(`J${p + 1} joue`);
+  }
+
+  function newRound() {
+    answer = drawWord();
+    guesses = []; evals = []; input = ''; busy = false; over = false;
+    starter = round % 2;
+    board.reset(LEN, ROWS); fit();
+    kb.setStates({}); kb.setEnabled(true);
+    setTurn(starter);
+  }
+
+  function onKey(ch) {
+    if (busy || over || input.length >= LEN) return;
+    input += ch; SND.key(); board.setRow(guesses.length, input);
+  }
+  function onBackspace() {
+    if (busy || over || !input) return;
+    input = input.slice(0, -1); SND.erase(); board.setRow(guesses.length, input);
+  }
+  function reject(msg) { SND.invalid(); board.shakeRow(guesses.length); UI.toast(stage, msg); }
+
+  function onEnter() {
+    if (busy || over) return;
+    if (input.length < LEN) return reject('Pas assez de lettres');
+    if (!C.isAllowed(W, LEN, input)) return reject('Pas dans le dictionnaire, rejouez');
+    const guess = input, r = guesses.length, ev = C.evaluate(guess, answer);
+    const sc = C.scoreGuess(ev, evals, guess, guesses);
+    busy = true; kb.setEnabled(false); input = '';
+    let k = 0;
+    board.revealRow(r, ev, {
+      onTileStart: () => SND.reveal(),
+      onTile: (i, s) => { if (s === 'c') SND.tileCorrect(k++); else if (s === 'p') SND.tilePresent(); },
+      onDone: () => {
+        if (destroyed) return;
+        guesses.push(guess); evals.push(ev);
+        board.ownRow(r, COL[turn]);
+        scores[turn] += sc.points; gain(turn, sc.points);
+        kb.setStates(C.keyboardStates(guesses, evals));
+        if (sc.win) {
+          over = true; renderScores(); SND.win();
+          board.markRow(null);
+          board.bounceRow(r, { onDone: () => endRound(`Joueur ${turn + 1} a trouvé !`) });
+          return;
+        }
+        if (guesses.length >= ROWS) {
+          over = true; renderScores(); SND.lose(); board.markRow(null);
+          later(() => endRound('Personne n’a trouvé.'), 500);
+          return;
+        }
+        const next = 1 - turn;
+        SND.turn();
+        flashTurn(area, next + 1, COL[next], `Joueur ${next + 1}, à vous !`);
+        setTurn(next);
+        busy = false; kb.setEnabled(true);
+      },
+    });
+  }
+
+  function endRound(reason) {
+    if (destroyed) return;
+    const word = C.displayWord(W, LEN, answer);
+    const tally = `<span style="color:${COL[0]}">J1 : ${scores[0]}</span> &nbsp;·&nbsp; <span style="color:${COL[1]}">J2 : ${scores[1]}</span>`;
+    const wordHtml = `<div style="font:700 1.6em/1.2 'DM Plaque',Georgia,serif;letter-spacing:.08em;margin:6px 0 2px">${word}</div>`;
+    const finished = round >= ROUNDS - 1 && scores[0] !== scores[1];
+    setStatus(finished ? 'Fin de partie' : 'Fin de manche');
+    later(() => {
+      if (finished) {
+        const w = scores[0] > scores[1] ? 0 : 1;
+        SND.win();
+        showOverlay(area, `${reason}${wordHtml}<div style="font-size:.85em;margin-bottom:10px">${tally}</div>` +
+          `<div style="color:${COL[w]};font-size:1.25em">Joueur ${w + 1} gagne la partie !</div>`, 'Revanche', restart);
+      } else {
+        const tie = round >= ROUNDS - 1;
+        showOverlay(area, `${reason}${wordHtml}<div style="font-size:.85em">${tally}</div>` +
+          (tie ? '<div style="margin-top:8px">Égalité : manche décisive !</div>' : ''),
+          tie ? 'Manche décisive' : 'Manche suivante', () => { round++; newRound(); });
+      }
+    }, 700);
+  }
+
+  function restart() { round = 0; scores = [0, 0]; newRound(); }   // rematch: fresh words, see drawWord()
+
+  // physical keyboard (desktop, tablets with a keyboard)
+  function onKeydown(e) {
+    if (area.querySelector('.overlay') || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === 'Enter') { e.preventDefault(); kb.flash('ENTER'); onEnter(); }
+    else if (e.key === 'Backspace') { e.preventDefault(); kb.flash('BACK'); onBackspace(); }
+    else { const ch = C.norm(e.key); if (ch.length === 1) { kb.flash(ch); onKey(ch); } }
+  }
+  document.addEventListener('keydown', onKeydown);
+  window.addEventListener('resize', fit);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (!destroyed) fit(); });
+
+  newRound();
+  return () => {
+    destroyed = true;
+    timers.forEach(clearTimeout);
+    document.removeEventListener('keydown', onKeydown);
+    window.removeEventListener('resize', fit);
+    board.destroy(); kb.destroy();
+  };
 }
 
 // ==================== HANGMAN ====================

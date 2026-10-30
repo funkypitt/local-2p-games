@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Funky's 2P Games</title>
+<link rel="stylesheet" href="devine-ui.css">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100%;overflow:hidden;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#0f0f1a;color:#f0f0f0;touch-action:none;user-select:none;-webkit-user-select:none}
@@ -39,7 +40,7 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:system-ui,-apple-sy
 #game{display:none;flex-direction:column;height:100vh;width:100vw}
 #game-header{display:flex;align-items:center;padding:10px 14px;padding-top:calc(10px + env(safe-area-inset-top));background:#1a1a2e;border-bottom:1px solid rgba(255,255,255,.08);gap:10px;min-height:52px;z-index:10}
 #back-btn{background:none;border:none;color:#f0f0f0;font-size:1.5em;cursor:pointer;padding:6px 10px;min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center}
-#game-title{font-weight:700;font-size:1.15em;flex:1}
+#game-title{font-weight:700;font-size:1.15em;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #game-status{font-size:1.2em;color:#FFD54F;font-weight:700;text-shadow:0 1px 4px rgba(0,0,0,.5);white-space:nowrap}
 #game-status .turn-active{font-size:1.15em;font-weight:900;text-shadow:0 0 8px currentColor,0 0 16px currentColor;animation:turnPulse 1.5s ease-in-out infinite}
 @keyframes turnPulse{0%,100%{opacity:1}50%{opacity:0.7}}
@@ -53,6 +54,20 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:system-ui,-apple-sy
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 .overlay .btn{font-size:1em;padding:10px 24px}
 @keyframes flashTurn{0%{opacity:0;transform:scale(0.7)}15%{opacity:1;transform:scale(1.05)}30%{transform:scale(1)}75%{opacity:1}100%{opacity:0;transform:scale(1)}}
+/* ---- Devine-moi duel (board and keyboard styles: devine-ui.css) ---- */
+.dv-wrap{display:flex;flex-direction:column;width:100%;height:100%;max-width:560px;padding:10px 4px calc(10px + env(safe-area-inset-bottom))}
+.dv-score{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 10px 4px}
+.dv-player{position:relative;display:flex;flex-direction:column;align-items:center;min-width:92px;padding:6px 12px;border-radius:14px;border:1.5px solid rgba(255,255,255,.08);opacity:.5;transition:all .3s}
+.dv-player .dv-name{font-size:.78em;color:var(--pc)}
+.dv-player .dv-pts{font-size:1.5em;font-weight:900;line-height:1.1;font-variant-numeric:tabular-nums}
+.dv-player.dv-active{opacity:1;border-color:var(--pc);box-shadow:0 0 16px color-mix(in srgb,var(--pc) 45%,transparent);background:color-mix(in srgb,var(--pc) 12%,transparent)}
+.dv-round{font-size:.85em;color:rgba(240,240,255,.6);text-align:center}
+.dv-gain{position:absolute;top:-6px;right:-6px;font-style:normal;font-weight:900;color:#FFD54F;opacity:0;pointer-events:none}
+.dv-gain.dv-show{animation:dvGain 1.2s ease-out}
+@keyframes dvGain{0%{opacity:0;transform:translateY(6px)}20%{opacity:1;transform:translateY(-4px)}80%{opacity:1}100%{opacity:0;transform:translateY(-14px)}}
+.dv-stage{flex:1;min-height:0;position:relative;display:flex;align-items:center;justify-content:center}
+.dv-kbd{padding-top:6px}
+.dv-kbd .dm-key[data-key="ENTER"]{color:#0c1430;font-weight:700}  /* readable on the light player colours */
 @keyframes rvPlace{0%{transform:scale(0)}60%{transform:scale(1.1)}100%{transform:scale(1)}}
 </style>
 </head>
@@ -71,6 +86,9 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:system-ui,-apple-sy
 </div>
 <div id="game-area"></div>
 </div>
+<script src="devine-words.js"></script>
+<script src="devine-core.js"></script>
+<script src="devine-ui.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

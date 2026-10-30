@@ -10,6 +10,8 @@
 
 - The games: Tennis, 4 in a Row, Pool, Memory, Word Clash, Air Hockey, Tank Wars, Carrom,
   Mini Golf, Star Clash, Caro, Awalé, Duck-Day Chess, Hangman, Reversi, Horse Jump.
+- On a French phone, Hangman gives way to **Devine-moi**, a turn-by-turn duel on the French
+  five-letter word game of the same name: shared grid, points for every new green or amber letter.
 - Two players on one phone. The app needs no connection and asks for no permission.
 - A game ends on a button to play again, except Pool and Mini Golf: reopen them from the menu.
 - Sounds are synthesised; there are no audio files. No tracking.
@@ -31,17 +33,19 @@ Capacitor (Android) wrapping a vanilla HTML/JS web app. All the game logic lives
 
 ```
 npm install
-mkdir -p www && cp -r index.html app.js felix.png audio www/
+mkdir -p www && cp -r index.html app.js felix.png audio fonts devine-core.js devine-ui.js devine-ui.css devine-words.js www/
 npx cap sync android
 cd android && ./gradlew assembleRelease
 ```
+
+Devine-moi files (`devine-core.js`, `devine-ui.js`, `devine-ui.css`, `devine-words.js`, `fonts/`) are copied from the [Devine-moi](https://github.com/funkypitt/devine-moi) repo by its `tools/sync_to_2p.sh`; fix them there.
 
 Word Clash word lists: `tools/build_words.py` rebuilds the `WORD_DATA` block of `app.js` from frequency-ranked vocabulary (French forms with part of speech from the Plume keyboard project, the system English dictionary, `wordfreq` for frequencies, `tools/word_blocklist.json` last).
 
 ## Crédits / Credits
 
-Sons : packs CC0 de [Kenney](https://kenney.nl) (interface, casino, sci-fi). Musique : « Sherwood » de Chris Murphy (CC0) et « Lofi Hip Hop Loop » d'omfgdude (CC0), via OpenGameArt.
-Sounds: CC0 packs by [Kenney](https://kenney.nl) (interface, casino, sci-fi). Music: "Sherwood" by Chris Murphy (CC0) and "Lofi Hip Hop Loop" by omfgdude (CC0), via OpenGameArt.
+Sons : packs CC0 de [Kenney](https://kenney.nl) (interface, casino, sci-fi). Mots de Devine-moi : Lexique 3 (CC BY-SA 4.0) et Dicollecte (MPL 2.0) ; police Fraunces (OFL). Musique : « Sherwood » de Chris Murphy (CC0) et « Lofi Hip Hop Loop » d'omfgdude (CC0), via OpenGameArt.
+Sounds: CC0 packs by [Kenney](https://kenney.nl) (interface, casino, sci-fi). Devine-moi words: Lexique 3 (CC BY-SA 4.0) and Dicollecte (MPL 2.0); Fraunces font (OFL). Music: "Sherwood" by Chris Murphy (CC0) and "Lofi Hip Hop Loop" by omfgdude (CC0), via OpenGameArt.
 
 © 2026 Pierre Gallaz. Développé avec [Claude Code](https://claude.com/claude-code) (Anthropic).
 Licence MIT, voir `LICENSE`.

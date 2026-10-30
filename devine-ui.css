@@ -1,0 +1,88 @@
+/* Devine-moi — shared board / keyboard / toast styles (also loaded by Funky's 2P Games).
+   Everything is prefixed dm- so it never collides with the host page.
+   The tiles are Paris street plaques: enamel field, thin white rim, serif capitals. */
+@font-face{font-family:"DM Plaque";src:url("fonts/Fraunces-tile.woff2") format("woff2");font-weight:700;font-display:swap}
+:root{
+  --dm-night:#0c1430;
+  --dm-enamel:#1c3a74;          /* plaque blue: a typed, not yet checked letter */
+  --dm-enamel-hi:#2a4f95;
+  --dm-rim:#eef1ec;             /* white enamel rim and letters */
+  --dm-correct:#1d8a57;  --dm-correct-hi:#27a96b;
+  --dm-present:#dc9e1e;  --dm-present-hi:#f0b93a;  --dm-present-ink:#16233f;
+  --dm-absent:#2c3348;   --dm-absent-ink:rgba(238,241,236,.5);
+  --dm-slot:rgba(238,241,236,.045); --dm-slot-line:rgba(238,241,236,.13);
+  --dm-key:#1f2a4c; --dm-key-hi:#2b3966; --dm-key-ink:#eef1ec;
+  --dm-gap:6px;
+}
+.dm-hc{ /* high contrast (colour-blind friendly): orange / sky blue, plus a corner mark */
+  --dm-correct:#e8702a; --dm-correct-hi:#f58a45;
+  --dm-present:#5aa9e6; --dm-present-hi:#7cbdf0; --dm-present-ink:#0c1430;
+}
+
+/* ---- Board ---- */
+.dm-board{--tile:58px;display:grid;gap:var(--dm-gap);justify-content:center;perspective:700px;user-select:none;-webkit-user-select:none}
+.dm-row{display:grid;grid-auto-flow:column;gap:var(--dm-gap);position:relative}
+.dm-row.dm-marked::before{content:"";position:absolute;left:-14px;top:50%;width:7px;height:7px;margin-top:-3.5px;border-radius:50%;background:var(--row-mark,#fff);box-shadow:0 0 8px var(--row-mark,#fff)}
+.dm-row.dm-owned::before{content:"";position:absolute;left:-14px;top:50%;width:7px;height:7px;margin-top:-3.5px;border-radius:50%;background:var(--row-owner,#fff);opacity:.7}
+.dm-tile{position:relative;width:var(--tile);height:var(--tile);border-radius:calc(var(--tile)*.17);
+  display:flex;align-items:center;justify-content:center;
+  font-family:"DM Plaque",Georgia,"Times New Roman",serif;font-weight:700;font-size:calc(var(--tile)*.56);line-height:1;
+  color:var(--dm-rim);background:var(--dm-slot);box-shadow:inset 0 0 0 1.5px var(--dm-slot-line),inset 0 2px 6px rgba(0,0,0,.35);
+  transform-style:preserve-3d;backface-visibility:hidden}
+.dm-tile>span{position:relative;z-index:1;transform:translateY(.02em)}
+/* enamel: field + inset white rim + edge thickness + glaze highlight */
+.dm-tile[data-state]:not([data-state="empty"]){
+  background:linear-gradient(180deg,var(--f-hi) 0%,var(--f) 55%,var(--f) 100%);
+  box-shadow:inset 0 0 0 calc(var(--tile)*.055) var(--f),inset 0 0 0 calc(var(--tile)*.08) var(--rim-c,var(--dm-rim)),
+             0 3px 0 rgba(0,0,0,.38),0 6px 14px rgba(0,0,0,.25)}
+.dm-tile[data-state]:not([data-state="empty"])::after{content:"";position:absolute;inset:calc(var(--tile)*.1);border-radius:calc(var(--tile)*.09);
+  background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,0) 45%);pointer-events:none}
+.dm-tile[data-state="filled"]{--f:var(--dm-enamel);--f-hi:var(--dm-enamel-hi)}
+.dm-tile[data-state="c"]{--f:var(--dm-correct);--f-hi:var(--dm-correct-hi)}
+.dm-tile[data-state="p"]{--f:var(--dm-present);--f-hi:var(--dm-present-hi);color:var(--dm-present-ink);--rim-c:var(--dm-present-ink)}
+.dm-tile[data-state="a"]{--f:var(--dm-absent);--f-hi:var(--dm-absent);color:var(--dm-absent-ink);--rim-c:rgba(238,241,236,.14)}
+.dm-tile[data-state="a"]::after{display:none}
+/* colour-blind marks: a dot for "right place", a diamond for "elsewhere" */
+.dm-hc .dm-tile[data-state="c"]>span::after,.dm-hc .dm-tile[data-state="p"]>span::after{content:"";position:absolute;right:-.42em;bottom:.02em;width:.16em;height:.16em;background:currentColor}
+.dm-hc .dm-tile[data-state="c"]>span::after{border-radius:50%}
+.dm-hc .dm-tile[data-state="p"]>span::after{transform:rotate(45deg)}
+
+.dm-tile.dm-pop{animation:dmPop .11s ease-out}
+.dm-tile.dm-flip-out{animation:dmFlipOut .21s ease-in forwards}
+.dm-tile.dm-flip-in{animation:dmFlipIn .21s ease-out}
+.dm-row.dm-shake{animation:dmShake .4s ease-in-out}
+.dm-tile.dm-bounce{animation:dmBounce .5s cubic-bezier(.3,.6,.4,1)}
+@keyframes dmPop{0%{transform:scale(1)}50%{transform:scale(1.08)}100%{transform:scale(1)}}
+@keyframes dmFlipOut{from{transform:rotateX(0)}to{transform:rotateX(90deg)}}
+@keyframes dmFlipIn{from{transform:rotateX(-90deg)}to{transform:rotateX(0)}}
+@keyframes dmShake{0%,100%{transform:translateX(0)}12%,62%{transform:translateX(-6px)}37%,87%{transform:translateX(6px)}}
+@keyframes dmBounce{0%,100%{transform:translateY(0)}40%{transform:translateY(-22%)}70%{transform:translateY(3%)}}
+
+/* ---- Keyboard (AZERTY / QWERTZ / QWERTY) ---- */
+.dm-kbd{display:flex;flex-direction:column;gap:7px;width:100%;max-width:520px;margin:0 auto;padding:0 5px;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.dm-kbd-row{display:flex;gap:5px;justify-content:center}
+.dm-key{flex:1 1 0;min-width:0;height:50px;border:0;border-radius:8px;padding:0;
+  background:var(--dm-key);color:var(--dm-key-ink);font:600 1.02rem/1 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  box-shadow:0 2px 0 rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.07);cursor:pointer;-webkit-tap-highlight-color:transparent;
+  transition:background .25s,color .25s,transform .06s;display:flex;align-items:center;justify-content:center}
+.dm-key-half{flex:.5 1 0}
+.dm-key.dm-wide{flex-grow:1.55;font-size:.8rem;letter-spacing:.01em}
+.dm-key:active,.dm-key.dm-down{transform:scale(.92);background:var(--dm-key-hi)}
+.dm-key:focus-visible{outline:2px solid var(--dm-rim);outline-offset:2px}
+.dm-key[data-state="c"]{background:var(--dm-correct)}
+.dm-key[data-state="p"]{background:var(--dm-present);color:var(--dm-present-ink)}
+.dm-key[data-state="a"]{background:#151b31;color:rgba(238,241,236,.3);box-shadow:none}
+.dm-key[data-key="ENTER"]{background:var(--dm-accent,var(--dm-key-hi))}
+.dm-kbd.dm-off .dm-key{pointer-events:none}
+.dm-key svg{width:22px;height:22px}
+
+/* ---- Toasts ---- */
+.dm-toasts{position:absolute;left:0;right:0;top:12px;display:flex;flex-direction:column;align-items:center;gap:6px;z-index:40;pointer-events:none}
+.dm-toast{background:var(--dm-rim);color:var(--dm-night);font:600 .92rem/1.2 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  padding:9px 15px;border-radius:9px;box-shadow:0 6px 20px rgba(0,0,0,.4);animation:dmToastIn .16s ease-out;transition:opacity .3s}
+.dm-toast.dm-out{opacity:0}
+@keyframes dmToastIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+
+@media (prefers-reduced-motion:reduce){
+  .dm-tile.dm-pop,.dm-tile.dm-flip-out,.dm-tile.dm-flip-in,.dm-tile.dm-bounce,.dm-row.dm-shake{animation:none}
+}
