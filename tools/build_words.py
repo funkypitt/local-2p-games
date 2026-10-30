@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Rebuild the WORD_DATA block of app.js (Word Clash) from frequency-ranked word lists.
+"""Rebuild the WORD_DATA block of app.js (Word Clash, English) from frequency-ranked word lists.
+French lives in wordclash-fr.js since 1.42: tools/build_wordclash_fr.py.
 
 Sources
   French  : Plume's inventory (~/code/plume/data/inventaire_fr.tsv.gz = Lexique383 +
@@ -153,7 +154,7 @@ def pick_anchors(words, lang):
 
 def render(data):
     lines = ["const WORD_DATA = {"]
-    for lang in ("en", "fr"):
+    for lang in ("en",):
         lines.append(f"  {lang}: [")
         for p in data[lang]:
             ws = ",".join(f"'{w}'" for w in p["words"])
@@ -165,9 +166,9 @@ def render(data):
 
 def main():
     report = "--report" in sys.argv
-    lists = {"fr": apply_blocklist(french_words(), "fr"), "en": apply_blocklist(english_words(), "en")}
-    data = {lang: pick_anchors(lists[lang], lang) for lang in ("en", "fr")}
-    for lang in ("en", "fr"):
+    lists = {"en": apply_blocklist(english_words(), "en")}
+    data = {lang: pick_anchors(lists[lang], lang) for lang in ("en",)}
+    for lang in ("en",):
         words = lists[lang]
         print(f"[{lang}] {len(words)} words kept (zipf >= {ZIPF_MIN[lang]}), {len(data[lang])} anchors", file=sys.stderr)
         if report:

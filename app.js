@@ -193,7 +193,6 @@ const RULES = {
   four: 'Classic Connect 4. Tap a column to drop your disc. Get 4 in a row (horizontal, vertical, or diagonal) to win. Red goes first.',
   pool: '8-ball pool. Drag from the cue ball to aim and set power, then release to shoot. Sink all your balls (stripes or solids, assigned on first pot) then the 8-ball to win. Potting the cue ball is a foul — opponent gets ball-in-hand.',
   memory: 'Flip 2 cards per turn. If they match, you keep them and go again. If not, they flip back and it\'s the opponent\'s turn. The player with the most pairs wins.',
-  wordclash: 'Word puzzle duel. Both players share a crossword grid built from one set of scrambled letters. Take turns swiping letters on the wheel to form words. Grid words fill in your color and score = word length. Bonus words (valid but not on grid) score 1 point. You get 3 tries per turn — each word attempt (right or wrong) and each hint counts as 1 try. Game ends when the grid is complete — highest score wins.',
   hockey: 'Air hockey. Drag your mallet (bottom = P1, top = P2) to hit the puck into the opponent\'s goal. Mallet speed matters — a fast swipe smashes the puck (sparks!), a gentle one taps. First to 5 wins.',
   tanks: 'Artillery duel. On your turn, drag to adjust angle and power, then tap FIRE. Wind affects the shot. Damage depends on how close the shell lands. Destroy the opponent\'s tank to win.',
   carrom: 'Indian flicking board game. 19 pieces: 9 white, 9 black, and the red Queen. Tap your baseline to slide the striker laterally, then drag away from the striker (slingshot) to aim and release to flick. Pocket your colour (P1 white, P2 black) to score 1 point and play again. Pocket opponent\'s colour: they score, your turn ends. Pocket the Queen: you keep flicking, but you must "cover" the Queen by pocketing one of your own pieces in the same or next shot — succeed and you score 3, fail and the Queen returns to the centre. Pocketing the striker is a foul: return one of your pieces, the Queen returns if pending, and your turn ends. First to pocket all 9 of your colour wins.',
@@ -250,6 +249,7 @@ const GAMES = [
    desc:{en:'Tap to jump the hurdles',fr:'Tapez pour sauter les haies'}},
 ];
 const HOME_TEXT = {
+  title: {en:'Funky\'s 2P Games', fr:'Les jeux à deux de Pierre'},
   sub: {en:'16 games \u00b7 two players \u00b7 one phone', fr:'16 jeux \u00b7 deux joueurs \u00b7 un téléphone'},
   credits: {en:'Pierre Gallaz \u00b7 developed with Claude Code', fr:'Pierre Gallaz \u00b7 développé avec Claude Code'},
 };
@@ -260,6 +260,9 @@ function buildMenu() {
   const menu = document.getElementById('menu');
   const sub = menu.querySelector('#menu-head .sub');
   if (sub) sub.textContent = HOME_TEXT.sub[HOME_LANG];
+  menu.querySelector('#menu-head h1').textContent = HOME_TEXT.title[HOME_LANG];
+  document.title = HOME_TEXT.title[HOME_LANG];
+  document.documentElement.lang = HOME_LANG;
   GAMES.forEach((g, i) => {
     const card = document.createElement('div');
     card.className = 'card';
@@ -2396,572 +2399,491 @@ const WORD_DATA = {
     {anchor:'TRAVELS',words:['TRAVELS','TRAVEL','ALERTS','STARVE','LATER','LEAST','RATES','TEARS','STEAL','ALERT','SLAVE','LASER','TALES','ALTER','STARE','SLATE','STALE','LAST','REAL','LATE','REST','STAR','EAST','RATE','SAVE','SALE','SEAT','ARTS','SALT','LETS','VAST','EARS','TEAR','SEAL','TALE','EARL','RATS','EATS','VEST','VALE','LEST','VASE','RAVE','VETS','ARE','LET','SET','ART','EAT','SEA','TEA','ERA','SAT','EAR','ATE','RAT','REV','EST','VET','ALT','ALE','VAR','TAR','LEA','VAT','ETA']},
     {anchor:'CERTAIN',words:['CERTAIN','RETAIN','TRANCE','RETINA','TRAIN','TRACE','INTER','REACT','CRANE','NICER','CATER','CRATE','ENACT','CARE','NICE','NEAR','RATE','RACE','ANTI','CENT','RAIN','RENT','RICE','EARN','CANT','TEAR','TIER','TIRE','NEAT','CART','ACRE','CANE','CITE','RANT','ACNE','RITE','REIN','ANTE','ARE','CAN','CAR','AIR','ACT','ART','EAT','TEN','ETC','ICE','RAN','CAT','INC','NET','TEA','ERA','TIE','EAR','ATE','ARC','RAT','ACE','TIN','TAN','ANT','TAR','ETA']},
   ],
-  fr: [
-    {anchor:'PARTIES',words:['PARTIES','PIRATES','PARTIE','ESPRIT','PARTIS','PATRIE','PIRATE','PAIRES','PARITE','SATIRE','APRES','PARIS','PARTI','ETAIS','PRISE','TIERS','REPAS','PISTE','PRETS','TAPER','PAIRE','TAPIS','PARTS','PIRES','TAIRE','PATES','EPAIS','AIRES','TIRES','PAIRS','RITES','REPIT','TARES','RATES','TAPES','TRES','PART','SITE','PRES','PRIS','PIRE','SEPT','PRET','STAR','ARTS','TIRE','AISE','RATE','PAIE','TAPE','TIRS','PARI','AIRE','PATE','AIRS','PAIR','RATS','TRIP','SIRE','APTE','PERI','RITE','PRIE','RASE','TARE','RAIE','PARE','PERS','STEP','TSAR','EST','PAS','AIR','ART','TAS','PRE','TIR','PIS','SIR','RAP','ARE','RAS','SET','TRI','SPA','TER','RAT','PIE','AIS','PAT','RIS','PET','PTS','ARS']},
-    {anchor:'CRAINTE',words:['CRAINTE','CERTAIN','CRAINT','RACINE','CARNET','NAITRE','TRAINE','CRIANT','CRETIN','ECRIT','TRAIN','CARTE','TENIR','ECRAN','RECIT','ECART','TRACE','CITER','INTER','ACIER','CRANE','TAIRE','ANCRE','RIANT','RIEN','CITE','ACTE','CENT','RACE','TIRE','RATE','AIRE','NIER','AINE','TIEN','CINE','CIRE','CRAN','CRIE','REIN','RITE','TARE','RAIE','CAR','AIR','ART','NET','TIR','ARC','CRI','ARE','TRI','TER','RAT','ANE','TIC','ACE','TAC','TAN','NIE','TIN']},
-    {anchor:'SEMAINE',words:['SEMAINE','ANIMEE','ANIMES','AMENES','MAINS','SEINE','MINES','AMENE','ANIME','AMIES','SAINE','AIMEE','MIENS','MENES','AINES','AINEE','AISEE','MANIE','AIMES','EMISE','MAIS','MAIN','MISE','AMIS','SEIN','AIME','AMIE','AISE','MINE','MENE','MIEN','AMES','SAIN','EMIS','AINE','SIEN','MANS','NEES','AMEN','ANSE','SEME','SAME','ANS','MIS','MAI','AMI','AME','MIN','NEE','MAN','NES','ANE','MAS','AIS','SEN','SIN','MIE','NIE']},
-    {anchor:'ETOILES',words:['ETOILES','ETOILE','ELITES','TOILES','ISOLEE','LISTE','LIEES','TOILE','ELITE','ISOLE','SOIT','SITE','LOIS','TELS','TELE','LIES','ILES','LIEE','SOIE','LITS','LOTS','ETES','TOLE','EST','ETE','LOI','TEL','LIT','SOL','ILE','LIE','LOT','LIS','SEL','OSE','SET','TEE','LET','OIE']},
-    {anchor:'TROUPES',words:['TROUPES','POSTURE','POUTRES','PORTES','ROUTES','TROUPE','POSTER','SOUPER','RESOUT','POUTRE','PORTE','SUPER','ROUTE','POSTE','EUROS','SORTE','OUEST','SPORT','OUTRE','POSER','PRETS','TOURS','PERSO','REPOS','POTES','ROUES','TROUS','SOUPE','RESTO','PORTS','STORE','TORSE','PROSE','PEURS','OPTER','PURES','TRES','TROP','PRES','TOUR','PEUR','SORT','SEPT','PRET','POSE','PORT','TUER','ROSE','POST','RUES','EURO','POTE','TROU','SURE','PURE','STOP','TUES','OURS','ROUE','POTS','USER','OPUS','OSER','SPOT','PROS','ORES','OPTE','RUSE','PURS','OTER','PERS','STEP','EST','SUR','PEU','RUE','PRO','TOP','TUE','PRE','PUR','OSE','POT','OUT','SET','TER','SOU','PET','PTS','SUE','USE','EUS','POU','PUS']},
-    {anchor:'MAITRES',words:['MAITRES','MAITRE','MASTER','MAIRES','MARIES','SATIRE','ETAIS','ARMES','MAIRE','TIERS','AIMER','REMIS','MARIE','AMIES','TAIRE','AIRES','TIRES','TRAME','MATER','MARIS','RITES','SMART','RAMES','MISER','AIMES','TARES','RATES','MAIS','TRES','SITE','MISE','MARS','AMIS','MARI','METS','AIME','STAR','ARTS','AMIE','ARME','TIRE','AISE','RATE','TIRS','AIRE','AMES','EMIS','AIRS','RATS','MERS','SIRE','TRAM','AMER','RIME','MARE','RAME','RITE','MATE','RASE','TARE','RAIE','SAME','MIRE','TSAR','EST','MIS','AIR','ART','MAI','MER','AMI','AME','TAS','TIR','SIR','ARE','MAT','RAS','SET','TRI','TER','RAT','MAS','AIS','RIS','ARS','MIE']},
-    {anchor:'ACTEURS',words:['ACTEURS','AUTRES','CARTES','ACTEUR','TRACES','SAUTER','CAUSER','ASTUCE','ECARTS','AUTRE','CAUSE','CARTE','TRUCS','ACTES','SACRE','SUCRE','ECART','TRACE','SAUCE','CESAR','RACES','SAUTE','TURCS','RECUS','SUCER','SCEAU','CRUES','CASTE','TARES','RATES','TRES','TRUC','RECU','ACTE','TUER','STAR','ARTS','RUES','RACE','SURE','RATE','TUES','CASE','SAUT','TURC','CURE','RATS','USER','CRUE','CRUS','ARCS','ACTU','CARS','RASE','RUSE','SECU','TARE','SEAU','TSAR','EST','SUR','CAS','CAR','EAU','RUE','ART','CRU','SAC','TUE','TAS','SEC','ARC','ARE','RAS','SET','TER','RAT','SUE','USE','EUS','ACE','TAC','ARS']},
-    {anchor:'COURTES',words:['COURTES','SOURCE','COURSE','COURTE','ROUTES','COURTS','COUTER','CROUTE','RESOUT','COURS','ROUTE','EUROS','SORTE','OUEST','OUTRE','COURT','TRUCS','COTES','TOURS','SCORE','SUCRE','CORSE','COUTS','ROUES','TROUS','RESTO','TURCS','COUTE','RECUS','STORE','SUCER','TORSE','CRUES','TRES','COTE','TOUR','TRUC','COUR','SORT','RECU','TUER','ROSE','COUT','RUES','EURO','TROU','SURE','TUES','OURS','ROUE','TURC','CURE','USER','CRUE','OSER','CRUS','ORES','RUSE','SECU','OTER','EST','SUR','RUE','CRU','TUE','SEC','COU','OSE','OUT','SET','TER','OCT','SOU','ROC','TOC','SUE','USE','EUS','COR']},
-    {anchor:'PASTEUR',words:['PASTEUR','AUTRES','SAUTER','APRES','AUTRE','SUPER','REPAS','PRETS','PAUSE','TAPER','PARTS','PATES','SAUTE','PEURS','PARUE','TAUPE','TARES','RATES','PARUS','PURES','TAPES','TRES','PART','PRES','PEUR','SEPT','PRET','PEAU','TUER','STAR','ARTS','RUES','SURE','PURE','RATE','PARU','TUES','TAPE','SAUT','PATE','RATS','USER','APTE','RASE','RUSE','TARE','SEAU','PARE','PURS','PERS','STEP','TSAR','EST','PAS','SUR','PEU','EAU','RUE','ART','TUE','TAS','PRE','PUR','RAP','ARE','RAS','SET','SPA','TER','RAT','PAT','PET','PTS','SUE','USE','EUS','PUS','ARS']},
-    {anchor:'PARTIEL',words:['PARTIEL','PARTIE','PAREIL','PLAIRE','TRIPLE','PATRIE','PIRATE','PARITE','PLATRE','PALIER','PARTI','PARLE','TAPER','PAIRE','PLATE','TAIRE','PERIL','PLAIE','LITRE','PLIER','REPLI','TRAIL','REPIT','PART','LIRE','PIRE','PRET','LAIT','TIRE','PLAT','RATE','PAIE','TAPE','AILE','PILE','PARI','AIRE','PATE','PAIR','RAIL','PALE','TRIP','LIER','APTE','PERI','RITE','PRIE','REAL','PLIE','TARE','RAIE','PARE','RALE','AIR','ART','TEL','LIT','ILE','LIE','PRE','TIR','RAP','ARE','TRI','TER','RAT','PIE','AIL','PAT','PET','LET','PAL']},
-    {anchor:'UNIVERS',words:['UNIVERS','SUIVRE','REUNIS','SURVIE','RUINES','VERNIS','VENIR','USINE','VENUS','SERVI','VIRUS','UNIES','REUNI','NUIRE','RUINE','VISER','RIVES','REINS','URINE','URNES','SIEUR','RIEN','VERS','UNIS','SEIN','VENU','RUES','SURE','VIES','VUES','VINS','RIVE','UNES','NIER','VISE','SIEN','REVU','VIRE','USER','NUES','IVRE','SIRE','UNIR','REIN','UNIE','INSU','RUSE','URNE','UNE','SUR','VIE','VUE','RUE','VIS','VIN','UNS','UNI','NES','VUS','SIR','NUE','NUS','RIS','VER','SUE','USE','EUS','SEN','SIN','NIE']},
-    {anchor:'MINEURS',words:['MINEURS','REUNIS','MINEUR','RUINES','USINE','REMIS','MINES','UNIES','REUNI','NUIRE','RUINE','MIENS','REINS','MENUS','URINE','URNES','SERUM','SIEUR','MISER','MUNIS','RIEN','MISE','UNIS','SEIN','RUES','MURS','MINE','SURE','MIEN','MENU','UNES','EMIS','NIER','SIEN','MERS','USER','NUES','SIRE','RIME','UNIR','REIN','UNIE','MUNI','INSU','MUSE','RUSE','URNE','MIRE','UNE','SUR','MIS','RUE','MER','MUR','MIN','UNS','UNI','NES','SIR','NUE','NUS','RIS','EMU','SUE','USE','EUS','SEN','SIN','MIE','NIE']},
-    {anchor:'GERMAIN',words:['GERMAIN','MANGER','MARINE','MAIGRE','GAMINE','GRAINE','ANIMER','MANIER','MIRAGE','IMAGE','MAIRE','AIMER','MARGE','MAGIE','MANGE','GAMIN','MARIE','MARIN','MARNE','ANIME','GRAIN','NAGER','REAGI','MANIE','RANGE','RIEN','MAIN','MARI','AIME','AGIR','AMIE','ARME','GARE','RANG','MINE','ANGE','RAGE','MIEN','GAIN','AIRE','NIER','AINE','NAGE','MEGA','AMER','RIME','REIN','RING','MARE','RAME','AMEN','RAIE','MIRE','AIR','MAI','AGE','MER','AMI','AME','MIN','MAN','GRE','ARE','AGI','ANE','MGR','GAI','MIE','NIE']},
-    {anchor:'GRAINES',words:['GRAINES','ENGRAIS','SAIGNER','SIGNER','GRAINS','GRAINE','SIGNE','ANGES','RANGS','GRAIN','SAINE','GAINS','GRISE','SINGE','AIRES','GARES','REINS','REGIS','NAGER','REAGI','AINES','RANGE','RIEN','GENS','GARS','SEIN','SANG','AGIR','GARE','RANG','AISE','ANGE','GRIS','GRAS','SAGE','RAGE','GAIN','AIRE','SAIN','NIER','AIRS','AGES','AINE','SIEN','NAGE','SIRE','REIN','RING','GRES','RASE','ANSE','RAIE','ANS','AIR','AGE','NES','SIR','GRE','ARE','RAS','AGI','ANE','AIS','RIS','GAI','SEN','ARS','SIN','NIE']},
-    {anchor:'NAVIRES',words:['NAVIRES','AVENIR','NAVIRE','VRAIES','VARIES','VERNIS','VENIR','VRAIE','VRAIS','SERVI','SAINE','AIRES','VISER','RIVES','REINS','RAVIE','VARIE','RAVIS','AINES','NAIVE','AVISE','RIEN','VERS','VRAI','AVIS','SEIN','AISE','VIES','VINS','RIVE','AIRE','SAIN','NIER','VAIN','AIRS','VISA','VISE','AINE','SIEN','RAVI','VIRE','IVRE','SIRE','VASE','REIN','RASE','ANSE','RAIE','ANS','VIE','AIR','VIS','VIN','VAN','VAR','NES','SIR','ARE','RAS','ANE','AIS','RIS','VER','SEN','ARS','SIN','NIE']},
-    {anchor:'LOURDES',words:['LOURDES','LOURDE','LOURDS','RESOLU','DROLES','ODEURS','SOURDE','LEURS','EUROS','DROLE','LOURD','ODEUR','ROUES','ROLES','LOUER','ROULE','SOLDE','SOURD','DURES','RELOU','DOUES','LEUR','SEUL','LORS','ROLE','ROSE','DURE','ELUS','RUES','EURO','SURE','DOSE','OURS','ROUE','LORD','DUEL','DURS','DORE','DOUE','RUDE','DUES','USER','LOUE','OSER','SOUL','ORES','RUSE','SUR','RUE','SUD','SOL','DUR','DOS','ELU','SEL','DUE','DUO','DER','OSE','DES','DUS','SOU','LUS','SUE','USE','EUS','LUE']},
-    {anchor:'MIRACLE',words:['MIRACLE','CLAIRE','MARCEL','CALMER','ECLAIR','MERCI','CLAIR','MAIRE','CALME','AIMER','CRIME','MARIE','ACIER','LARME','LIRE','CIEL','MARI','AIME','AMIE','ARME','MARC','RACE','MAIL','MALI','AILE','MIEL','AIRE','MALE','LAME','RAIL','CIRE','LIER','AMER','CRIE','RIME','MARE','RAME','CALE','REAL','LICE','MILE','RAIE','CLIM','CAME','MIRE','RALE','CAR','MAL','AIR','MAI','MEC','MER','AMI','ILE','AME','LAC','CLE','LIE','ARC','MAC','CRI','ARE','AIL','ACE','MIE','CAL','MIL']},
-    {anchor:'MOTEURS',words:['MOTEURS','MOTEUR','ROUTES','MORTES','RESOUT','ROUTE','EUROS','SORTE','OUEST','OUTRE','MORTS','MORTE','TOURS','METRO','ROUES','TROUS','RESTO','STORE','TORSE','TOMES','SERUM','TRES','MORT','TOUR','MOTS','SORT','TUER','METS','ROSE','RUES','EURO','MURS','TROU','TOME','SURE','TUES','OURS','ROUE','MORE','MERS','USER','OSER','MUET','ROMS','ORES','MUSE','RUSE','MUST','OTER','EST','SUR','RUE','MOT','MER','MUR','TUE','OSE','OUT','SET','TER','MOU','SOU','EMU','ROM','SUE','USE','EUS']},
-    {anchor:'TROUVES',words:['TROUVES','OUVERTS','TROUVE','OUVERT','ROUTES','VERTUS','RESOUT','ROUTE','EUROS','SORTE','OUEST','OUTRE','TOURS','VOTER','VERTS','VERTU','ROUES','VOTES','TROUS','RESTO','VOTRE','STORE','TORSE','VOUTE','TRES','VERS','TOUR','SORT','VOTE','TUER','VERT','ROSE','RUES','EURO','TROU','SURE','VUES','TUES','OURS','ROUE','REVU','USER','OSER','ORES','VETU','RUSE','VOUE','VETO','OTER','EST','SUR','VUE','RUE','TUE','OSE','OUT','VUS','SET','TER','SOU','VER','SUE','USE','EUS']},
-    {anchor:'CONSEIL',words:['CONSEIL','LECONS','ENCLOS','LESION','SELON','LIENS','ONCLE','LECON','COLIS','COINS','ISOLE','LIONS','COLIN','ICONE','NOCES','SOCLE','CLOSE','LOIN','LIEN','SEIN','CIEL','LOIS','NOEL','COIN','SOIN','LIES','CLES','ILES','CONS','LION','CLOS','SOIE','SIEN','CINE','CLIN','ONCE','SCIE','LICE','CILS','COLS','CONE','IONS','SON','NOS','LOI','SOL','CON','ILE','CLE','LIE','SEC','LIS','SEL','COL','OSE','NEO','NES','LIN','SIC','ION','SEN','OIE','SIN','NIE']},
-    {anchor:'RACINES',words:['RACINES','RACINE','ECRANS','CASIER','CRISE','ECRAN','SACRE','ACIER','CESAR','CRANE','RACES','SAINE','AIRES','REINS','AINES','ANCRE','RIEN','SEIN','RACE','AISE','CRIS','CASE','AIRE','SAIN','NIER','AIRS','AINE','SIEN','CINE','CIRE','SIRE','CRAN','CRIE','REIN','ARCS','SCIE','CARS','RASE','ANSE','RAIE','SCAN','ANS','CAS','CAR','AIR','SAC','SEC','ARC','NES','SIR','CRI','ARE','RAS','ANE','AIS','RIS','SIC','ACE','SEN','ARS','SIN','NIE']},
-    {anchor:'SIGNALE',words:['SIGNALE','LIGNES','GENIAL','SIGNAL','ANGLES','SINGLE','AIGLES','LIGNE','SIGNE','LIENS','ANGLE','AILES','ANGES','ASILE','LAINE','LINGE','SAINE','GAINS','SINGE','AIGLE','AINES','ALIEN','GENS','LIEN','SEIN','SANG','SALE','LIES','AISE','ILES','ANGE','SAGE','EGAL','AILE','GAIN','SAIN','AGES','AINE','SIEN','ELAN','NAGE','ANSE','LEGS','ANS','AGE','ILE','LIE','LIS','SEL','LAS','NES','GEL','AGI','LIN','AIL','ANE','AIS','GAI','SEN','SIN','NIE']},
-    {anchor:'RAPIDES',words:['RAPIDES','RAPIDE','PAIRES','SPIDER','APRES','PARIS','AIDER','PRISE','PIEDS','REPAS','DESIR','AIDES','PAIRE','PIRES','EPAIS','AIRES','PAIRS','DRAPS','DIRES','RAIDE','RAIDS','DIRE','PRES','PRIS','AIDE','PIRE','PIED','AISE','PAIE','PARI','AIRE','SIDA','AIRS','PAIR','RAID','SIRE','PERI','PRIE','RASE','DRAP','RAIE','PARE','PERS','RIDE','PAS','AIR','PRE','PIS','DER','SIR','RAP','ARE','DES','RAS','SPA','PIE','AIS','RIS','DAS','DEI','ARS']},
-    {anchor:'MINUTES',words:['MINUTES','MINUTE','UNITES','SUITE','TIENS','UNITE','SITUE','USINE','MINES','NUITS','UNIES','SENTI','TENUS','MENTI','MIENS','MENUS','MUNIS','SITE','NUIT','MISE','UNIS','SEIN','METS','TENU','MINE','TUES','MIEN','MENU','UNES','EMIS','TIEN','SIEN','NUES','MUET','UNIE','MUNI','NETS','INSU','MUSE','MUST','EST','UNE','MIS','TUE','NET','MIN','UNS','UNI','NES','NUE','SET','NUS','EMU','SUE','USE','EUS','SEN','SIN','MIE','NIE','TIN']},
-    {anchor:'IMPOSER',words:['IMPOSER','PROMISE','PERMIS','ESPOIR','PROMIS','MEPRIS','IMPOSE','PRIMES','PRISME','PRISE','POSER','PERSO','REMIS','REPOS','PRIME','PIRES','PROIE','SIROP','MOISE','PROSE','PRIMO','POIRE','MISER','MOIS','SOIR','PRES','PRIS','MISE','PIRE','POSE','ROSE','ROIS','EMIS','MORE','SOIE','MERS','OSER','POIS','SIRE','PROS','RIME','ROMS','PERI','ORES','PRIE','PERS','MIRE','MIS','ROI','MER','PRO','PRE','PIS','OSE','SIR','PIE','RIS','ROM','OIE','MIE']},
-    {anchor:'ARTICLE',words:['ARTICLE','CLAIRE','ECLAIR','CLARTE','CARTEL','ECRIT','CARTE','CLAIR','RECIT','ECART','TRACE','CITER','ACIER','TAIRE','ECLAT','LITRE','TRAIL','LIRE','CIEL','CITE','ACTE','LAIT','RACE','TIRE','RATE','AILE','AIRE','RAIL','CIRE','LIER','CRIE','RITE','CALE','REAL','LICE','TARE','RAIE','RALE','CAR','AIR','ART','TEL','LIT','ILE','LAC','CLE','LIE','TIR','ARC','CRI','ARE','TRI','TER','RAT','AIL','TIC','LET','ACE','TAC','CAL']},
-    {anchor:'MANIERE',words:['MANIERE','MARINE','AMENER','MARIEE','AERIEN','RAMENE','ANIMEE','ANIMER','MANIER','ARMEE','MAIRE','REINE','AIMER','MENER','MARIE','MARIN','AMENE','MARNE','ANIME','AIMEE','MAREE','ARENE','AINEE','MANIE','AMERE','RIEN','MERE','MAIN','MARI','AIME','AMIE','ARME','MINE','RENE','MENE','MIEN','AIRE','NIER','AINE','AMER','RIME','REIN','MARE','RAME','AMEN','RAIE','MIRE','AIR','MAI','MER','AMI','AME','MIN','NEE','MAN','ERE','ARE','ANE','MIE','NIE']},
-    {anchor:'SOUTIEN',words:['SOUTIEN','UNITES','SUITE','OUEST','TIENS','UNITE','SITUE','NOTES','USINE','NUITS','UNIES','SENTI','TENUS','SOIT','SITE','NUIT','UNIS','SEIN','NOTE','TENU','SOIN','TUES','UNES','SOIE','TIEN','SIEN','NUES','UNIE','TONS','NETS','INSU','IONS','EST','UNE','SON','TON','OUI','NOS','TUE','NET','UNS','UNI','OSE','OUT','NEO','NES','NUE','SET','NUS','SOU','SUE','USE','EUS','ION','SEN','OIE','SIN','NIE','TIN']},
-    {anchor:'MONSTRE',words:['MONSTRE','MONTRES','MONTRE','MONTER','NORMES','MORTES','NOTRES','MONTES','MENTOR','SORTE','MORTS','NOTES','MORTE','METRO','MONTE','NOTER','TRONE','NORME','NOTRE','RESTO','STORE','MONTS','TORSE','TOMES','RENOM','TRES','MORT','MOTS','SORT','NOTE','NOMS','METS','ROSE','MONT','TOME','MORE','MERS','OSER','ROMS','TONS','NETS','ORES','ORNE','OTER','EST','SON','TON','NOS','NOM','MOT','MER','NET','OSE','NEO','NES','SET','TER','ROM','SEN']},
-    {anchor:'PILOTES',words:['PILOTES','PILOTE','TOILES','LISTE','POSTE','PISTE','TOILE','POTES','POILS','ISOLE','POLES','PILES','SOIT','SITE','SEPT','POSE','LOIS','TELS','POST','POTE','LIES','ILES','STOP','POLE','POIL','PILE','SOIE','LITS','POTS','POLI','LOTS','POIS','SPOT','SLIP','OPTE','PLIE','PLIS','TOLE','STEP','EST','LOI','TEL','LIT','SOL','ILE','TOP','LIE','LOT','LIS','SEL','PIS','OSE','POT','SET','PIE','PET','LET','PTS','OIE']},
-    {anchor:'PARENTS',words:['PARENTS','PARENT','PESANT','APRES','SANTE','REPAS','PRETS','SENAT','TAPER','PARTS','TRANS','PATES','TARES','RATES','TAPES','TRES','PART','PRES','SEPT','PRET','STAR','ARTS','RATE','TAPE','PATE','RATS','APTE','NETS','PANS','RASE','TARE','ANSE','PARE','PERS','STEP','TSAR','EST','PAS','ANS','ART','NET','TAS','PRE','NES','RAP','ARE','RAS','PAN','SET','SPA','TER','RAT','ANE','PAT','PET','PTS','SEN','ARS','TAN']},
-    {anchor:'VERSION',words:['VERSION','NOIRES','VERNIS','SENIOR','RENVOI','ENVOIS','VENIR','VOIRE','NOIRE','NOIRS','VOIES','SERVI','ENVOI','VISER','RIVES','REINS','RIEN','VOIR','VERS','SOIR','NOIR','SEIN','VOIE','ROSE','SOIN','VIES','VINS','RIVE','ROIS','NIER','SOIE','VISE','SIEN','VIRE','IVRE','OSER','SIRE','REIN','ORES','ORNE','IONS','SON','VIE','NOS','ROI','VIS','VIN','OSE','NEO','NES','SIR','NOV','RIS','VER','ION','SEN','OIE','SIN','NIE']},
-    {anchor:'SURFACE',words:['SURFACE','CAUSER','CAUSE','SACRE','SUCRE','REFUS','SAUCE','CESAR','RACES','RECUS','CAFES','FACES','SUCER','FARCE','SCEAU','CRUES','FACE','SAUF','RECU','CAFE','RUES','RACE','SURE','CASE','CURE','USER','CRUE','CERF','SURF','CRUS','ARCS','CARS','RASE','RUSE','SECU','SEAU','SUR','CAS','CAR','EAU','RUE','FEU','FER','CRU','SAC','SEC','ARC','FAC','FUR','ARE','RAS','SUE','FAR','USE','EUS','ACE','REF','ARS']},
-    {anchor:'ACTUELS',words:['ACTUELS','ACTUEL','CLAUSE','ASTUCE','CULTES','ECLATS','CAUSE','SALUT','ACTES','CULTE','SAUCE','SAUTE','AUTEL','ECLAT','SCEAU','TESLA','TAULE','SALUE','CASTE','SEUL','TELS','ACTE','ELUS','SALE','CLES','TUES','CASE','SAUT','LACS','CULS','ACTU','CALE','SECU','SEAU','EST','CAS','EAU','TEL','CUL','SAC','ELU','TUE','LAC','CLE','TAS','SEC','SEL','LAS','SET','LUS','LET','SUE','USE','EUS','ACE','TAC','LUE','CAL']},
-    {anchor:'ROMAINE',words:['ROMAINE','MARINE','ROMAIN','MANOIR','ANIMER','ROMANE','MANIER','MAIRE','NOIRE','ROMAN','AIMER','MARIE','MARIN','NORME','MARNE','ANIME','MOINE','MANIE','RENOM','RIEN','MAIN','NOIR','MARI','AIME','AMIE','ARME','MINE','MIEN','AIRE','NIER','MORE','AINE','AMER','RIME','REIN','MARE','RAME','AMEN','ORNE','RAIE','MIRE','NOM','AIR','MAI','ROI','MER','AMI','AME','MIN','MAN','NEO','ARE','ANE','ROM','ION','OIE','MIE','NIE']},
-    {anchor:'COUPLES',words:['COUPLES','COUPLE','COUPES','POUCES','POULES','SOUPLE','CLOPES','COUPE','COUPS','POULE','SOUPE','POUCE','COULE','LOUPS','POLES','SOCLE','CLOSE','LOUPE','CLOUS','PUCES','CLOPE','POULS','PLUS','SEUL','COUP','POSE','ELUS','CLES','LOUP','POLE','CLOS','PUCE','OPUS','LOUE','SOUL','CLOU','CULS','SECU','COLS','PEU','SOL','CUL','ELU','CLE','SEC','COU','SEL','COL','OSE','PLU','SOU','LUS','SUE','USE','EUS','POU','PUS','LUE']},
-    {anchor:'PAUVRES',words:['PAUVRES','PAUVRE','SAUVER','VAPEUR','PREVUS','SAVEUR','APRES','SUPER','PREVU','REPAS','PAUSE','SAUVE','PEURS','PARUE','PAVES','PARUS','PURES','VERS','PRES','PEUR','PEAU','RUES','SURE','PURE','PARU','VUES','REVU','USER','VASE','PAVE','VEAU','AVEU','RASE','RUSE','SEAU','PARE','PURS','PERS','PAS','SUR','PEU','EAU','VUE','RUE','PRE','PUR','VAR','VUS','RAP','ARE','RAS','SPA','VER','SUE','USE','EUS','PUS','ARS']},
-    {anchor:'DOCTEUR',words:['DOCTEUR','COURTE','DOUTER','DETOUR','COUTER','CROUTE','DOUTE','ROUTE','OUTRE','COURT','DOUCE','ODEUR','DECOR','CORDE','COUTE','COUDE','DOTER','TORDU','COTE','TOUR','TRUC','COUR','RECU','CODE','TUER','COUT','DURE','EURO','TROU','DECU','ROUE','TURC','DOTE','CURE','DORE','DOUE','RUDE','DECO','CRUE','OTER','RUE','DUR','CRU','TUE','DUC','COU','DUE','DUO','DER','OUT','DOC','TER','OCT','DEC','ROC','TOC','DOT','COR']},
-    {anchor:'SECOURS',words:['SECOURS','SOURCES','COURSES','SOURCE','COURSE','ROUSSE','SCORES','CORSES','SUCRES','CROSSE','COURS','EUROS','RUSSE','SCORE','SUCRE','CORSE','ROUES','ROSES','ESSOR','RECUS','CROSS','SUCER','CRUES','SURES','SOUS','COUR','RECU','ROSE','RUES','EURO','SURE','OURS','ROUE','SURS','CURE','USER','CRUE','OSER','SECS','CRUS','ORES','RUSE','SECU','OSES','SUR','RUE','CRU','SEC','COU','OSE','SOU','ROC','SUS','SUE','USE','EUS','COR']},
-    {anchor:'SOLAIRE',words:['SOLAIRE','RELAIS','ISOLER','ALORS','AILES','ROLES','ASILE','ISOLE','AIRES','LASER','RAILS','ORALE','SALIR','LORS','SOIR','LIRE','ROLE','LOIS','ROSE','SALE','LIES','AISE','ILES','ROIS','AILE','AIRE','AIRS','SOIE','ORAL','RAIL','OSER','SIRE','LIER','ORES','RASE','REAL','LOIR','RAIE','RALE','LOI','AIR','ROI','SOL','ILE','LIE','LIS','SEL','OSE','LAS','SIR','ARE','RAS','AIL','AIS','RIS','OIE','ARS']},
-  ],
 };
 
-function initWordClash(area, setStatus) {
-  const defaultLang = navigator.language.startsWith('fr') ? 'fr' : 'en';
+// French words come from wordclash-fr.js (tools/build_wordclash_fr.py): the grid only takes
+// dictionary forms, every other French form counts as a bonus word.
+const WC_TEXT = {
+  fr: {
+    player: n => `Joueur ${n}`, short: n => `J${n}`, round: (r, n) => `Manche ${r}/${n}`, decider: 'Manche décisive',
+    words: (f, t) => `${f}/${t} mots`, bonus: n => `${n} bonus`, hint: 'Indice', hintCost: '−2',
+    flash: n => `Joueur ${n}, à vous !`, status: n => `J${n} joue`,
+    already: 'Déjà trouvé : la main passe', unknown: 'Mot inconnu : la main passe',
+    bonusWord: 'Mot bonus', full: 'Grille complète !', next: 'Manche suivante', tie: 'Égalité : manche décisive !',
+    wins: n => `Joueur ${n} gagne la partie !`, rematch: 'Revanche', endRound: 'Fin de manche', endGame: 'Fin de partie',
+    pick: 'Les mots en…', shuffle: 'Mélanger',
+  },
+  en: {
+    player: n => `Player ${n}`, short: n => `P${n}`, round: (r, n) => `Round ${r}/${n}`, decider: 'Deciding round',
+    words: (f, t) => `${f}/${t} words`, bonus: n => `${n} bonus`, hint: 'Hint', hintCost: '−2',
+    flash: n => `Player ${n}, your turn!`, status: n => `P${n}'s turn`,
+    already: 'Already found: turn passes', unknown: 'Not a word: turn passes',
+    bonusWord: 'Bonus word', full: 'Grid complete!', next: 'Next round', tie: 'Tie: deciding round!',
+    wins: n => `Player ${n} wins the game!`, rematch: 'Rematch', endRound: 'Round over', endGame: 'Game over',
+    pick: 'Words in…', shuffle: 'Shuffle',
+  },
+};
+const WC_RULES = {
+  fr: 'Duel de mots croisés. Les deux joueurs partagent une grille et une roue de 7 lettres. Glissez le doigt sur la roue pour former un mot de 3 lettres ou plus. Mot de la grille : il prend votre couleur, vous marquez un point par lettre et vous rejouez. Autre mot français : mot bonus, 1 point, et vous rejouez. Mot inconnu ou déjà trouvé : la main passe. Indice : révèle une lettre de la grille contre 2 points, sans passer la main. Le bouton au centre mélange la roue. Les mots de la grille sont des formes de dictionnaire (singulier, infinitif) ; pluriels et conjugaisons comptent en bonus. Partie en 3 manches, le premier joueur change à chaque manche ; égalité = manche décisive.',
+  en: 'Crossword duel. Both players share one grid and one wheel of 7 letters. Swipe across the wheel to form a word of 3 letters or more. A grid word takes your colour, scores one point per letter and you play again. Any other valid word is a bonus word: 1 point, and you play again. An unknown or already found word passes the turn. Hint: reveals one letter of the grid for 2 points, without passing the turn. The button in the centre shuffles the wheel. Three rounds, the first player alternates each round; a tie brings a deciding round.',
+};
+RULES.wordclash = WC_RULES[HOME_LANG];
 
-  let lang, puzzle, gridWords, bonusWords, foundGrid, foundBonus, hinted;
-  let gridRows, gridCols, gridCells;
-  let cellShrink = 0, refitting = false; // measured correction when the estimate still overflows
-  let wheelLetters, selection = [], selectionActive = false;
-  let scores = [0, 0], turn = 0, triesLeft = 3;
-  const MAX_TRIES = 3;
-  let gameOver = false, destroyed = false;
-
-  const wrap = document.createElement('div');
-  wrap.className = 'board-game';
-  wrap.style.cssText = 'overflow-y:auto;justify-content:flex-start;user-select:none;-webkit-user-select:none;touch-action:pan-y';
-  area.appendChild(wrap);
-  const cont = document.createElement('div');
-  cont.style.cssText = 'width:min(98vw,480px);margin:auto auto;padding:4px 0';
-  wrap.appendChild(cont);
-
-  // --- Language picker ---
-  function showLangPicker() {
-    const defFr = defaultLang === 'fr';
-    cont.innerHTML = '<div style="text-align:center;padding:30px">' +
-      '<div style="font-size:1.3em;font-weight:bold;margin-bottom:20px;color:#B2DFDB">Choose Language</div>' +
-      '<button class="btn" id="wc-en" style="margin:8px;padding:14px 32px;font-size:1.1em;background:' + (defFr ? '#37474F' : '#00897B') + '">English</button>' +
-      '<button class="btn" id="wc-fr" style="margin:8px;padding:14px 32px;font-size:1.1em;background:' + (defFr ? '#00897B' : '#37474F') + '">Fran\u00e7ais</button>' +
-      '</div>';
-    const pick = l => { lang = l; beginGame(); };
-    cont.querySelector('#wc-en').onclick = () => pick('en');
-    cont.querySelector('#wc-fr').onclick = () => pick('fr');
+// One is the other plus S, X, E or ES (AMI/AMIS, PARTI/PARTIE): never both in one grid.
+function wcRelated(a, b) {
+  if (a.length > b.length) [a, b] = [b, a];
+  return b === a + 'S' || b === a + 'X' || b === a + 'E' || b === a + 'ES';
+}
+// English lists still hold inflected forms: keep them as bonus words, out of the grid.
+function wcInflected(w, set) {
+  const cut = n => w.slice(0, -n);
+  return (w.endsWith('S') && set.has(cut(1))) || (w.endsWith('ES') && set.has(cut(2))) ||
+    (w.endsWith('ED') && (set.has(cut(2)) || set.has(cut(1)))) ||
+    (w.endsWith('ING') && (set.has(cut(3)) || set.has(cut(3) + 'E')));
+}
+const WC_LEX = {};
+function wcLexicon(lang) {
+  if (WC_LEX[lang]) return WC_LEX[lang];
+  if (lang === 'fr' && window.WC_FR) {
+    const F = window.WC_FR, allowed = new Set(F.allowed.split(' '));
+    return WC_LEX.fr = {
+      puzzles: F.puzzles.map(p => ({anchor: p.a, grid: p.g.split(' ')})),
+      isWord: w => allowed.has(w), show: w => F.display[w] || w,
+    };
   }
+  const all = new Set();
+  const puzzles = WORD_DATA.en.map(p => {
+    const set = new Set(p.words);
+    p.words.forEach(w => all.add(w));
+    // the list is ordered by length, then frequency: a stable sort by frequency rank is not needed
+    return {anchor: p.anchor, grid: p.words.filter(w => w !== p.anchor && !wcInflected(w, set))};
+  });
+  return WC_LEX.en = {puzzles, isWord: w => all.has(w), show: w => w};
+}
 
-  // --- Puzzle generation ---
-  function beginGame() {
-    generatePuzzle();
-    render();
-    startTurn();
-  }
+// Crossword around the anchor, bounded so that it fits above the wheel on a phone.
+// Several random attempts, the one with the most words (then the most compact) wins.
+function wcLayout(anchor, candidates) {
+  const MAX_ROWS = 7, MAX_COLS = 10, TARGET = 7, ATTEMPTS = 40, COMMON = 10;
+  const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const byLen = {};
+  candidates.forEach(w => { if (w !== anchor && !wcRelated(w, anchor)) (byLen[w.length] = byLen[w.length] || []).push(w); });
 
-  function generatePuzzle() {
-    cellShrink = 0;
-    const data = WORD_DATA[lang] || WORD_DATA.en;
-    const idx = Math.floor(Math.random() * data.length);
-    puzzle = data[idx];
-    wheelLetters = puzzle.anchor.split('');
-    for (let i = wheelLetters.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [wheelLetters[i], wheelLetters[j]] = [wheelLetters[j], wheelLetters[i]];
-    }
-    buildCrossword();
-  }
-
-  // Bounding box of the crossword: it must fit above the letter wheel on a phone.
-  const MAX_ROWS = 7, MAX_COLS = 10;
-
-  function buildCrossword() {
-    const placed = [];
-    const cells = {};
+  function attempt() {
+    const placed = [], cells = {};
     const box = {minR: Infinity, maxR: -Infinity, minC: Infinity, maxC: -Infinity};
-
-    function addWord(w, row, col, dir) {
+    const add = (w, row, col, dir) => {
       placed.push({word: w, row, col, dir});
       for (let i = 0; i < w.length; i++) {
-        const r = dir === 'h' ? row : row + i;
-        const c = dir === 'h' ? col + i : col;
+        const r = dir === 'h' ? row : row + i, c = dir === 'h' ? col + i : col;
         cells[r + ',' + c] = w[i];
         box.minR = Math.min(box.minR, r); box.maxR = Math.max(box.maxR, r);
         box.minC = Math.min(box.minC, c); box.maxC = Math.max(box.maxC, c);
       }
-    }
-
-    function fitsBox(w, row, col, dir) {
-      const endR = dir === 'h' ? row : row + w.length - 1;
-      const endC = dir === 'h' ? col + w.length - 1 : col;
-      const rows = Math.max(box.maxR, endR) - Math.min(box.minR, row) + 1;
-      const cols = Math.max(box.maxC, endC) - Math.min(box.minC, col) + 1;
-      return rows <= MAX_ROWS && cols <= MAX_COLS;
-    }
-
-    function canPlace(w, row, col, dir) {
-      if (!fitsBox(w, row, col, dir)) return false;
+    };
+    const canPlace = (w, row, col, dir) => {
+      const endR = dir === 'h' ? row : row + w.length - 1, endC = dir === 'h' ? col + w.length - 1 : col;
+      if (Math.max(box.maxR, endR) - Math.min(box.minR, row) + 1 > MAX_ROWS) return false;
+      if (Math.max(box.maxC, endC) - Math.min(box.minC, col) + 1 > MAX_COLS) return false;
       let crossings = 0;
       for (let i = 0; i < w.length; i++) {
-        const r = dir === 'h' ? row : row + i;
-        const c = dir === 'h' ? col + i : col;
-        const key = r + ',' + c;
-        if (cells[key]) {
-          if (cells[key] !== w[i]) return false;
-          crossings++;
-        } else {
-          if (dir === 'h') {
-            if (cells[(r - 1) + ',' + c]) return false;
-            if (cells[(r + 1) + ',' + c]) return false;
-          } else {
-            if (cells[r + ',' + (c - 1)]) return false;
-            if (cells[r + ',' + (c + 1)]) return false;
-          }
+        const r = dir === 'h' ? row : row + i, c = dir === 'h' ? col + i : col, k = cells[r + ',' + c];
+        if (k) { if (k !== w[i]) return false; crossings++; continue; }
+        if (dir === 'h' ? (cells[(r - 1) + ',' + c] || cells[(r + 1) + ',' + c]) : (cells[r + ',' + (c - 1)] || cells[r + ',' + (c + 1)])) return false;
+      }
+      if (!crossings) return false;
+      if (dir === 'h') return !cells[row + ',' + (col - 1)] && !cells[row + ',' + (col + w.length)];
+      return !cells[(row - 1) + ',' + col] && !cells[(row + w.length) + ',' + col];
+    };
+    const tryPlace = w => {
+      if (placed.some(p => p.word === w || wcRelated(p.word, w))) return false;
+      const spots = [];
+      placed.forEach(p => {
+        for (let pi = 0; pi < p.word.length; pi++) for (let wi = 0; wi < w.length; wi++) {
+          if (p.word[pi] !== w[wi]) continue;
+          const dir = p.dir === 'h' ? 'v' : 'h';
+          const r = p.dir === 'h' ? p.row - wi : p.row + pi, c = p.dir === 'h' ? p.col + pi : p.col - wi;
+          if (canPlace(w, r, c, dir)) spots.push([r, c, dir]);
         }
-      }
-      if (crossings === 0 && placed.length > 0) return false;
-      if (dir === 'h') {
-        if (cells[row + ',' + (col - 1)]) return false;
-        if (cells[row + ',' + (col + w.length)]) return false;
-      } else {
-        if (cells[(row - 1) + ',' + col]) return false;
-        if (cells[(row + w.length) + ',' + col]) return false;
-      }
-      return true;
-    }
-
-    function tryPlace(w) {
-      if (placed.some(p => p.word === w)) return false;
-      for (let pi = 0; pi < placed.length; pi++) {
-        const p = placed[pi];
-        for (let pci = 0; pci < p.word.length; pci++) {
-          for (let wci = 0; wci < w.length; wci++) {
-            if (p.word[pci] !== w[wci]) continue;
-            const newDir = p.dir === 'h' ? 'v' : 'h';
-            let nr, nc;
-            if (p.dir === 'h') { nr = p.row - wci; nc = p.col + pci; }
-            else { nr = p.row + pci; nc = p.col - wci; }
-            if (canPlace(w, nr, nc, newDir)) {
-              addWord(w, nr, nc, newDir);
-              return true;
-            }
-          }
-        }
-      }
-      return false;
-    }
-
-    // Place anchor first horizontally
-    const anchor = puzzle.anchor;
-    addWord(anchor, 10, Math.max(0, Math.floor((14 - anchor.length) / 2)), 'h');
-
-    // Group remaining words by length. The lists are ordered by frequency, so the
-    // grid is drawn from the most common words of each length (the rest stay bonus).
-    const others = puzzle.words.filter(w => w !== anchor);
-    const byLen = {};
-    others.forEach(w => {
-      const len = w.length;
-      if (!byLen[len]) byLen[len] = [];
-      byLen[len].push(w);
-    });
-    const COMMON = 14;
-    for (const len in byLen) {
-      const arr = byLen[len].slice(0, COMMON);
-      for (let i = arr.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [arr[i], arr[j]] = [arr[j], arr[i]];
-      }
-      byLen[len] = arr.concat(byLen[len].slice(COMMON));
-    }
-
-    // Build compact candidate pool — like WOW: ~6-7 words total
-    const pool = [];
-    const tiers = [{min:5,max:6,n:1},{min:4,max:4,n:3},{min:3,max:3,n:3}];
-    tiers.forEach(t => {
-      for (let len = t.max; len >= t.min; len--) {
-        if (byLen[len]) pool.push(...byLen[len].slice(0, t.n));
-      }
-    });
-
-    // Try to place from pool — cap at 7 total (anchor + 6)
-    for (let wi = 0; wi < pool.length && placed.length < 7; wi++) {
-      tryPlace(pool[wi]);
-    }
-
-    // Under 6 words: keep trying with the common words of every length, then the rest
-    if (placed.length < 6) {
-      const placedSet = new Set(placed.map(p => p.word));
-      const remaining = [];
-      for (let len = 6; len >= 3; len--) if (byLen[len]) remaining.push(...byLen[len]);
-      for (let i = 0; i < remaining.length && placed.length < 6; i++) {
-        if (!placedSet.has(remaining[i])) tryPlace(remaining[i]);
-      }
-    }
-
-    // Normalize coordinates
-    let minR = Infinity, minC = Infinity;
-    placed.forEach(p => {
-      minR = Math.min(minR, p.row);
-      minC = Math.min(minC, p.col);
-    });
-
-    let maxR = 0, maxC = 0;
-    gridWords = placed.map(p => {
-      const gw = {word: p.word, row: p.row - minR, col: p.col - minC, dir: p.dir, foundBy: -1};
-      const er = gw.dir === 'v' ? gw.row + gw.word.length - 1 : gw.row;
-      const ec = gw.dir === 'h' ? gw.col + gw.word.length - 1 : gw.col;
-      maxR = Math.max(maxR, er);
-      maxC = Math.max(maxC, ec);
-      return gw;
-    });
-
-    gridRows = maxR + 1;
-    gridCols = maxC + 1;
-    gridCells = {};
-    gridWords.forEach(gw => {
-      for (let i = 0; i < gw.word.length; i++) {
-        const r = gw.dir === 'h' ? gw.row : gw.row + i;
-        const c = gw.dir === 'h' ? gw.col + i : gw.col;
-        gridCells[r + ',' + c] = {letter: gw.word[i], foundBy: -1};
-      }
-    });
-
-    const gridWordSet = new Set(gridWords.map(gw => gw.word));
-    bonusWords = puzzle.words.filter(w => !gridWordSet.has(w));
-    foundGrid = new Set();
-    foundBonus = new Set();
-    hinted = new Set();
-  }
-
-  // --- Turn / tries ---
-  function startTurn() {
-    triesLeft = MAX_TRIES;
-    setStatus('P' + (turn + 1) + "'s turn");
-    render();
-  }
-
-  // Consume one try. If 0, switch turn (after a brief delay so the player sees the outcome).
-  function consumeTry() {
-    triesLeft--;
-    updateTries();
-    if (triesLeft <= 0) {
-      setTimeout(() => { if (!destroyed && !gameOver) switchTurn(); }, 500);
-    }
-  }
-
-  function updateTries() {
-    const el = cont.querySelector('#wc-tries');
-    if (el) {
-      el.textContent = triesLeft + ' ' + (triesLeft === 1 ? 'try' : 'tries');
-      el.style.color = triesLeft <= 1 ? '#F44336' : '#FFD54F';
-    }
-  }
-
-  function switchTurn() {
-    turn = 1 - turn;
-    if (checkEnd()) return;
-    flashTurn(area, turn + 1, '#80CBC4');
-    startTurn();
-  }
-
-  function checkEnd() {
-    const allFound = gridWords.every(gw => gw.foundBy >= 0);
-    if (!allFound) return false;
-    gameOver = true;
-    SND.win();
-    const msg = scores[0] > scores[1] ? 'P1 wins!' : scores[1] > scores[0] ? 'P2 wins!' : "It's a tie!";
-    setStatus(msg);
-    render();
-    setTimeout(() => showOverlay(area, msg + '<br>P1: ' + scores[0] + ' | P2: ' + scores[1], 'Rematch', restart), 700);
-    return true;
-  }
-
-  function restart() {
-    scores = [0, 0]; turn = 0; gameOver = false; selection = [];
-    triesLeft = MAX_TRIES;
-    generatePuzzle();
-    render();
-    startTurn();
-  }
-
-  // --- Shuffle & Reveal ---
-  function shuffleWheel() {
-    for (let i = wheelLetters.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [wheelLetters[i], wheelLetters[j]] = [wheelLetters[j], wheelLetters[i]];
-    }
-    SND.click();
-    render();
-  }
-
-  function revealLetter() {
-    if (gameOver) return;
-    if (triesLeft <= 0) return;
-    const candidates = [];
-    for (const key in gridCells) {
-      if (gridCells[key].foundBy === -1 && !hinted.has(key)) candidates.push(key);
-    }
-    if (candidates.length === 0) return;
-    const pick = candidates[Math.floor(Math.random() * candidates.length)];
-    hinted.add(pick);
-    SND.pop();
-    render();
-    consumeTry();
-  }
-
-  // --- Word submission ---
-  function submitWord(word) {
-    if (gameOver) return;
-    if (triesLeft <= 0) return;
-    if (word.length < 3) return;
-
-    // Check grid words
-    const gw = gridWords.find(g => g.word === word && g.foundBy < 0);
-    if (gw) {
-      gw.foundBy = turn;
-      foundGrid.add(word);
-      scores[turn] += word.length;
-      for (let i = 0; i < gw.word.length; i++) {
-        const r = gw.dir === 'h' ? gw.row : gw.row + i;
-        const c = gw.dir === 'h' ? gw.col + i : gw.col;
-        const cell = gridCells[r + ',' + c];
-        if (cell) cell.foundBy = turn;
-      }
-      SND.chime();
-      render();
-      // The game ends as soon as the grid is complete, whatever tries are left.
-      if (checkEnd()) return;
-      consumeTry();
-      return;
-    }
-
-    // Check bonus words
-    if (bonusWords.includes(word) && !foundBonus.has(word)) {
-      foundBonus.add(word);
-      scores[turn] += 1;
-      SND.pop();
-      render();
-      consumeTry();
-      return;
-    }
-
-    // Already found or invalid — still consumes a try
-    SND.buzz();
-    consumeTry();
-  }
-
-  // --- Render ---
-  const P_COLORS = ['#E53935', '#42A5F5'];
-  const P_BG = ['rgba(229,57,53,0.25)', 'rgba(66,165,245,0.25)'];
-
-  function render() {
-    if (destroyed) return;
-    let h = '';
-    // Score bar
-    h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;margin-bottom:2px">';
-    h += '<div style="font-size:' + (turn === 0 ? '1.5em' : '0.95em') + ';font-weight:bold;color:' + P_COLORS[0] + (turn === 0 ? ';text-shadow:0 0 10px ' + P_COLORS[0] + ',0 0 24px ' + P_COLORS[0] : ';opacity:0.4') + ';transition:all 0.3s">P1: ' + scores[0] + '</div>';
-    h += '<div id="wc-tries" style="font-size:1.3em;font-weight:bold;color:' + (triesLeft <= 1 ? '#F44336' : '#FFD54F') + '">' + triesLeft + ' ' + (triesLeft === 1 ? 'try' : 'tries') + '</div>';
-    h += '<div style="font-size:' + (turn === 1 ? '1.5em' : '0.95em') + ';font-weight:bold;color:' + P_COLORS[1] + (turn === 1 ? ';text-shadow:0 0 10px ' + P_COLORS[1] + ',0 0 24px ' + P_COLORS[1] : ';opacity:0.4') + ';transition:all 0.3s">P2: ' + scores[1] + '</div>';
-    h += '</div>';
-
-    // Crossword grid — sized so that grid + wheel + buttons fit the game area without scrolling
-    const GAP = 3;
-    const areaH = area.getBoundingClientRect().height || window.innerHeight;
-    const maxGridW = Math.min(window.innerWidth * 0.92, 440);
-    const byWidth = Math.floor((maxGridW - GAP * (gridCols - 1)) / Math.max(gridCols, 1));
-    // Everything except the grid: score bar, word count, preview, hint, bonus line, margins
-    const chromeBase = 196 + (foundBonus.size > 0 ? 26 : 0);
-    // Wheel presets, largest first; a shorter screen or a taller grid takes the next one
-    const WHEELS = [{r: 96, lc: 54, font: 1.7}, {r: 78, lc: 46, font: 1.45}, {r: 68, lc: 42, font: 1.3}];
-    let wheelR, lcSize, wheelFont, wheelBox, byHeight;
-    for (const wp of WHEELS) {
-      wheelR = wp.r; lcSize = wp.lc; wheelFont = wp.font;
-      wheelBox = 2 * (wheelR + lcSize / 2) + 16;
-      byHeight = Math.floor((areaH - chromeBase - wheelBox - GAP * (gridRows - 1)) / Math.max(gridRows, 1));
-      if (byHeight >= 30) break;
-    }
-    const cellSize = Math.max(22, Math.min(48, byWidth, byHeight) - cellShrink);
-    const fs = Math.max(13, cellSize * 0.55);
-    h += '<div style="display:flex;justify-content:center;margin:6px 0">';
-    h += '<div style="display:grid;grid-template-columns:repeat(' + gridCols + ',' + cellSize + 'px);grid-template-rows:repeat(' + gridRows + ',' + cellSize + 'px);gap:' + GAP + 'px">';
-    for (let r = 0; r < gridRows; r++) {
-      for (let c = 0; c < gridCols; c++) {
-        const cell = gridCells[r + ',' + c];
-        if (!cell) {
-          h += '<div></div>';
-        } else if (cell.foundBy >= 0) {
-          h += '<div style="background:' + P_BG[cell.foundBy] + ';border:2px solid ' + P_COLORS[cell.foundBy] + ';border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:' + fs + 'px;color:#fff;box-shadow:0 0 8px ' + P_COLORS[cell.foundBy] + '40">' + cell.letter + '</div>';
-        } else if (hinted.has(r + ',' + c)) {
-          h += '<div style="background:rgba(128,203,196,0.15);border:2px solid #4DB6AC;border-radius:5px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:' + fs + 'px;color:#80CBC4">' + cell.letter + '</div>';
-        } else {
-          h += '<div style="background:#1a2744;border:2px solid #2e5090;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:' + Math.max(10, cellSize * 0.35) + 'px;color:#4a6fa5;box-shadow:inset 0 1px 4px rgba(0,0,0,0.4)">\u2022</div>';
-        }
-      }
-    }
-    h += '</div></div>';
-
-    // Grid word count + debug toggle
-    const totalGrid = gridWords.length;
-    const foundCount = gridWords.filter(g => g.foundBy >= 0).length;
-    h += '<div style="text-align:center;margin:2px 0;font-size:0.8em;color:#555">' + foundCount + '/' + totalGrid + ' words';
-    h += '</div>';
-
-    // Selection preview
-    const selWord = selection.map(i => wheelLetters[i]).join('');
-    h += '<div style="text-align:center;margin:4px 0;font-size:1.5em;font-weight:bold;letter-spacing:6px;color:#FFD54F;height:1.5em;line-height:1.5em;overflow:hidden">' + (selWord || '&nbsp;') + '</div>';
-
-    // Letter wheel with shuffle button in center
-    const svgW = wheelBox, svgH = wheelBox;
-    const wheelCx = svgW / 2, wheelCy = svgH / 2;
-    h += '<div style="display:flex;justify-content:center;margin:2px 0">';
-    h += '<div id="wc-wheel" style="position:relative;width:' + svgW + 'px;height:' + svgH + 'px;touch-action:none">';
-    // SVG for connection lines
-    h += '<svg id="wc-svg" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none" viewBox="0 0 ' + svgW + ' ' + svgH + '">';
-    if (selection.length > 1) {
-      let pts = '';
-      selection.forEach(idx => {
-        const a = (idx / wheelLetters.length) * Math.PI * 2 - Math.PI / 2;
-        pts += (wheelCx + wheelR * Math.cos(a)) + ',' + (wheelCy + wheelR * Math.sin(a)) + ' ';
       });
-      h += '<polyline points="' + pts.trim() + '" fill="none" stroke="' + P_COLORS[turn] + '" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>';
-    }
-    h += '</svg>';
-    // Letter circles
-    for (let i = 0; i < wheelLetters.length; i++) {
-      const angle = (i / wheelLetters.length) * Math.PI * 2 - Math.PI / 2;
-      const lx = wheelCx + wheelR * Math.cos(angle) - lcSize / 2;
-      const ly = wheelCy + wheelR * Math.sin(angle) - lcSize / 2;
-      const isSel = selection.includes(i);
-      h += '<div data-widx="' + i + '" style="position:absolute;left:' + lx + 'px;top:' + ly + 'px;width:' + lcSize + 'px;height:' + lcSize + 'px;border-radius:50%;background:' + (isSel ? P_COLORS[turn] : '#1a2744') + ';border:2.5px solid ' + (isSel ? '#fff' : '#2e5090') + ';display:flex;align-items:center;justify-content:center;font-size:' + wheelFont + 'em;font-weight:bold;color:#fff;cursor:pointer;transition:background 0.1s;box-shadow:' + (isSel ? '0 0 12px ' + P_COLORS[turn] : '0 2px 8px rgba(0,0,0,0.4)') + '">' + wheelLetters[i] + '</div>';
-    }
-    // Shuffle button in center of wheel (like WOW)
-    h += '<div id="wc-shuffle" style="position:absolute;left:' + (wheelCx - 20) + 'px;top:' + (wheelCy - 20) + 'px;width:40px;height:40px;border-radius:50%;background:#37474F;border:1.5px solid #546E7A;display:flex;align-items:center;justify-content:center;font-size:1.2em;cursor:pointer;color:#B0BEC5">\u21BB</div>';
-    h += '</div></div>';
-
-    // Hint button (below wheel)
-    if (!gameOver) {
-      h += '<div style="display:flex;justify-content:center;margin:4px 0">';
-      h += '<button id="wc-reveal" style="padding:6px 20px;font-size:0.95em;background:#37474F;border:1.5px solid #546E7A;border-radius:8px;color:#B0BEC5;cursor:pointer">Hint (uses 1 try)</button>';
-      h += '</div>';
-    }
-
-    // Bonus words found
-    if (foundBonus.size > 0) {
-      h += '<div style="text-align:center;margin:4px 0;font-size:0.85em;color:#80CBC4">Bonus: ' + [...foundBonus].join(', ') + '</div>';
-    }
-
-    cont.innerHTML = h;
-    // Measure: if the page still overflows the game area, shrink the cells once and redraw
-    if (!refitting) {
-      const over = cont.scrollHeight - wrap.clientHeight;
-      if (over > 0 && cellSize > 22) {
-        cellShrink += Math.ceil(over / Math.max(gridRows, 1));
-        refitting = true;
-        render();
-        refitting = false;
-        return;
-      }
-    }
-    bindWheel();
-    const shBtn = cont.querySelector('#wc-shuffle');
-    if (shBtn) shBtn.onclick = shuffleWheel;
-    const rvBtn = cont.querySelector('#wc-reveal');
-    if (rvBtn) rvBtn.onclick = revealLetter;
-  }
-
-  // --- Wheel interaction ---
-  function bindWheel() {
-    const wheel = cont.querySelector('#wc-wheel');
-    if (!wheel) return;
-
-    function getLetterIdx(x, y) {
-      const el = document.elementFromPoint(x, y);
-      if (el && el.dataset && el.dataset.widx !== undefined) return parseInt(el.dataset.widx);
-      return -1;
-    }
-
-    function canInteract() {
-      if (gameOver) return false;
+      if (!spots.length) return false;
+      const s = spots[Math.floor(Math.random() * spots.length)];
+      add(w, s[0], s[1], s[2]);
       return true;
+    };
+    add(anchor, 0, 0, 'h');
+    const pools = {};
+    // other 7-letter anagrams of the anchor stay bonus words: one long word per grid is enough
+    for (const len in byLen) pools[len] = shuffle(byLen[len].slice(0, COMMON)).concat(byLen[len].slice(COMMON));
+    const tiers = [{min: 6, max: 6, n: 1}, {min: 5, max: 5, n: 1}, {min: 4, max: 4, n: 3}, {min: 3, max: 3, n: 3}];
+    const pool = [];
+    tiers.forEach(t => { for (let len = t.max; len >= t.min; len--) if (pools[len]) pool.push(...pools[len].slice(0, t.n)); });
+    for (let i = 0; i < pool.length && placed.length < TARGET; i++) tryPlace(pool[i]);
+    for (let len = 6; len >= 3 && placed.length < TARGET; len--) {
+      for (const w of (pools[len] || [])) { if (placed.length >= TARGET) break; tryPlace(w); }
     }
-
-    function startSel(x, y) {
-      if (!canInteract()) return;
-      const idx = getLetterIdx(x, y);
-      if (idx < 0) return;
-      selection = [idx];
-      selectionActive = true;
-      SND.click();
-      render();
-    }
-
-    function moveSel(x, y) {
-      if (!selectionActive) return;
-      const idx = getLetterIdx(x, y);
-      if (idx < 0) return;
-      if (selection.length >= 2 && idx === selection[selection.length - 2]) {
-        selection.pop();
-        SND.click();
-        render();
-        return;
-      }
-      if (selection.includes(idx)) return;
-      selection.push(idx);
-      SND.click();
-      render();
-    }
-
-    function endSel() {
-      if (!selectionActive) return;
-      selectionActive = false;
-      if (selection.length >= 3) {
-        const word = selection.map(i => wheelLetters[i]).join('');
-        submitWord(word);
-      }
-      selection = [];
-      render();
-    }
-
-    function isShuffleBtn(e) { return e.target.id === 'wc-shuffle' || e.target.closest('#wc-shuffle'); }
-    wheel.addEventListener('mousedown', e => { if (isShuffleBtn(e)) { shuffleWheel(); return; } e.preventDefault(); startSel(e.clientX, e.clientY); });
-    wheel.addEventListener('mousemove', e => { if (selectionActive) { e.preventDefault(); moveSel(e.clientX, e.clientY); } });
-    wheel.addEventListener('mouseup', e => { endSel(); });
-    wheel.addEventListener('mouseleave', e => { endSel(); });
-
-    wheel.addEventListener('touchstart', e => { if (isShuffleBtn(e)) { shuffleWheel(); return; } e.preventDefault(); const t = e.touches[0]; startSel(t.clientX, t.clientY); }, {passive: false});
-    wheel.addEventListener('touchmove', e => { e.preventDefault(); const t = e.touches[0]; moveSel(t.clientX, t.clientY); }, {passive: false});
-    wheel.addEventListener('touchend', e => { e.preventDefault(); endSel(); }, {passive: false});
-    wheel.addEventListener('touchcancel', e => { endSel(); });
+    return {placed, area: (box.maxR - box.minR + 1) * (box.maxC - box.minC + 1), box};
   }
 
-  // --- Start ---
-  showLangPicker();
-  const onResize = () => { if (!destroyed && puzzle) { cellShrink = 0; render(); } };
-  window.addEventListener('resize', onResize);
+  let best = null;
+  for (let i = 0; i < ATTEMPTS; i++) {
+    const a = attempt();
+    if (!best || a.placed.length > best.placed.length || (a.placed.length === best.placed.length && a.area < best.area)) best = a;
+    if (best.placed.length >= TARGET && i >= 12) break;
+  }
+  const {placed, box} = best;
+  return {
+    rows: box.maxR - box.minR + 1, cols: box.maxC - box.minC + 1,
+    words: placed.map(p => ({word: p.word, row: p.row - box.minR, col: p.col - box.minC, dir: p.dir, foundBy: -1})),
+  };
+}
+
+function initWordClash(area, setStatus) {
+  const T = WC_TEXT[HOME_LANG], ROUNDS = 3, HINT_COST = 2;
+  const COL = ['#FF6B6B', '#64B5F6'];                 // P1 red, P2 blue, as everywhere in 2P Games
+  let lex, lang, round = 0, starter = 0, turn = 0, scores = [0, 0];
+  let words = [], cells = {}, rows = 0, cols = 0, bonus = new Set();
+  let letters = [], sel = [], dragging = false, busy = false, over = false, destroyed = false;
+  const timers = [];
+  const later = (fn, ms) => timers.push(setTimeout(() => { if (!destroyed) fn(); }, ms));
+
+  const wrap = document.createElement('div');
+  wrap.className = 'wc-wrap';
+  area.appendChild(wrap);
+  let score, stage, gridEl, info, wordEl, wheel, svg, shuffleBtn, hintBtn, keyEls = [];
+
+  // --- Language of the words (the interface follows the phone) ---
+  function showPicker() {
+    const saved = (() => { try { return localStorage.getItem('wc-lang'); } catch (e) { return null; } })();
+    const def = saved || (HOME_LANG === 'fr' ? 'fr' : 'en');
+    wrap.innerHTML = `<div class="wc-picker"><div class="wc-title">${'WORD CLASH'.split('').map(c => c === ' ' ? '<i></i>' : `<span class="dm-tile" data-state="filled"><span>${c}</span></span>`).join('')}</div>` +
+      `<div class="wc-pick-label">${T.pick}</div>` +
+      `<button class="wc-lang${def === 'fr' ? ' wc-def' : ''}" data-l="fr">Français</button>` +
+      `<button class="wc-lang${def === 'en' ? ' wc-def' : ''}" data-l="en">English</button></div>`;
+    wrap.querySelectorAll('.wc-lang').forEach(b => b.onclick = () => {
+      lang = b.dataset.l;
+      try { localStorage.setItem('wc-lang', lang); } catch (e) {}
+      SND.click(); lex = wcLexicon(lang); build(); newRound();
+    });
+  }
+
+  function build() {
+    wrap.innerHTML =
+      '<div class="dv-score">' +
+        `<div class="dv-player" data-p="0"><span class="dv-name">${T.player(1)}</span><b class="dv-pts">0</b><i class="dv-gain"></i></div>` +
+        '<div class="dv-round"></div>' +
+        `<div class="dv-player" data-p="1"><span class="dv-name">${T.player(2)}</span><b class="dv-pts">0</b><i class="dv-gain"></i></div>` +
+      '</div>' +
+      '<div class="wc-stage"><div class="wc-grid"></div></div>' +
+      `<div class="wc-info"><span class="wc-count"></span><button class="wc-hint" type="button">💡 ${T.hint} <small>${T.hintCost}</small></button><span class="wc-bonus"></span></div>` +
+      '<div class="wc-word"></div>' +
+      '<div class="wc-wheel"><svg class="wc-trail"><polyline/></svg>' +
+        `<button class="wc-shuffle" type="button" aria-label="${T.shuffle}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg></button></div>`;
+    score = wrap.querySelector('.dv-score'); stage = wrap.querySelector('.wc-stage');
+    gridEl = wrap.querySelector('.wc-grid'); info = wrap.querySelector('.wc-info');
+    wordEl = wrap.querySelector('.wc-word'); wheel = wrap.querySelector('.wc-wheel');
+    svg = wheel.querySelector('.wc-trail'); shuffleBtn = wheel.querySelector('.wc-shuffle');
+    hintBtn = info.querySelector('.wc-hint');
+    shuffleBtn.onclick = shuffleWheel;
+    hintBtn.onclick = hint;
+    wheel.addEventListener('pointerdown', onDown);
+    wheel.addEventListener('pointermove', onMove);
+    wheel.addEventListener('pointerup', onUp);
+    wheel.addEventListener('pointercancel', onUp);
+  }
+
+  // --- Rounds ---
+  function drawPuzzle() {
+    const key = 'wc-recent-' + lang, list = lex.puzzles;
+    let recent = [];
+    try { recent = JSON.parse(localStorage.getItem(key) || '[]'); } catch (e) {}
+    const keep = Math.min(150, list.length - 5);
+    const fresh = list.filter(p => !recent.includes(p.anchor));
+    const p = (fresh.length ? fresh : list)[Math.floor(Math.random() * (fresh.length || list.length))];
+    recent = recent.filter(a => a !== p.anchor).concat(p.anchor).slice(-keep);
+    try { localStorage.setItem(key, JSON.stringify(recent)); } catch (e) {}
+    return p;
+  }
+
+  function newRound() {
+    const p = drawPuzzle(), lay = wcLayout(p.anchor, p.grid);
+    words = lay.words; rows = lay.rows; cols = lay.cols;
+    cells = {}; bonus = new Set(); sel = []; busy = false; over = false;
+    gridEl.innerHTML = '';
+    words.forEach(w => {
+      for (let i = 0; i < w.word.length; i++) {
+        const r = w.dir === 'h' ? w.row : w.row + i, c = w.dir === 'h' ? w.col + i : w.col, k = r + ',' + c;
+        if (cells[k]) continue;
+        const el = document.createElement('div');
+        el.className = 'dm-tile wc-cell'; el.dataset.state = 'empty';
+        el.style.gridRow = r + 1; el.style.gridColumn = c + 1;
+        el.innerHTML = '<span></span>';
+        gridEl.appendChild(el);
+        cells[k] = {letter: w.word[i], owner: -1, hinted: false, el};
+      }
+    });
+    letters = p.anchor.split('');
+    do shuffleArr(letters); while (letters.join('') === p.anchor);
+    wheel.querySelectorAll('.wc-key').forEach(k => k.remove());
+    keyEls = letters.map((ch, i) => {
+      const k = document.createElement('div');
+      k.className = 'dm-tile wc-key'; k.dataset.state = 'filled';
+      k.innerHTML = `<span>${ch}</span>`;
+      wheel.appendChild(k);
+      return k;
+    });
+    starter = round % 2;
+    renderInfo(); showWord('');
+    fit();
+    setTurn(starter);
+  }
+
+  function shuffleArr(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } }
+
+  function cellsOf(w) {
+    const out = [];
+    for (let i = 0; i < w.word.length; i++) {
+      const r = w.dir === 'h' ? w.row : w.row + i, c = w.dir === 'h' ? w.col + i : w.col;
+      out.push(cells[r + ',' + c]);
+    }
+    return out;
+  }
+
+  // --- Layout: the wheel takes what the grid can spare ---
+  function fit() {
+    if (!wheel || destroyed) return;
+    const W = wrap.clientWidth, H = wrap.clientHeight;
+    const fixed = score.offsetHeight + info.offsetHeight + wordEl.offsetHeight + 30;
+    const gridW = Math.min(W - 20, 460);
+    let D = Math.max(150, Math.min(W * 0.68, 280, (H - fixed) * 0.48)), tile, gap;
+    for (;;) {
+      const gridH = H - fixed - D;
+      tile = Math.floor(Math.min(54, gridW / (cols + (cols - 1) * 0.1), gridH / (rows + (rows - 1) * 0.1)));
+      // a smaller wheel buys bigger grid tiles, down to a floor for each
+      if (tile >= 42 || (D <= 190 && tile >= 30) || D <= 150) break;
+      D -= 8;
+    }
+    tile = Math.max(20, tile);
+    gap = Math.max(3, Math.round(tile * 0.1));
+    gridEl.style.setProperty('--tile', tile + 'px');
+    gridEl.style.gap = gap + 'px';
+    gridEl.style.gridTemplateColumns = `repeat(${cols},${tile}px)`;
+    gridEl.style.gridTemplateRows = `repeat(${rows},${tile}px)`;
+    D = Math.round(D);
+    wheel.style.width = wheel.style.height = D + 'px';
+    svg.setAttribute('viewBox', `0 0 ${D} ${D}`);
+    const k = Math.round(D * 0.24);
+    wheel.style.setProperty('--tile', k + 'px');
+    wheel.dataset.k = k;
+    placeKeys();
+  }
+  function keyCentre(i) {
+    const D = wheel.clientWidth, k = +wheel.dataset.k, R = D / 2 - k / 2 - D * 0.04;
+    const a = (i / letters.length) * Math.PI * 2 - Math.PI / 2;
+    return [D / 2 + R * Math.cos(a), D / 2 + R * Math.sin(a)];
+  }
+  function placeKeys() {
+    const k = +wheel.dataset.k;
+    keyEls.forEach((el, i) => { const [x, y] = keyCentre(i); el.style.left = (x - k / 2) + 'px'; el.style.top = (y - k / 2) + 'px'; });
+  }
+
+  // --- Score bar, counters ---
+  function renderScores() {
+    wrap.querySelectorAll('.dv-player').forEach(el => {
+      const p = +el.dataset.p;
+      el.classList.toggle('dv-active', !over && p === turn);
+      el.style.setProperty('--pc', COL[p]);
+      el.querySelector('.dv-pts').textContent = scores[p];
+    });
+    wrap.querySelector('.dv-round').textContent = round < ROUNDS ? T.round(round + 1, ROUNDS) : T.decider;
+  }
+  function gain(p, pts) {
+    const g = wrap.querySelector(`.dv-player[data-p="${p}"] .dv-gain`);
+    g.textContent = (pts > 0 ? '+' : '−') + Math.abs(pts);
+    g.style.color = pts > 0 ? '' : '#FF8A80';
+    g.classList.remove('dv-show'); void g.offsetWidth; g.classList.add('dv-show');
+  }
+  function renderInfo() {
+    const found = words.filter(w => w.foundBy >= 0).length;
+    info.querySelector('.wc-count').textContent = T.words(found, words.length);
+    info.querySelector('.wc-bonus').textContent = '★ ' + T.bonus(bonus.size);
+    hintBtn.disabled = over || !Object.values(cells).some(c => c.owner < 0 && !c.hinted);
+  }
+  function setTurn(p) {
+    turn = p;
+    wrap.style.setProperty('--pc', COL[p]);
+    wheel.classList.toggle('wc-p1', p === 1);
+    renderScores();
+    setStatus(T.status(p + 1));
+  }
+
+  // --- The word above the wheel: the letters being swiped, then the verdict ---
+  let shown = 0;   // a delayed clear only removes the word it was meant for
+  function showWord(text, state, cls) {
+    shown++;
+    wordEl.className = 'wc-word' + (cls ? ' ' + cls : '');
+    wordEl.innerHTML = text.split('').map(ch => `<span class="dm-tile${state === 'own' ? ' wc-p' + turn : ''}" data-state="${state || 'filled'}"><span>${ch}</span></span>`).join('');
+  }
+  function note(text, cls) {
+    const n = document.createElement('div');
+    n.className = 'wc-note ' + (cls || '');
+    n.textContent = text;
+    wordEl.appendChild(n);
+  }
+
+  // --- Swiping ---
+  function canPlay() { return !busy && !over && !area.querySelector('.overlay'); }
+  function local(e) { const r = wheel.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+  function hit(e) {
+    const [x, y] = local(e), k = +wheel.dataset.k;
+    for (let i = 0; i < letters.length; i++) {
+      const [cx, cy] = keyCentre(i);
+      if (Math.hypot(x - cx, y - cy) > k * 0.58) continue;
+      if (sel.length >= 2 && i === sel[sel.length - 2]) { keyEls[sel.pop()].classList.remove('wc-on'); SND.erase(); }
+      else if (!sel.includes(i)) { sel.push(i); keyEls[i].classList.add('wc-on'); SND.key(); }
+      else return;
+      showWord(sel.map(j => letters[j]).join(''));
+      return;
+    }
+  }
+  function trail(e) {
+    const pts = sel.map(keyCentre);
+    if (e && dragging && sel.length) pts.push(local(e));
+    svg.querySelector('polyline').setAttribute('points', pts.map(p => p.join(',')).join(' '));
+  }
+  function onDown(e) {
+    if (e.target.closest('.wc-shuffle') || !canPlay()) return;
+    e.preventDefault();
+    try { wheel.setPointerCapture(e.pointerId); } catch (err) {}
+    dragging = true; sel = [];
+    keyEls.forEach(k => k.classList.remove('wc-on'));
+    hit(e); trail(e);
+  }
+  function onMove(e) { if (!dragging) return; e.preventDefault(); hit(e); trail(e); }
+  function onUp() {
+    if (!dragging) return;
+    dragging = false;
+    const word = sel.map(i => letters[i]).join('');
+    sel = []; keyEls.forEach(k => k.classList.remove('wc-on')); trail();
+    if (word.length < 3) { showWord(''); return; }
+    submit(word);
+  }
+
+  function shuffleWheel() {
+    if (over || dragging) return;
+    const prev = letters.join('');
+    do shuffleArr(letters); while (letters.join('') === prev && new Set(letters).size > 1);
+    // the tiles glide to their new places
+    const order = letters.slice(), free = keyEls.slice();
+    keyEls = order.map(ch => { const i = free.findIndex(el => el.textContent === ch); return free.splice(i, 1)[0]; });
+    placeKeys(); SND.click();
+  }
+
+  // --- Words ---
+  function submit(word) {
+    const w = words.find(g => g.word === word);
+    if (w && w.foundBy < 0) return foundGrid(w);
+    if (w || bonus.has(word)) return pass(word, T.already);
+    if (lex.isWord(word)) {
+      bonus.add(word); scores[turn] += 1; gain(turn, 1);
+      SND.pop(); showWord(lex.show(word), 'p', 'wc-bounce'); note(T.bonusWord + ' +1');
+      renderScores(); renderInfo();
+      const seq = shown;
+      later(() => { if (seq === shown && !dragging) showWord(''); }, 1300);
+      return;
+    }
+    pass(word, T.unknown);
+  }
+
+  function foundGrid(w) {
+    w.foundBy = turn;
+    const p = turn, pts = w.word.length;
+    scores[p] += pts; gain(p, pts);
+    busy = true;
+    showWord(lex.show(w.word), 'own', 'wc-bounce'); note('+' + pts);
+    const seq = shown;
+    let k = 0;
+    cellsOf(w).forEach((c, i) => {
+      if (c.owner >= 0) { later(() => { c.el.classList.remove('dm-bounce'); void c.el.offsetWidth; c.el.classList.add('dm-bounce'); }, i * 90); return; }
+      c.owner = p;
+      flip(c.el, () => { c.el.dataset.state = 'own'; c.el.classList.add('wc-p' + p); c.el.classList.remove('wc-hinted'); c.el.firstChild.textContent = c.letter; SND.tileCorrect(k++); }, i * 90);
+    });
+    renderScores(); renderInfo();
+    later(() => {
+      busy = false;
+      if (words.every(g => g.foundBy >= 0)) endRound();
+      else later(() => { if (seq === shown && !dragging) showWord(''); }, 600);
+    }, w.word.length * 90 + 450);
+  }
+
+  function flip(el, apply, delay) {
+    later(() => {
+      el.classList.add('dm-flip-out');
+      later(() => {
+        apply();
+        el.classList.remove('dm-flip-out'); el.classList.add('dm-flip-in');
+        later(() => el.classList.remove('dm-flip-in'), 230);
+      }, 210);
+    }, delay);
+  }
+
+  function pass(word, why) {
+    busy = true;
+    SND.invalid();
+    showWord(word, 'a', 'dm-shake'); note(why, 'wc-bad');
+    later(() => {
+      const next = 1 - turn;
+      showWord('');
+      SND.turn();
+      flashTurn(area, next + 1, COL[next], T.flash(next + 1));
+      setTurn(next);
+      busy = false;
+    }, 1100);
+  }
+
+  // Reveal the first hidden letter of the shortest word still to find: 2 points, same player.
+  function hint() {
+    if (!canPlay()) return;
+    const todo = words.filter(w => w.foundBy < 0).sort((a, b) => a.word.length - b.word.length);
+    for (const w of todo) {
+      const c = cellsOf(w).find(c => c.owner < 0 && !c.hinted);
+      if (!c) continue;
+      c.hinted = true;
+      scores[turn] -= HINT_COST; gain(turn, -HINT_COST);
+      SND.reveal();
+      flip(c.el, () => { c.el.dataset.state = 'filled'; c.el.classList.add('wc-hinted'); c.el.firstChild.textContent = c.letter; }, 0);
+      renderScores(); renderInfo();
+      return;
+    }
+  }
+
+  function endRound() {
+    over = true; renderScores(); renderInfo();
+    SND.win();
+    const finished = round >= ROUNDS - 1 && scores[0] !== scores[1];
+    setStatus(finished ? T.endGame : T.endRound);
+    const list = words.map(w => `<span style="color:${COL[w.foundBy]}">${lex.show(w.word)}</span>`).join(' · ');
+    const tally = [0, 1].map(p => `<span style="color:${COL[p]}">${T.short(p + 1)} : ${scores[p]}</span>`).join(' &nbsp;·&nbsp; ');
+    const head = `${T.full}<div class="wc-sum">${list}</div><div style="font-size:.85em">${tally}</div>`;
+    later(() => {
+      if (finished) {
+        const w = scores[0] > scores[1] ? 0 : 1;
+        showOverlay(area, `${head}<div style="color:${COL[w]};font-size:1.2em;margin-top:8px">${T.wins(w + 1)}</div>`, T.rematch, () => { round = 0; scores = [0, 0]; newRound(); });
+      } else {
+        const tie = round >= ROUNDS - 1;
+        showOverlay(area, head + (tie ? `<div style="margin-top:8px">${T.tie}</div>` : ''), tie ? T.decider : T.next, () => { round++; newRound(); });
+      }
+    }, 900);
+  }
+
+  showPicker();
+  window.addEventListener('resize', fit);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (!destroyed && words.length) fit(); });
 
   return () => {
     destroyed = true;
-    window.removeEventListener('resize', onResize);
+    timers.forEach(clearTimeout);
+    window.removeEventListener('resize', fit);
   };
 }
 

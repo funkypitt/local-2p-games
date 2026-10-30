@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <!-- Under the launcher icon: "Les jeux à deux de Pierre" would be cut, the home screen shows it in full. -->
+    <string name="app_name">Jeux à deux</string>
+    <string name="title_activity_main">Jeux à deux</string>
+</resources>

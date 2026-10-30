@@ -1,0 +1,6 @@
+v1.42 — Word Clash, redone
+
+- Word Clash: new tiles, wheel and score bar, in French on a French phone.
+- 620 French puzzles instead of 40. The grid only holds dictionary words, so a word and its plural (AMI, AMIS) never appear together; plurals and conjugations still count as bonus words.
+- New rules: find a grid word or a bonus word and you play again; an unknown or already found word passes the turn. A hint costs 2 points. Three rounds, the first player alternates, a tie brings a deciding round.
+- On a French phone the app is called "Les jeux à deux de Pierre".
