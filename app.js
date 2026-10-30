@@ -299,6 +299,13 @@ function releaseWakeLock() {
   if (wakeLock) { wakeLock.release(); wakeLock = null; }
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && wakeLock) acquireWakeLock(); });
+// Screen locked or app in the background: silence everything, music resumes where it was on return.
+function audioPause() { if (SND._ctx && SND._ctx.state === 'running') SND._ctx.suspend(); }
+function audioResume() { if (SND._ctx && SND._ctx.state === 'suspended' && document.visibilityState !== 'hidden') SND._ctx.resume(); }
+window.addEventListener('apppause', audioPause);
+window.addEventListener('appresume', audioResume);
+window.addEventListener('pagehide', audioPause);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') audioPause(); else audioResume(); });
 
 function startGame(g) {
   acquireWakeLock();
