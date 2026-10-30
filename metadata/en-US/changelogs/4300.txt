@@ -1,0 +1,3 @@
+v1.40 — Word Clash ends when the grid is complete
+
+- Word Clash: the game now ends as soon as the last grid word is found, instead of waiting for the current player to use up their remaining tries.

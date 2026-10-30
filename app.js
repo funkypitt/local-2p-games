@@ -2734,6 +2734,8 @@ function initWordClash(area, setStatus) {
       }
       SND.chime();
       render();
+      // The game ends as soon as the grid is complete, whatever tries are left.
+      if (checkEnd()) return;
       consumeTry();
       return;
     }
