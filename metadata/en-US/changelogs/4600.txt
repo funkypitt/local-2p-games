@@ -1,0 +1,2 @@
+Word Clash:
+- Only a new grid word lets you play again. Any other try passes the turn: a bonus word still scores 1 point, an unknown or already found word scores nothing.

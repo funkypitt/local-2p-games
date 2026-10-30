@@ -2424,8 +2424,8 @@ const WC_TEXT = {
   },
 };
 const WC_RULES = {
-  fr: 'Duel de mots croisés. Les deux joueurs partagent une grille et une roue de 7 lettres. Glissez le doigt sur la roue pour former un mot de 3 lettres ou plus. Mot de la grille : il prend votre couleur, vous marquez un point par lettre et vous rejouez. Autre mot français : mot bonus, 1 point, et vous rejouez. Mot inconnu ou déjà trouvé : la main passe. Indice : révèle une lettre de la grille contre 2 points, sans passer la main. Le bouton au centre mélange la roue. Les mots de la grille sont des formes de dictionnaire (singulier, infinitif) ; pluriels et conjugaisons comptent en bonus. Partie en 3 manches, le premier joueur change à chaque manche ; égalité = manche décisive.',
-  en: 'Crossword duel. Both players share one grid and one wheel of 7 letters. Swipe across the wheel to form a word of 3 letters or more. A grid word takes your colour, scores one point per letter and you play again. Any other valid word is a bonus word: 1 point, and you play again. An unknown or already found word passes the turn. Hint: reveals one letter of the grid for 2 points, without passing the turn. The button in the centre shuffles the wheel. Three rounds, the first player alternates each round; a tie brings a deciding round.',
+  fr: 'Duel de mots croisés. Les deux joueurs partagent une grille et une roue de 7 lettres. Glissez le doigt sur la roue pour former un mot de 3 lettres ou plus. Mot de la grille : il prend votre couleur, vous marquez un point par lettre et vous rejouez. Tout autre essai passe la main : un autre mot français est un mot bonus qui rapporte 1 point ; un mot inconnu ou déjà trouvé ne rapporte rien. Indice : révèle une lettre de la grille contre 2 points, sans passer la main. Le bouton au centre mélange la roue. Les mots de la grille sont des formes de dictionnaire (singulier, infinitif) ; pluriels et conjugaisons comptent en bonus. Partie en 3 manches, le premier joueur change à chaque manche ; égalité = manche décisive.',
+  en: 'Crossword duel. Both players share one grid and one wheel of 7 letters. Swipe across the wheel to form a word of 3 letters or more. A grid word takes your colour, scores one point per letter and you play again. Any other try passes the turn: another valid word is a bonus word worth 1 point; an unknown or already found word scores nothing. Hint: reveals one letter of the grid for 2 points, without passing the turn. The button in the centre shuffles the wheel. Three rounds, the first player alternates each round; a tie brings a deciding round.',
 };
 RULES.wordclash = WC_RULES[HOME_LANG];
 
@@ -2786,11 +2786,8 @@ function initWordClash(area, setStatus) {
     if (w || bonus.has(word)) return pass(word, T.already);
     if (lex.isWord(word)) {
       bonus.add(word); scores[turn] += 1; gain(turn, 1);
-      SND.pop(); showWord(lex.show(word), 'p', 'wc-bounce'); note(T.bonusWord + ' +1');
       renderScores(); renderInfo();
-      const seq = shown;
-      later(() => { if (seq === shown && !dragging) showWord(''); }, 1300);
-      return;
+      return pass(lex.show(word), T.bonusWord + ' +1', true);
     }
     pass(word, T.unknown);
   }
@@ -2827,10 +2824,11 @@ function initWordClash(area, setStatus) {
     }, delay);
   }
 
-  function pass(word, why) {
+  // Anything but a new grid word passes the turn; a bonus word keeps its point.
+  function pass(word, why, good) {
     busy = true;
-    SND.invalid();
-    showWord(word, 'a', 'dm-shake'); note(why, 'wc-bad');
+    if (good) { SND.pop(); showWord(word, 'p', 'wc-bounce'); note(why); }
+    else { SND.invalid(); showWord(word, 'a', 'dm-shake'); note(why, 'wc-bad'); }
     later(() => {
       const next = 1 - turn;
       showWord('');
