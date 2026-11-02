@@ -9,7 +9,7 @@
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100%;overflow:hidden;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#0f0f1a;color:#f0f0f0;touch-action:none;user-select:none;-webkit-user-select:none}
 /* ---- Home ---- */
-#menu{display:grid;grid-template-columns:minmax(0,560px);justify-content:center;gap:12px;padding:12px 16px calc(24px + env(safe-area-inset-bottom));padding-top:calc(10px + env(safe-area-inset-top));height:100vh;overflow-y:auto;align-content:start;touch-action:pan-y;
+#menu{display:grid;grid-template-columns:minmax(0,560px);justify-content:center;gap:12px;padding:12px 16px calc(24px + var(--safe-area-inset-bottom,env(safe-area-inset-bottom)));padding-top:calc(10px + var(--safe-area-inset-top,env(safe-area-inset-top)));height:100vh;overflow-y:auto;align-content:start;touch-action:pan-y;
   background:
     radial-gradient(60% 40% at 15% 0%,rgba(124,77,255,.35),transparent 70%),
     radial-gradient(50% 35% at 90% 10%,rgba(0,188,212,.28),transparent 70%),
@@ -39,7 +39,7 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:system-ui,-apple-sy
 /* ---- Game shell ---- */
 #game{display:none;flex-direction:column;height:100vh;width:100vw;--game-rgb:42,79,149;
   background:radial-gradient(90% 50% at 50% 0%,rgba(var(--game-rgb),.30),transparent 72%),radial-gradient(80% 42% at 50% 100%,rgba(var(--game-rgb),.20),transparent 70%),#0b1024}
-#game-header{display:flex;align-items:center;padding:10px 14px;padding-top:calc(10px + env(safe-area-inset-top));background:rgba(8,11,28,.55);border-bottom:1px solid rgba(255,255,255,.07);box-shadow:0 1px 0 rgba(0,0,0,.35);gap:10px;min-height:52px;z-index:10}
+#game-header{display:flex;align-items:center;padding:10px 14px;padding-top:calc(10px + var(--safe-area-inset-top,env(safe-area-inset-top)));background:rgba(8,11,28,.55);border-bottom:1px solid rgba(255,255,255,.07);box-shadow:0 1px 0 rgba(0,0,0,.35);gap:10px;min-height:52px;z-index:10}
 #back-btn{background:none;border:none;color:#f0f0f0;font-size:1.5em;cursor:pointer;padding:6px 10px;min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center}
 #game-title{font-family:"DM Plaque",Georgia,serif;font-weight:700;font-size:1.2em;letter-spacing:.01em;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #game-status{font-size:1.2em;color:#FFD54F;font-weight:700;text-shadow:0 1px 4px rgba(0,0,0,.5);white-space:nowrap;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
@@ -129,7 +129,7 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:system-ui,-apple-sy
 @keyframes flashTurn{0%{opacity:0;transform:scale(0.8)}15%{opacity:1;transform:scale(1.04)}30%{transform:scale(1)}75%{opacity:1}100%{opacity:0;transform:scale(1)}}
 @media(prefers-reduced-motion:reduce){.ov-card,.turn-flash{animation-duration:.01s}.turn-flash{animation:none;opacity:1}}
 /* ---- Devine-moi duel (board and keyboard styles: devine-ui.css) ---- */
-.dv-wrap{display:flex;flex-direction:column;width:100%;height:100%;max-width:560px;padding:10px 4px calc(10px + env(safe-area-inset-bottom))}
+.dv-wrap{display:flex;flex-direction:column;width:100%;height:100%;max-width:560px;padding:10px 4px calc(10px + var(--safe-area-inset-bottom,env(safe-area-inset-bottom)))}
 .dv-score{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 10px 4px}
 .dv-player{position:relative;display:flex;flex-direction:column;align-items:center;min-width:92px;padding:6px 12px;border-radius:14px;border:1.5px solid rgba(255,255,255,.08);opacity:.5;transition:all .3s}
 .dv-player .dv-name{font-size:.78em;color:var(--pc)}
@@ -144,7 +144,7 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:system-ui,-apple-sy
 .dv-kbd .dm-key[data-key="ENTER"]{color:#0c1430;font-weight:700}  /* readable on the light player colours */
 @keyframes rvPlace{0%{transform:scale(0)}60%{transform:scale(1.1)}100%{transform:scale(1)}}
 /* ---- Word Clash (tiles: devine-ui.css) ---- */
-.wc-wrap{--p0:#c84646;--p0-hi:#e66262;--p1:#2f6db0;--p1-hi:#4b8fd6;--pc:#FF6B6B;position:relative;display:flex;flex-direction:column;align-items:center;width:100%;height:100%;max-width:560px;padding:10px 4px calc(10px + env(safe-area-inset-bottom));
+.wc-wrap{--p0:#c84646;--p0-hi:#e66262;--p1:#2f6db0;--p1-hi:#4b8fd6;--pc:#FF6B6B;position:relative;display:flex;flex-direction:column;align-items:center;width:100%;height:100%;max-width:560px;padding:10px 4px calc(10px + var(--safe-area-inset-bottom,env(safe-area-inset-bottom)));
   background:radial-gradient(80% 45% at 50% 0%,rgba(42,79,149,.28),transparent 70%),radial-gradient(70% 40% at 50% 100%,rgba(28,58,116,.3),transparent 70%)}
 .wc-wrap .dv-score{width:100%}
 .wc-p0{--f:var(--p0);--f-hi:var(--p0-hi)}

@@ -6,3 +6,5 @@ A new look for the board and table games, same rules and controls:
 - Pool: wooden rails, deep pockets, shaded balls and a cue stick while aiming.
 - Tennis: a real court with lines and a net. Air Hockey: rink with rails and mallets.
 - Tank Wars, Caro, Awalé, Reversi, Chess, Carrom and Hangman restyled.
+- Full screen: the system bars are hidden, so sliding along the bottom edge (Star Clash) no longer switches apps.
+- Tank Wars: taller control panel, kept clear of the rounded screen corners.

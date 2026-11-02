@@ -3110,7 +3110,11 @@ function initWordClash(area, setStatus) {
 // ==================== TANK WARS ====================
 function initTankWars(area, setStatus) {
   const {canvas, ctx, w, h} = createCanvas(area);
-  const GRAVITY = 0.15, HUD_H = 40, CTRL_H = 90;
+  const GRAVITY = 0.15, HUD_H = 8, CTRL_H = 124;
+  // Controls kept clear of the rounded corners and of the bottom edge (system gesture area)
+  const MX = 26, SAFE_B = 22;
+  const FIRE_X = w / 2, FIRE_Y = h - SAFE_B - (CTRL_H - SAFE_B) / 2 + 4, FIRE_R = 32;
+  const CY0 = h - CTRL_H;  // top of the control panel
   const GAME_TOP = HUD_H, GAME_BOT = h - CTRL_H;
   const TANK_W = 24, TANK_H = 12, BARREL_LEN = 16;
 
@@ -3243,8 +3247,8 @@ function initTankWars(area, setStatus) {
   function handleDown(p) {
     if (state !== 'aim' || gameOver) return;
     // Check fire button
-    const fbx = w/2, fby = h - CTRL_H/2;
-    if (Math.sqrt((p.x-fbx)**2+(p.y-fby)**2) < 28) {
+    const fbx = FIRE_X, fby = FIRE_Y;
+    if (Math.sqrt((p.x-fbx)**2+(p.y-fby)**2) < FIRE_R + 4) {
       fire(); return;
     }
     dragStart = p;
@@ -3393,34 +3397,35 @@ function initTankWars(area, setStatus) {
     if (state === 'aim' && !gameOver) {
       const tank = tanks[turn];
       ctx.fillStyle = '#ddd'; ctx.font = '12px sans-serif'; ctx.textAlign = 'left';
-      ctx.fillText(`Angle: ${tank.angle.toFixed(0)}°`, 12, h - CTRL_H + 20);
-      ctx.fillText(`Power: ${tank.power.toFixed(0)}`, 12, h - CTRL_H + 38);
+      ctx.font = '600 14px system-ui,sans-serif';
+      ctx.fillText(`Angle ${tank.angle.toFixed(0)}°`, MX, CY0 + 30);
+      ctx.fillText(`Power ${tank.power.toFixed(0)}`, MX, CY0 + 52);
       // Power bar
-      ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.beginPath(); ctx.roundRect(12, h - CTRL_H + 46, 100, 10, 5); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.beginPath(); ctx.roundRect(MX, CY0 + 62, 110, 10, 5); ctx.fill();
       const pPct = tank.power / 1000;
       ctx.fillStyle = pPct < 0.5 ? '#4CAF50' : pPct < 0.8 ? '#FFC107' : '#F44336';
-      ctx.beginPath(); ctx.roundRect(12, h - CTRL_H + 46, Math.max(10, 100 * pPct), 10, 5); ctx.fill();
-      ctx.font = '10px sans-serif'; ctx.fillStyle = '#888';
-      ctx.fillText('Drag to aim', 12, h - CTRL_H + 72);
+      ctx.beginPath(); ctx.roundRect(MX, CY0 + 62, Math.max(10, 110 * pPct), 10, 5); ctx.fill();
+      ctx.font = '12px system-ui,sans-serif'; ctx.fillStyle = 'rgba(240,240,255,0.5)';
+      ctx.fillText('Drag to aim', MX, CY0 + 90);
       // Fire button
       // FIRE: same place and size as before (hit radius 28 in handleDown)
-      const fx = w/2, fy = h - CTRL_H/2;
-      ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.beginPath(); ctx.arc(fx, fy + 3, 27, 0, Math.PI*2); ctx.fill();
-      const fg = ctx.createRadialGradient(fx - 8, fy - 10, 2, fx, fy, 27);
+      const fx = FIRE_X, fy = FIRE_Y;
+      ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.beginPath(); ctx.arc(fx, fy + 3, FIRE_R + 1, 0, Math.PI*2); ctx.fill();
+      const fg = ctx.createRadialGradient(fx - 9, fy - 11, 2, fx, fy, FIRE_R + 1);
       fg.addColorStop(0, '#ff8a80'); fg.addColorStop(0.55, '#e53935'); fg.addColorStop(1, '#8e1414');
-      ctx.fillStyle = fg; ctx.beginPath(); ctx.arc(fx, fy, 26, 0, Math.PI*2); ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(fx, fy, 22, 0, Math.PI*2); ctx.stroke();
-      ctx.fillStyle = '#fff'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText('FIRE', w/2, h - CTRL_H/2 + 4);
+      ctx.fillStyle = fg; ctx.beginPath(); ctx.arc(fx, fy, FIRE_R, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(fx, fy, FIRE_R - 5, 0, Math.PI*2); ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 15px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('FIRE', fx, fy + 5);
       // Right side info
-      ctx.textAlign = 'right'; ctx.fillStyle = turn === 0 ? '#FF6B6B' : '#64B5F6'; ctx.font = 'bold 12px sans-serif';
-      ctx.fillText(`P${turn+1} aims`, w - 12, h - CTRL_H + 20);
+      ctx.textAlign = 'right'; ctx.fillStyle = turn === 0 ? '#FF6B6B' : '#64B5F6'; ctx.font = 'bold 14px system-ui,sans-serif';
+      ctx.fillText(`P${turn+1} aims`, w - MX, CY0 + 30);
       // wind gauge
-      ctx.fillStyle = 'rgba(240,240,255,0.6)'; ctx.font = '11px sans-serif';
-      ctx.fillText(`Wind ${wind > 0 ? '→' : '←'} ${Math.abs(wind).toFixed(0)}`, w - 12, h - CTRL_H + 40);
+      ctx.fillStyle = 'rgba(240,240,255,0.6)'; ctx.font = '13px system-ui,sans-serif';
+      ctx.fillText(`Wind ${wind > 0 ? '→' : '←'} ${Math.abs(wind).toFixed(0)}`, w - MX, CY0 + 52);
       const aw = Math.abs(wind) * 2.4;
       ctx.strokeStyle = 'rgba(160,210,255,0.8)'; ctx.lineWidth = 3; ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.moveTo(w - 40 - aw / 2, h - CTRL_H + 56); ctx.lineTo(w - 40 + aw / 2, h - CTRL_H + 56); ctx.stroke(); ctx.lineCap = 'butt';
+      ctx.beginPath(); ctx.moveTo(w - MX - 28 - aw / 2, CY0 + 68); ctx.lineTo(w - MX - 28 + aw / 2, CY0 + 68); ctx.stroke(); ctx.lineCap = 'butt';
     }
     ctx.textAlign = 'left';
   }
