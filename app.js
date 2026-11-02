@@ -629,20 +629,13 @@ function initReversi(area, setStatus) {
         if (!cached) {
           const disc = document.createElement('div');
           disc.className = 'rv-piece';
-          disc.style.cssText = `width:${cellSz*0.78}px;height:${cellSz*0.78}px;border-radius:50%;background:${bgFor(v)};box-shadow:${boxShadowFor(flipped)};animation:rvPlace 0.22s ease-out`;
+          disc.style.cssText = `width:${cellSz*0.78}px;height:${cellSz*0.78}px;border-radius:50%;background:${bgFor(v)};box-shadow:${boxShadowFor(flipped)}`;
           cell.appendChild(disc);
           discEls[key] = {el: disc, color: v};
         } else if (cached.color !== v) {
           const disc = cached.el;
-          disc.style.transition = 'transform 0.15s ease-in';
-          disc.style.transform = 'scaleX(0)';
-          const targetV = v;
-          setTimeout(() => {
-            disc.style.background = bgFor(targetV);
-            disc.style.boxShadow = boxShadowFor(true);
-            disc.style.transition = 'transform 0.15s ease-out';
-            disc.style.transform = 'scaleX(1)';
-          }, 150);
+          disc.style.background = bgFor(v);
+          disc.style.boxShadow = boxShadowFor(true);
           cached.color = v;
         } else {
           cached.el.style.boxShadow = boxShadowFor(flipped);
@@ -816,7 +809,7 @@ function initMemory(area, setStatus) {
   function hideCard(i) {
     cardEls[i].classList.remove('mm-up', 'mm-p0', 'mm-p1');
     // clear the face once it has turned away
-    setTimeout(() => { if (!cardEls[i].classList.contains('mm-up')) cardEls[i].querySelector('.mm-face').innerHTML = ''; }, 260);
+    cardEls[i].querySelector('.mm-face').innerHTML = '';
   }
   function execFlip(i) {
     if (busy || matched[i] || (first === i)) return;
@@ -832,12 +825,11 @@ function initMemory(area, setStatus) {
       updateStatus('Pair! Play again');
     } else {
       SND.buzz();
-      // 800 ms of face-up time, plus the half flip before the face shows
       setTimeout(() => {
         hideCard(first); hideCard(second);
         first = second = -1; busy = false;
         turn = 3 - turn; flashTurn(area, turn); updateStatus();
-      }, 900);
+      }, 800);
     }
   }
 
@@ -4399,7 +4391,6 @@ function initCaro(area, setStatus) {
       stone.style.background = 'radial-gradient(circle at 35% 30%, #ffffff, #ece8de 50%, #bdb6a6)';
       stone.style.boxShadow = '1px 2px 3px rgba(0,0,0,0.4)';
     }
-    stone.style.animation = 'rvPlace .18s ease-out';
     // marker on the last stone played
     if (lastStone) lastStone.classList.remove('caro-last');
     stone.classList.add('caro-last'); stone.style.setProperty('--mk', turn === 1 ? 'rgba(255,255,255,.75)' : 'rgba(0,0,0,.55)');
@@ -4489,7 +4480,6 @@ function initCaro(area, setStatus) {
       board[r][c] = 0;
       cells[r * SIZE + c].stone.style.background = 'none';
       cells[r * SIZE + c].stone.style.boxShadow = 'none';
-      cells[r * SIZE + c].stone.style.animation = 'none';
       cells[r * SIZE + c].stone.classList.remove('caro-last');
     }
     lastStone = null;
@@ -4718,7 +4708,6 @@ function initHangman(area, setStatus) {
   wrap.appendChild(cont);
 
   const KB_ROWS = ['QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM'];
-  let lastWrong = 0;
   function render() {
     let h = '';
     // Word: enamel plaques (Devine-moi tiles), empty slots for the letters still hidden
@@ -4731,7 +4720,7 @@ function initHangman(area, setStatus) {
     h += `</div></div>`;
 
     // Gallows: wood and rope, the newest part is drawn in
-    const P = (n, svg) => wrongCount >= n ? svg.replace('/>', ` pathLength="1" class="hm-part${n === wrongCount && n > lastWrong ? ' hm-new' : ''}"/>`) : '';
+    const P = (n, svg) => wrongCount >= n ? svg.replace('/>', ` pathLength="1" class="hm-part"/>`) : '';
     h += `<div style="display:flex;justify-content:center;margin:2px 0"><svg width="132" height="132" viewBox="0 0 120 120" class="hm-svg">`;
     h += `<path d="M10 114 H70" stroke="#6b4423" stroke-width="7" stroke-linecap="round"/>`;
     h += `<path d="M30 112 V10 H82" stroke="#8a5a2b" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`;
@@ -4744,7 +4733,6 @@ function initHangman(area, setStatus) {
     h += P(5, `<path d="M80 72 L66 92" stroke="#eef1ec" stroke-width="3" stroke-linecap="round"/>`);
     h += P(6, `<path d="M80 72 L94 92" stroke="#eef1ec" stroke-width="3" stroke-linecap="round"/>`);
     h += `</svg></div>`;
-    lastWrong = wrongCount;
 
     // Misses left: one dot per allowed miss
     h += `<div class="hm-misses">${Array.from({length: MAX_WRONG}, (_, i) => `<i class="${i < wrongCount ? 'hm-used' : ''}"></i>`).join('')}</div>`;
@@ -4780,7 +4768,7 @@ function initHangman(area, setStatus) {
     word = wordList[Math.floor(Math.random() * wordList.length)];
     revealed = Array(word.length).fill(false);
     guessed = new Set();
-    scores = [0, 0]; turn = 0; wrongCount = 0; lastWrong = 0;
+    scores = [0, 0]; turn = 0; wrongCount = 0;
     gameOver = false;
     render();
   }
