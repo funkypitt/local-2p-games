@@ -717,9 +717,6 @@ function initFourInARow(area, setStatus) {
     board[r][c] = turn; SND.drop();
     const disc = document.createElement('div');
     disc.className = 'c4-disc c4-' + turn;
-    // fall from above the plate to the hole: purely visual, the move is already on the board
-    disc.style.setProperty('--fall', `calc(${-(r + 1)} * (100% + 5px) - 12px)`);
-    disc.style.animationDuration = (140 + r * 22) + 'ms';
     cells[r * COLS + c].appendChild(disc);
     const line = checkWin(r, c);
     if (line) {
@@ -727,7 +724,7 @@ function initFourInARow(area, setStatus) {
       line.forEach(([lr, lc]) => { const d = cells[lr * COLS + lc].firstChild; if (d) d.classList.add('c4-win'); });
       grid.classList.add('c4-over');
       const m = `${NAMES[turn - 1]} wins!`; bar(m);
-      setTimeout(() => showOverlay(area, `${m}<br>Red ${wins[0]} – ${wins[1]} Yellow`, 'Rematch', restart), 900); return;
+      setTimeout(() => showOverlay(area, `${m}<br>Red ${wins[0]} – ${wins[1]} Yellow`, 'Rematch', restart), 600); return;
     }
     if (board[0].every(v => v)) { gameOver = true; bar('Draw!'); setTimeout(() => showOverlay(area, 'Draw!', 'Rematch', restart), 600); return; }
     turn = 3 - turn;
@@ -4045,10 +4042,14 @@ function initPool(area, setStatus) {
     ctx.save();
     if (zoomScale < 1) { const cx = w/2, cy = h/2; ctx.translate(cx,cy); ctx.scale(zoomScale,zoomScale); ctx.translate(-cx,-cy); }
     ctx.drawImage(tableLayer, 0, 0, w, h);
-    // Aim line (under the balls)
+    // Aim glow and line (under the balls)
     const showCue = aiming && aimStart && balls[0].active && !moving;
     if (showCue) {
       const cb = balls[0];
+      // glow around the cue ball while aiming
+      const grd = ctx.createRadialGradient(cb.x, cb.y, BR, cb.x, cb.y, BR*3);
+      grd.addColorStop(0, 'rgba(255,255,100,0.45)'); grd.addColorStop(1, 'rgba(255,255,100,0)');
+      ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(cb.x, cb.y, BR*3, 0, Math.PI*2); ctx.fill();
       const dx = cb.x - aimStart.x, dy = cb.y - aimStart.y;
       ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1;
       ctx.setLineDash([4,4]);
@@ -4056,27 +4057,6 @@ function initPool(area, setStatus) {
       ctx.setLineDash([]);
     }
     for (const b of balls) if (b.active) drawPoolBall(b);
-    // Cue stick behind the cue ball, pulled back with the power of the shot
-    if (showCue) {
-      const cb = balls[0];
-      const dx = cb.x - aimStart.x, dy = cb.y - aimStart.y, d = Math.hypot(dx, dy);
-      if (d > 2) {
-        const ux = dx / d, uy = dy / d, pull = Math.min(d, 200) * 0.3;
-        const tip = BR * 1.4 + pull, L = Math.max(TW, TH) * 0.75;
-        const x1 = cb.x - ux * tip, y1 = cb.y - uy * tip, x2 = cb.x - ux * (tip + L), y2 = cb.y - uy * (tip + L);
-        ctx.save(); ctx.lineCap = 'round';
-        ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = BR * 0.9;
-        ctx.beginPath(); ctx.moveTo(x1 + 4, y1 + 6); ctx.lineTo(x2 + 4, y2 + 6); ctx.stroke();
-        const sg = ctx.createLinearGradient(x1, y1, x2, y2);
-        sg.addColorStop(0, '#e9e4d6'); sg.addColorStop(0.03, '#e9e4d6'); sg.addColorStop(0.031, '#d8b57a');
-        sg.addColorStop(0.6, '#b07a3a'); sg.addColorStop(0.62, '#2a1608'); sg.addColorStop(1, '#3a1f0b');
-        ctx.strokeStyle = sg; ctx.lineWidth = BR * 0.75;
-        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-        ctx.strokeStyle = '#3b6fb0'; ctx.lineWidth = BR * 0.55;  // chalked tip
-        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x1 - ux * 2, y1 - uy * 2); ctx.stroke();
-        ctx.restore();
-      }
-    }
     ctx.restore();
   }
   poolBar(); setStatus('P1 to shoot');
