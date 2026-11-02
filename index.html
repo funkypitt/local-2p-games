@@ -37,23 +37,97 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:system-ui,-apple-sy
 @keyframes cardIn{from{opacity:0;transform:translateX(18px) scale(.98)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.card{animation:none}}
 /* ---- Game shell ---- */
-#game{display:none;flex-direction:column;height:100vh;width:100vw}
-#game-header{display:flex;align-items:center;padding:10px 14px;padding-top:calc(10px + env(safe-area-inset-top));background:#1a1a2e;border-bottom:1px solid rgba(255,255,255,.08);gap:10px;min-height:52px;z-index:10}
+#game{display:none;flex-direction:column;height:100vh;width:100vw;--game-rgb:42,79,149;
+  background:radial-gradient(90% 50% at 50% 0%,rgba(var(--game-rgb),.30),transparent 72%),radial-gradient(80% 42% at 50% 100%,rgba(var(--game-rgb),.20),transparent 70%),#0b1024}
+#game-header{display:flex;align-items:center;padding:10px 14px;padding-top:calc(10px + env(safe-area-inset-top));background:rgba(8,11,28,.55);border-bottom:1px solid rgba(255,255,255,.07);box-shadow:0 1px 0 rgba(0,0,0,.35);gap:10px;min-height:52px;z-index:10}
 #back-btn{background:none;border:none;color:#f0f0f0;font-size:1.5em;cursor:pointer;padding:6px 10px;min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center}
-#game-title{font-weight:700;font-size:1.15em;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#game-status{font-size:1.2em;color:#FFD54F;font-weight:700;text-shadow:0 1px 4px rgba(0,0,0,.5);white-space:nowrap}
+#game-title{font-family:"DM Plaque",Georgia,serif;font-weight:700;font-size:1.2em;letter-spacing:.01em;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#game-status{font-size:1.2em;color:#FFD54F;font-weight:700;text-shadow:0 1px 4px rgba(0,0,0,.5);white-space:nowrap;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+#game-status:empty{display:none}
 #game-status .turn-active{font-size:1.15em;font-weight:900;text-shadow:0 0 8px currentColor,0 0 16px currentColor;animation:turnPulse 1.5s ease-in-out infinite}
 @keyframes turnPulse{0%,100%{opacity:1}50%{opacity:0.7}}
-#game-area{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;background:#0f0f1a}
+#info-btn{border-color:rgba(255,255,255,.22)!important;background:rgba(255,255,255,.06)!important}
+/* Score bar shared by the board games (cards = .dv-player of the word games) */
+#game-scorebar{display:none;padding:8px 12px 4px;flex:none}
+#game-scorebar.on{display:flex}
+#game-scorebar .dv-pts{font-family:"DM Plaque",Georgia,serif}
+#game-scorebar .dv-name{display:flex;align-items:center;gap:5px;font-weight:600}
+#game-scorebar .sb-sub{font-size:.7em;color:rgba(240,240,255,.6);min-height:0}
+#game-scorebar .sb-sub:empty{display:none}
+#game-scorebar .sb-mid{flex:1;min-width:0;font-size:.82em;line-height:1.25;color:rgba(240,240,255,.7)}
+.sb-chip{display:inline-block;width:11px;height:11px;border-radius:50%;box-shadow:0 1px 2px rgba(0,0,0,.5),inset 0 0 0 1px rgba(0,0,0,.2)}
+#game-scorebar.sb-compact{padding:5px 10px 3px}
+#game-scorebar.sb-compact .dv-player{flex-direction:row;gap:8px;padding:3px 12px;min-width:84px;justify-content:center}
+#game-scorebar.sb-compact .dv-pts{font-size:1.25em}
+#game-scorebar.sb-compact .dv-player{opacity:1;border-color:color-mix(in srgb,var(--pc) 45%,transparent);background:color-mix(in srgb,var(--pc) 8%,transparent)}
+#game-area{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;background:transparent}
 #game-area canvas{display:block}
+.wood-frame{position:relative;padding:8px;border-radius:16px;background:linear-gradient(145deg,#8a5a2b,#5a3615 45%,#7a4b22 70%,#4a2a0e);box-shadow:inset 0 1px 0 rgba(255,230,190,.35),inset 0 -2px 0 rgba(0,0,0,.35),0 0 0 1px rgba(0,0,0,.5),0 16px 34px rgba(0,0,0,.55)}
+.c4-plate{display:grid;gap:5px;padding:12px;border-radius:18px;position:relative;
+  background:linear-gradient(180deg,#3a8ef0,#1b63c6 45%,#124c9e);box-shadow:inset 0 2px 0 rgba(255,255,255,.35),inset 0 -4px 0 rgba(0,0,0,.25),0 0 0 1px rgba(0,0,0,.45),0 18px 36px rgba(0,0,0,.55)}
+.c4-hole{aspect-ratio:1;border-radius:50%;position:relative;cursor:pointer;background:radial-gradient(circle at 50% 38%,#121a38,#070b1a 75%);box-shadow:inset 0 4px 7px rgba(0,0,0,.85),0 1px 0 rgba(255,255,255,.28),0 -1px 0 rgba(0,0,0,.25)}
+.c4-disc{position:absolute;inset:3%;border-radius:50%;animation:c4Fall ease-in both;box-shadow:inset 0 0 0 3px rgba(0,0,0,.14),inset 0 0 0 5px rgba(255,255,255,.14),inset 0 -3px 5px rgba(0,0,0,.3),0 2px 4px rgba(0,0,0,.5);z-index:2}
+.c4-1{background:radial-gradient(circle at 38% 32%,#ff8a80,#e53935 50%,#a31515)}
+.c4-2{background:radial-gradient(circle at 38% 32%,#fff59d,#fdd835 50%,#c49000)}
+.c4-over .c4-disc:not(.c4-win){filter:brightness(.6) saturate(.8);transition:filter .4s}
+.c4-win::after{content:'';position:absolute;inset:-2px;border-radius:50%;animation:c4Glow 1.1s ease-in-out .25s infinite alternate}
+@keyframes c4Fall{0%{transform:translateY(var(--fall,-300%))}82%{transform:translateY(0)}91%{transform:translateY(-6%)}100%{transform:translateY(0)}}
+@keyframes c4Glow{from{box-shadow:0 0 0 2px rgba(255,255,255,.85),0 0 10px 2px rgba(255,255,255,.55)}to{box-shadow:0 0 0 3px #fff,0 0 22px 7px rgba(255,255,255,.85)}}
+@media(prefers-reduced-motion:reduce){.c4-disc,.c4-win::after{animation:none}}
+.mm-card{perspective:600px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.mm-inner{position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform .22s ease-out}
+.mm-up .mm-inner{transform:rotateY(180deg)}
+.mm-back,.mm-face{position:absolute;inset:0;border-radius:12px;backface-visibility:hidden;-webkit-backface-visibility:hidden;display:flex;align-items:center;justify-content:center}
+.mm-back{background:radial-gradient(circle at 50% 50%,rgba(255,255,255,.16) 0 9%,transparent 10%),repeating-linear-gradient(45deg,rgba(255,255,255,.07) 0 5px,transparent 5px 10px),linear-gradient(150deg,#9c3cc4,#5e1a86);
+  box-shadow:inset 0 0 0 2px rgba(255,255,255,.14),inset 0 0 0 5px rgba(0,0,0,.18),inset 0 0 0 6px rgba(255,255,255,.08),0 3px 8px rgba(0,0,0,.45)}
+.mm-face{transform:rotateY(180deg);background:linear-gradient(180deg,#f6f2e8,#e3dccb);box-shadow:inset 0 0 0 1.5px rgba(0,0,0,.08),inset 0 -3px 0 rgba(0,0,0,.08),0 3px 8px rgba(0,0,0,.45)}
+.mm-p0 .mm-face{box-shadow:inset 0 0 0 3px #FF6B6B,0 0 12px rgba(255,107,107,.55);background:linear-gradient(180deg,#fbe9e7,#f0d0cb)}
+.mm-p1 .mm-face{box-shadow:inset 0 0 0 3px #64B5F6,0 0 12px rgba(100,181,246,.55);background:linear-gradient(180deg,#e7f1fb,#cfe0f0)}
+.mm-p0,.mm-p1{animation:mmMatch .35s ease-out}
+@keyframes mmMatch{50%{transform:scale(1.08)}}
+@media(prefers-reduced-motion:reduce){.mm-inner{transition:none}.mm-p0,.mm-p1{animation:none}}
+.aw-board{padding:12px;border-radius:22px;background:linear-gradient(160deg,#8a5a2b,#6a4019 40%,#7d4f24 70%,#53300f);box-shadow:inset 0 2px 0 rgba(255,230,190,.3),inset 0 -3px 0 rgba(0,0,0,.35),0 0 0 1px rgba(0,0,0,.5),0 18px 36px rgba(0,0,0,.55)}
+.aw-pit{padding:8px 4px;border-radius:50%/42%;text-align:center;min-height:70px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;
+  background:radial-gradient(ellipse at 50% 30%,#2a170a,#3f2412 60%,#5a361a);box-shadow:inset 0 6px 10px rgba(0,0,0,.6),inset 0 -2px 3px rgba(255,220,170,.12),0 1px 0 rgba(255,230,190,.25);transition:box-shadow .2s}
+.aw-pit.aw-live{box-shadow:inset 0 6px 10px rgba(0,0,0,.6),inset 0 -2px 3px rgba(255,220,170,.12),0 0 0 2px rgba(255,213,79,.55),0 0 10px rgba(255,213,79,.25)}
+.aw-n{font-size:.62em;color:rgba(255,235,210,.6);margin-top:1px;font-weight:600}
+.aw-seed{width:13px;height:16px;border-radius:50%;box-shadow:inset -1px -2px 2px rgba(0,0,0,.45),0 1px 1px rgba(0,0,0,.5)}
+.aw-label{display:flex;align-items:baseline;justify-content:center;gap:10px;margin:0 auto 10px;width:max-content;padding:3px 16px;border-radius:999px;border:1.5px solid rgba(255,255,255,.14);background:rgba(0,0,0,.25);opacity:.6;transition:all .3s;color:var(--pc);font-weight:700}
+.aw-label:last-child{margin:10px auto 0}
+.aw-label b{font-family:"DM Plaque",Georgia,serif;font-size:1.35em;color:#fff}
+.aw-label.aw-on{opacity:1;border-color:var(--pc);box-shadow:0 0 14px color-mix(in srgb,var(--pc) 50%,transparent);background:color-mix(in srgb,var(--pc) 14%,rgba(0,0,0,.25))}
+.caro-grid{border-radius:6px;overflow:hidden;background:radial-gradient(120% 90% at 30% 20%,rgba(255,240,200,.35),transparent 60%),repeating-linear-gradient(96deg,rgba(120,80,20,.08) 0 3px,transparent 3px 11px),linear-gradient(160deg,#dcb661,#c99d45 55%,#b98a35);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),inset 0 0 18px rgba(80,50,10,.25)}
+.caro-last::after{content:'';position:absolute;left:50%;top:50%;width:26%;height:26%;transform:translate(-50%,-50%);border-radius:50%;background:var(--mk)}
+.hm-svg{filter:drop-shadow(0 4px 6px rgba(0,0,0,.45))}
+.hm-new{stroke-dasharray:1;stroke-dashoffset:1;animation:hmDraw .35s ease-out forwards}
+@keyframes hmDraw{to{stroke-dashoffset:0}}
+.hm-misses{display:flex;gap:7px;justify-content:center;margin:4px 0}
+.hm-misses i{width:10px;height:10px;border-radius:50%;background:rgba(238,241,236,.18);box-shadow:inset 0 1px 2px rgba(0,0,0,.4)}
+.hm-misses i.hm-used{background:#e05555;box-shadow:0 0 8px rgba(224,85,85,.6)}
+@media(prefers-reduced-motion:reduce){.hm-new{animation:none;stroke-dashoffset:0}}
 .board-game{display:flex;flex-direction:column;align-items:center;gap:8px;padding:8px;width:100%;height:100%;justify-content:center}
-.btn{background:#2a2a4a;color:#f0f0f0;border:none;border-radius:8px;padding:8px 16px;font-size:.9em;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.3);transition:background .2s,transform .15s;-webkit-tap-highlight-color:transparent}
-.btn:active{background:#3a3a5a;transform:scale(.97)}
-@media(hover:hover){.btn:hover{background:#3a3a5a}}
-.overlay{position:absolute;inset:0;background:rgba(15,15,26,.92);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:20;gap:12px;font-size:1.1em;animation:fadeIn .2s ease-out}
+/* Buttons: pills, as in Word Clash */
+.btn{background:rgba(238,241,236,.08);color:#eef1ec;border:1px solid rgba(238,241,236,.18);border-radius:999px;padding:8px 18px;font:600 .92em system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;cursor:pointer;box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 3px 10px rgba(0,0,0,.3);transition:background .2s,transform .12s;-webkit-tap-highlight-color:transparent}
+.btn:active{background:rgba(238,241,236,.16);transform:scale(.96)}
+@media(hover:hover){.btn:hover{background:rgba(238,241,236,.14)}}
+.btn-main{background:linear-gradient(180deg,var(--game-hi,#4b8fd6),var(--game,#2f6db0));border-color:rgba(255,255,255,.25);color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.35);box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 6px 18px rgba(var(--game-rgb),.35),0 2px 6px rgba(0,0,0,.4)}
+.btn-main:active{background:linear-gradient(180deg,var(--game,#2f6db0),var(--game,#2f6db0))}
+.overlay{position:absolute;inset:0;background:radial-gradient(70% 50% at 50% 45%,rgba(var(--game-rgb,42,79,149),.22),transparent 75%),rgba(8,11,28,.86);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:20;gap:12px;font-size:1.1em;animation:fadeIn .2s ease-out}
+.ov-x{position:absolute;top:10px;right:14px;background:none;border:none;color:#fff;font-size:2em;cursor:pointer;line-height:1;opacity:.7}
+.ov-card{display:flex;flex-direction:column;align-items:center;gap:14px;max-width:calc(100% - 40px);padding:24px 30px 22px;border-radius:22px;text-align:center;
+  background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.12);box-shadow:inset 0 1px 0 rgba(255,255,255,.1),0 18px 40px rgba(0,0,0,.45);animation:ovPop .28s cubic-bezier(.2,1.3,.4,1)}
+.ov-title{font-family:"DM Plaque",Georgia,serif;font-size:1.75em;line-height:1.15;color:#fff;text-shadow:0 2px 12px rgba(var(--game-rgb,42,79,149),.6)}
+.ov-sub{font-size:.9em;color:rgba(240,240,255,.72);line-height:1.5}
+.ov-msg{font-size:1.15em;font-weight:700;line-height:1.35}
+.overlay .btn{font-size:1em;padding:11px 28px}
+@keyframes ovPop{from{opacity:0;transform:scale(.9) translateY(8px)}to{opacity:1;transform:none}}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
-.overlay .btn{font-size:1em;padding:10px 24px}
-@keyframes flashTurn{0%{opacity:0;transform:scale(0.7)}15%{opacity:1;transform:scale(1.05)}30%{transform:scale(1)}75%{opacity:1}100%{opacity:0;transform:scale(1)}}
+/* Turn change: a short toast, same family as the word games */
+.turn-flash{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:30;pointer-events:none;animation:flashTurn 1.1s ease-out forwards}
+.tf-box{padding:14px 28px;border-radius:999px;background:rgba(10,14,32,.78);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);border:2px solid var(--pc);box-shadow:0 0 0 4px rgba(0,0,0,.25),0 0 26px color-mix(in srgb,var(--pc) 55%,transparent),0 10px 30px rgba(0,0,0,.45);
+  font-family:"DM Plaque",Georgia,serif;font-size:1.5em;color:var(--pc);text-shadow:0 0 14px color-mix(in srgb,var(--pc) 70%,transparent);letter-spacing:.3px;white-space:nowrap}
+@keyframes flashTurn{0%{opacity:0;transform:scale(0.8)}15%{opacity:1;transform:scale(1.04)}30%{transform:scale(1)}75%{opacity:1}100%{opacity:0;transform:scale(1)}}
+@media(prefers-reduced-motion:reduce){.ov-card,.turn-flash{animation-duration:.01s}.turn-flash{animation:none;opacity:1}}
 /* ---- Devine-moi duel (board and keyboard styles: devine-ui.css) ---- */
 .dv-wrap{display:flex;flex-direction:column;width:100%;height:100%;max-width:560px;padding:10px 4px calc(10px + env(safe-area-inset-bottom))}
 .dv-score{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 10px 4px}
@@ -128,6 +202,7 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:system-ui,-apple-sy
 <span id="game-title"></span>
 <span id="game-status"></span>
 </div>
+<div id="game-scorebar" class="dv-score"></div>
 <div id="game-area"></div>
 </div>
 <script src="devine-words.js"></script>
