@@ -838,8 +838,15 @@ function initMemory(area, setStatus) {
 
 // ==================== AWALÉ ====================
 function initAwale(area, setStatus) {
-  let board = Array(12).fill(4);
-  let scores = [0, 0], turn = 0, gameOver = false, animating = false, activePit = -1;
+  const SEED_COLS = ['#8B5A2B','#9C6B3C','#6E4524','#7F5530','#5E3B1F','#A47447','#76502e'];
+  const newSeed = () => ({ c: SEED_COLS[(Math.random()*SEED_COLS.length)|0], r: (Math.random()*180)|0, s: 0.92 + Math.random()*0.14 });
+  let board, seeds, scores, turn, gameOver, animating, dead = false;
+  function reset() {
+    board = Array(12).fill(4);
+    seeds = board.map(n => Array.from({length:n}, newSeed));
+    scores = [0, 0]; turn = 0; gameOver = false; animating = false;
+  }
+  reset();
   const delay = ms => new Promise(r => setTimeout(r, ms));
   const wrap = document.createElement('div');
   wrap.className = 'board-game';
@@ -847,112 +854,154 @@ function initAwale(area, setStatus) {
   const cont = document.createElement('div');
   cont.className = 'aw-board';
   wrap.appendChild(cont);
-  function applyOrientation(){
-    const r=area.getBoundingClientRect(),aw=r.width,ah=r.height;
-    if(ah>aw){
-      wrap.style.cssText='display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:8px;position:absolute;width:'+ah+'px;height:'+aw+'px;top:50%;left:50%;margin-top:-'+(aw/2)+'px;margin-left:-'+(ah/2)+'px;transform:rotate(90deg)';
-      cont.style.cssText='width:min(85%,700px)';
-    } else {
-      wrap.style.cssText='display:flex;flex-direction:column;align-items:center;gap:8px;padding:8px;width:100%;height:100%;justify-content:center';
-      cont.style.cssText='width:min(85%,700px)';
-    }
+
+  // Seeds gather in a round heap: sunflower spiral, 10 per layer, later layers sit on top.
+  function seedPos(k) {
+    const layer = Math.floor(k / 10), m = k % 10;
+    const rr = 11.8 * Math.sqrt(m + 0.5), a = m * 2.39996 + layer * 1.1;
+    return [50 + rr*Math.cos(a) - layer*2.5, 50 + rr*Math.sin(a) - layer*3];
   }
-  applyOrientation();window.addEventListener('resize',applyOrientation);
-  function renderBeans(count, active) {
-    if (count === 0) return '';
-    const BEAN_COLORS = ['#8B4513','#A0522D','#6B3410','#7B3F00','#5C3317','#D2691E'];
-    let h = '<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:3px;padding:3px">';
-    for (let b = 0; b < Math.min(count, 12); b++) {
-      const col = BEAN_COLORS[b % BEAN_COLORS.length];
-      h += `<div class="aw-seed" style="background:radial-gradient(ellipse at 35% 30%,rgba(255,230,200,.55),transparent 45%),${col}"></div>`;
-    }
-    if (count > 12) h += `<div style="font-size:.6em;color:#f3e0c8;width:100%;text-align:center">+${count-12}</div>`;
-    h += '</div>';
+  function seedsHTML(list) {
+    let h = '';
+    list.forEach((s, k) => {
+      const [x, y] = seedPos(k);
+      h += `<i class="aw-seed" style="left:${x}%;top:${y}%;--c:${s.c};transform:translate(-50%,-50%) rotate(${s.r}deg) scale(${s.s})"></i>`;
+    });
     return h;
   }
-  function render() {
-    const label = p => `<div class="aw-label${turn===p && !gameOver?' aw-on':''}" style="--pc:${PLAYER_COL[p]}"><span>P${p+1}</span><b>${scores[p]}</b></div>`;
-    let h = label(1);
-    h += '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:6px">';
-    for (let i = 11; i >= 6; i--) {
-      const a = !animating && turn===1 && board[i]>0 && !gameOver;
-      const glow = i===activePit ? 'box-shadow:0 0 12px 4px rgba(255,200,50,0.7);' : '';
-      h += `<div data-pit="${i}" class="aw-pit${a?' aw-live':''}" style="cursor:${a?'pointer':'default'};${glow}">`;
-      h += renderBeans(board[i], a);
-      h += `<div class="aw-n">${board[i]}</div></div>`;
-    }
-    h += '</div><div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px">';
-    for (let i = 0; i <= 5; i++) {
-      const a = !animating && turn===0 && board[i]>0 && !gameOver;
-      const glow = i===activePit ? 'box-shadow:0 0 12px 4px rgba(255,200,50,0.7);' : '';
-      h += `<div data-pit="${i}" class="aw-pit${a?' aw-live':''}" style="cursor:${a?'pointer':'default'};${glow}">`;
-      h += renderBeans(board[i], a);
-      h += `<div class="aw-n">${board[i]}</div></div>`;
-    }
-    h += '</div>' + label(0);
-    cont.innerHTML = h;
-    cont.querySelectorAll('[data-pit]').forEach(el => {
-      el.onclick = () => {
-        if (animating) return;
-        const pit = parseInt(el.dataset.pit);
-        execPlay(pit);
-      };
-    });
-    if (gameOver) {
-      const m = scores[0]>scores[1]?'P1 wins!':scores[1]>scores[0]?'P2 wins!':'Draw!';
-      setStatus(m);
-      setTimeout(() => showOverlay(area, `${m}<br>P1: ${scores[0]} | P2: ${scores[1]}`, 'Rematch', () => { board = Array(12).fill(4); scores = [0,0]; turn = 0; gameOver = false; animating = false; activePit = -1; render(); }), 600);
-    } else {
-      setStatus(`P${turn+1}'s turn`);
-    }
+
+  // Board built once; pits are updated one by one so moving seeds are never redrawn from scratch.
+  const label = p => `<div class="aw-label" data-lab="${p}" style="--pc:${PLAYER_COL[p]}"><span>P${p+1}</span><b>0</b></div>`;
+  let h = label(1) + '<div class="aw-plate"><div class="aw-row">';
+  for (let i = 11; i >= 6; i--) h += `<div class="aw-pit" data-pit="${i}"></div>`;
+  h += '</div><div class="aw-row">';
+  for (let i = 0; i <= 5; i++) h += `<div class="aw-pit" data-pit="${i}"></div>`;
+  h += '</div></div>' + label(0);
+  cont.innerHTML = h;
+  const plate = cont.querySelector('.aw-plate');
+  const pitEl = [], labEl = [];
+  cont.querySelectorAll('[data-pit]').forEach(el => { pitEl[+el.dataset.pit] = el; el.onclick = () => execPlay(+el.dataset.pit); });
+  cont.querySelectorAll('[data-lab]').forEach(el => labEl[+el.dataset.lab] = el);
+
+  function drawPit(i) {
+    const n = board[i];
+    pitEl[i].innerHTML = seedsHTML(seeds[i]) + (n ? `<span class="aw-n">${n}</span>` : '');
   }
+  function refresh() {
+    for (let i = 0; i < 12; i++) {
+      drawPit(i);
+      const own = turn === 0 ? i <= 5 : i >= 6;
+      pitEl[i].classList.toggle('aw-live', !animating && !gameOver && own && board[i] > 0);
+    }
+    [0, 1].forEach(p => {
+      labEl[p].querySelector('b').textContent = scores[p];
+      labEl[p].classList.toggle('aw-on', turn === p && !gameOver);
+    });
+  }
+
+  function applyOrientation() {
+    const r = area.getBoundingClientRect(), aw = r.width, ah = r.height;
+    const rot = ah > aw, fw = rot ? ah : aw, fh = rot ? aw : ah;
+    if (rot) wrap.style.cssText = 'position:absolute;width:'+ah+'px;height:'+aw+'px;top:50%;left:50%;margin-top:-'+(aw/2)+'px;margin-left:-'+(ah/2)+'px;transform:rotate(90deg)';
+    else wrap.style.cssText = '';
+    // Pit diameter: as large as the frame allows; the wood rim stays thin around it.
+    const d = Math.floor(Math.max(40, Math.min((fw*0.95 - 16) / 6.5, (fh - 110) / 2.2, 150)));
+    cont.style.setProperty('--d', d + 'px');
+  }
+  applyOrientation(); window.addEventListener('resize', applyOrientation);
+
+  // Centre of an element in the board's own (unrotated) coordinates.
+  function centre(el) {
+    let x = el.offsetWidth/2, y = el.offsetHeight/2, e = el;
+    while (e && e !== cont) { x += e.offsetLeft; y += e.offsetTop; e = e.offsetParent; }
+    return [x, y];
+  }
+  function makeHand(list, from) {
+    const d = pitEl[0].offsetWidth, hand = document.createElement('div');
+    hand.className = 'aw-hand';
+    hand.style.width = hand.style.height = d + 'px';
+    hand.innerHTML = seedsHTML(list);
+    const [x, y] = centre(from);
+    hand.style.transform = `translate(${x - d/2}px,${y - d/2}px)`;
+    cont.appendChild(hand);
+    hand.offsetWidth; // commit the start position before moving
+    return hand;
+  }
+  function moveHand(hand, to, ms, extra = '') {
+    const d = hand.offsetWidth, [x, y] = centre(to);
+    hand.style.transition = `transform ${ms}ms cubic-bezier(.45,.05,.3,1), opacity ${ms}ms ease`;
+    hand.style.transform = `translate(${x - d/2}px,${y - d/2}px) ${extra}`;
+    return delay(ms);
+  }
+
   async function execPlay(pit) {
     if (gameOver || animating) return;
     if (turn===0 && (pit<0||pit>5)) return;
     if (turn===1 && (pit<6||pit>11)) return;
     if (board[pit]===0) return;
-    let seeds = board[pit]; board[pit] = 0; SND.click();
-    render(); // show empty source pit immediately
     animating = true;
+    let n = board[pit];
+    const inHand = seeds[pit]; seeds[pit] = []; board[pit] = 0;
+    SND.click();
+    refresh();
+    pitEl[pit].classList.add('aw-src');
+    const hand = makeHand(inHand, pitEl[pit]);
+    const step = Math.max(190, Math.min(430, 4200 / n));
 
     let pos = pit;
-    for (let i = 0; i < seeds; i++) {
-      pos = (pos+1)%12;
-      if (pos===pit) { seeds++; continue; } // skip origin, add extra iteration
-      board[pos]++;
-      activePit = pos;
+    while (n > 0) {
+      pos = (pos+1) % 12;
+      if (pos === pit) continue; // the starting pit is skipped
+      await moveHand(hand, pitEl[pos], Math.round(step * 0.8));
+      if (dead) return;
+      seeds[pos].push(inHand.pop()); board[pos]++; n--;
+      hand.innerHTML = seedsHTML(inHand);
+      drawPit(pos);
       SND.seedDrop();
-      render();
-      await delay(120);
+      await delay(Math.round(step * 0.2));
+      if (dead) return;
     }
-    activePit = -1;
+    hand.remove();
+    pitEl[pit].classList.remove('aw-src');
 
-    // Capture
+    // Capture: the seeds leave the pit for the player's side.
     const oppS = turn===0?6:0, oppE = turn===0?11:5;
-    if (pos >= oppS && pos <= oppE) {
-      let p = pos;
-      while (p >= oppS && p <= oppE && (board[p]===2||board[p]===3)) {
-        activePit = p;
-        scores[turn] += board[p]; board[p] = 0; SND.chime();
-        render();
-        await delay(200);
-        p += (turn===0) ? -1 : 1;
-      }
-      activePit = -1;
+    let p = pos;
+    while (p >= oppS && p <= oppE && (board[p]===2||board[p]===3)) {
+      const taken = seeds[p], k = board[p];
+      seeds[p] = []; board[p] = 0; drawPit(p);
+      const g = makeHand(taken, pitEl[p]);
+      SND.chime();
+      await moveHand(g, labEl[turn], 520, 'scale(.45)');
+      g.style.opacity = '0';
+      if (dead) return;
+      g.remove();
+      scores[turn] += k;
+      labEl[turn].querySelector('b').textContent = scores[turn];
+      await delay(120);
+      if (dead) return;
+      p += (turn===0) ? -1 : 1;
     }
 
     if (scores[0]>=25||scores[1]>=25) gameOver = true;
-    // Check if next player can play
     const ns = turn===0?6:0, ne = turn===0?11:5;
     let hasSeeds = false;
     for (let i=ns;i<=ne;i++) if(board[i]>0) hasSeeds=true;
-    if (!hasSeeds) { for(let i=0;i<12;i++){scores[turn]+=board[i];board[i]=0;} gameOver=true; }
+    if (!hasSeeds) { for(let i=0;i<12;i++){scores[turn]+=board[i];board[i]=0;seeds[i]=[];} gameOver=true; }
     turn = 1 - turn;
     animating = false;
-    render();
+    refresh();
+    status();
   }
-  render();
-  return () => { window.removeEventListener('resize',applyOrientation); };
+  function status() {
+    if (gameOver) {
+      const m = scores[0]>scores[1]?'P1 wins!':scores[1]>scores[0]?'P2 wins!':'Draw!';
+      setStatus(m);
+      setTimeout(() => { if (!dead) showOverlay(area, `${m}<br>P1: ${scores[0]} | P2: ${scores[1]}`, 'Rematch', () => { reset(); refresh(); status(); }); }, 600);
+    } else setStatus(`P${turn+1}'s turn`);
+  }
+  refresh(); status();
+  return () => { dead = true; window.removeEventListener('resize', applyOrientation); };
 }
 
 // ==================== DUCK-DAY CHESS ====================

@@ -1,0 +1,1 @@
+Awalé redesigned: round pits, bigger seeds gathered in a heap, thinner board rim. Sowing is now shown: the seeds travel from pit to pit and drop one by one, and captured seeds fly to the player's score.
