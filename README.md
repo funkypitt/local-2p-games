@@ -36,7 +36,7 @@ Capacitor (Android) wrapping a vanilla HTML/JS web app. All the game logic lives
 
 ```
 npm install
-mkdir -p www && cp -r index.html app.js felix.png audio fonts devine-core.js devine-ui.js devine-ui.css devine-words.js wordclash-fr.js www/
+mkdir -p www && cp -r index.html app.js guest.png audio fonts devine-core.js devine-ui.js devine-ui.css devine-words.js wordclash-fr.js www/
 npx cap sync android
 cd android && ./gradlew assembleRelease
 ```

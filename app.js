@@ -740,7 +740,7 @@ function initMemory(area, setStatus) {
   const PAIRS = 16, TOTAL = 32;
   const symbols = ['🍎','🍊','🍋','🍇','🍉','🍓','🫐','🥝','🍌','🥭','🍑','🍒','🍍','🥥','🍆','🫑'];
   const FELIX = '\u{1F431}felix';
-  const FELIX_CHANCE = 1 / 3; // about one deal in three hides a Felix pair in place of a fruit
+  const FELIX_CHANCE = 1 / 3; // about one deal in three hides the guest cat pair in place of a fruit
   // Deal: 16 pairs shuffled face down. Decided once per deal, never changed mid-game.
   function deal() {
     const deck = [...symbols];
@@ -800,7 +800,7 @@ function initMemory(area, setStatus) {
   function showCard(i) {
     const face = cardEls[i].querySelector('.mm-face');
     if (cards[i] === FELIX) {
-      face.innerHTML = '<img src="felix.png" style="width:80%;height:80%;object-fit:contain;border-radius:6px">';
+      face.innerHTML = '<img src="guest.png" style="width:80%;height:80%;object-fit:contain;border-radius:6px">';
     } else {
       face.textContent = cards[i];
     }

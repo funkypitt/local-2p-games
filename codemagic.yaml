@@ -1,0 +1,45 @@
+# Codemagic: signed bundle → Google Play, internal testing track (draft).
+# Needs, in Codemagic:
+#   - Code signing identities → Android keystores: android/keystore.jks under the
+#     reference name "local2p" (the app's own key; alias "release");
+#   - the app's environment variable group "google_play" holding
+#     GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS (the service account's JSON key, secure).
+# The web files are assembled into www/ and synced into android/ exactly as in the
+# README, since neither www/ nor android/app/src/main/assets/public is committed.
+workflows:
+  android-play:
+    name: Android → Google Play (internal)
+    max_build_duration: 30
+    instance_type: linux_x2
+    environment:
+      java: 17
+      node: 22
+      android_signing:
+        - local2p
+      groups:
+        - google_play
+    triggering:
+      events:
+        - tag
+      tag_patterns:
+        - pattern: 'v*'
+          include: true
+      cancel_previous_builds: true
+    scripts:
+      - name: Assemble the web app and sync it into the Android project
+        script: |
+          npm ci
+          mkdir -p www
+          cp -r index.html app.js guest.png audio fonts devine-core.js devine-ui.js devine-ui.css devine-words.js wordclash-fr.js www/
+          npx cap sync android
+      - name: Put the keystore where android/app/build.gradle expects it
+        script: cp "$CM_KEYSTORE_PATH" android/keystore.jks
+      - name: Build signed release bundle
+        script: cd android && ./gradlew bundleRelease
+    artifacts:
+      - android/app/build/outputs/bundle/release/*.aab
+    publishing:
+      google_play:
+        credentials: $GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS
+        track: internal
+        submit_as_draft: true  # the console's "Start rollout" stays a human step
