@@ -1,0 +1,1 @@
+The background behind the games is dark everywhere, including above the display cutout on older WebViews.
