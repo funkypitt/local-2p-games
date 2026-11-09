@@ -13,7 +13,6 @@ android/keystore.jks
 *.iml
 .DS_Store
 www/
-package-lock.json
 *.zip
 *.jpg
 *.png

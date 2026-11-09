@@ -14,6 +14,7 @@ definitions:
   web: &web
     name: Assemble the web app
     script: |
+      set -e
       npm ci
       mkdir -p www
       cp -r index.html app.js guest.png audio fonts devine-core.js devine-ui.js devine-ui.css devine-words.js wordclash-fr.js www/
@@ -84,4 +85,4 @@ workflows:
     publishing:
       app_store_connect:
         auth: integration
-        submit_to_testflight: true
+        submit_to_testflight: false  # upload only; TestFlight beta review needs test info in ASC
