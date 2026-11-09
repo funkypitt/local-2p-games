@@ -1,0 +1,1 @@
+The screen stays in portrait: the games no longer turn with the phone.
