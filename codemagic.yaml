@@ -1,11 +1,30 @@
-# Codemagic: signed bundle → Google Play, internal testing track (draft).
+# Codemagic.
+#  - android-play : signed bundle → Google Play, internal testing track (draft).
+#  - ios-testflight : signed IPA → App Store Connect / TestFlight.
 # Needs, in Codemagic:
 #   - Code signing identities → Android keystores: android/keystore.jks under the
 #     reference name "local2p" (the app's own key; alias "release");
 #   - the app's environment variable group "google_play" holding
-#     GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS (the service account's JSON key, secure).
-# The web files are assembled into www/ and synced into android/ exactly as in the
-# README, since neither www/ nor android/app/src/main/assets/public is committed.
+#     GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS (the service account's JSON key, secure);
+#   - Team integrations → App Store Connect: the "codemagic" API key (App Manager);
+#     iOS signing certificates and profiles are then created by Codemagic itself.
+# The web files are assembled into www/ and synced into the native projects exactly
+# as in the README, since www/ and the native "public" copies are not committed.
+definitions:
+  web: &web
+    name: Assemble the web app
+    script: |
+      npm ci
+      mkdir -p www
+      cp -r index.html app.js guest.png audio fonts devine-core.js devine-ui.js devine-ui.css devine-words.js wordclash-fr.js www/
+  tags: &tags
+    events:
+      - tag
+    tag_patterns:
+      - pattern: 'v*'
+        include: true
+    cancel_previous_builds: true
+
 workflows:
   android-play:
     name: Android → Google Play (internal)
@@ -18,20 +37,11 @@ workflows:
         - local2p
       groups:
         - google_play
-    triggering:
-      events:
-        - tag
-      tag_patterns:
-        - pattern: 'v*'
-          include: true
-      cancel_previous_builds: true
+    triggering: *tags
     scripts:
-      - name: Assemble the web app and sync it into the Android project
-        script: |
-          npm ci
-          mkdir -p www
-          cp -r index.html app.js guest.png audio fonts devine-core.js devine-ui.js devine-ui.css devine-words.js wordclash-fr.js www/
-          npx cap sync android
+      - *web
+      - name: Sync into the Android project
+        script: npx cap sync android
       - name: Put the keystore where android/app/build.gradle expects it
         script: cp "$CM_KEYSTORE_PATH" android/keystore.jks
       - name: Build signed release bundle
@@ -43,3 +53,35 @@ workflows:
         credentials: $GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS
         track: internal
         submit_as_draft: true  # the console's "Start rollout" stays a human step
+
+  ios-testflight:
+    name: iOS → TestFlight
+    max_build_duration: 45
+    instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: codemagic
+    environment:
+      node: 22
+      xcode: latest
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.local2p.games
+    triggering: *tags
+    scripts:
+      - *web
+      - name: Sync into the iOS project (Capacitor 8 uses Swift Package Manager, no CocoaPods)
+        script: npx cap sync ios
+      - name: Set up code signing
+        script: xcode-project use-profiles
+      - name: Build IPA
+        script: |
+          xcode-project build-ipa \
+            --project ios/App/App.xcodeproj \
+            --scheme App
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
