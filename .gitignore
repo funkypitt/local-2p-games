@@ -17,3 +17,6 @@ www/
 *.jpg
 *.png
 *.mp4
+
+# GandalfHardcore asset packs: licensed for use inside the game, not for redistribution
+GandalfHardcore*/
