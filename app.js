@@ -134,6 +134,47 @@ function scoreBarGain(bar, p, pts) {
   g.classList.remove('dv-show'); void g.offsetWidth; g.classList.add('dv-show');
 }
 
+// ==================== GAME CLOCK ====================
+// The action games advance by one fixed step per call of their loop, and their
+// constants were tuned on a 120 Hz screen. A web view calls requestAnimationFrame
+// at whatever rate the system grants: 120 on that screen, 60 on most phones and on
+// every iPhone, 30 on an iPhone in Low Power Mode. Left to that rate, the games ran
+// at half or a quarter of their speed there. tickFrame() replaces
+// requestAnimationFrame for the game loops: callbacks run TICK_HZ times per second
+// of real time, several times within one displayed frame when the screen is slower.
+const TICK_HZ = 120;
+const TICK = (() => {
+  const STEP = 1000 / TICK_HZ, SLACK = 1, MAX_STEPS = 5;
+  let pending = new Map(), nextId = 1, native = 0, last = -1, acc = 0;
+  function frame(now) {
+    native = 0;
+    if (!pending.size) { last = -1; return; }
+    // First frame, or back from a pause (tab hidden, app in the background): one step.
+    if (last < 0 || now - last > 250) acc = STEP; else acc += now - last;
+    last = now;
+    let n = 0;
+    // SLACK keeps one step per frame on a screen at TICK_HZ despite timer jitter.
+    while (acc + SLACK >= STEP && pending.size) {
+      if (++n > MAX_STEPS) { acc = 0; break; }
+      acc -= STEP;
+      const run = pending; pending = new Map();
+      for (const fn of run.values()) fn(now);
+    }
+    if (pending.size) native = requestAnimationFrame(frame); else last = -1;
+  }
+  return {
+    request(fn) {
+      const id = nextId++;
+      pending.set(id, fn);
+      if (!native) native = requestAnimationFrame(frame);
+      return id;
+    },
+    cancel(id) { pending.delete(id); }
+  };
+})();
+const tickFrame = fn => TICK.request(fn);
+const cancelTick = id => TICK.cancel(id);
+
 // === GLOBAL AUDIO ENGINE ===
 // Sampled sounds (CC0: Kenney interface / casino / sci-fi packs) and two music loops
 // (CC0: "Sherwood" by Chris Murphy, "Lofi Hip Hop Loop" by omfgdude), all in audio/.
@@ -1849,7 +1890,7 @@ function initStarClash(area, setStatus) {
         p2 = {x:w/2,hp:3,score:0,cooldown:0,alive:true,powerTimer:0,powerType:null,streak:0,nextRusherScore:RUSHER_SCORE_STEP};
         bullets = []; explosions = []; wave = 1;
         spawnWave(); initShields(); gameOver = false;
-        raf = requestAnimationFrame(loop);
+        raf = tickFrame(loop);
       }), 1000);
     }
 
@@ -2065,12 +2106,12 @@ function initStarClash(area, setStatus) {
     if (gameOver) { draw(); return; }
     update();
     draw();
-    raf = requestAnimationFrame(loop);
+    raf = tickFrame(loop);
   }
 
   setStatus.score({pts: [0, 0], sub: ['\u27643', '\u27643'], turn: -1}); setStatus('Wave 1');
-  raf = requestAnimationFrame(loop);
-  return () => cancelAnimationFrame(raf);
+  raf = tickFrame(loop);
+  return () => cancelTick(raf);
 }
 
 // ==================== TENNIS (Pong) ====================
@@ -2263,10 +2304,10 @@ function initTennis(area, setStatus) {
     // Score
     if (by < 0) { s1++; SND.score(); resetBall(-1); }
     if (by > h) { s2++; SND.score(); resetBall(1); }
-    if (s1 >= 5 || s2 >= 5) { SND.win(); const m = s1>=5?'P1 wins!':'P2 wins!'; setStatus.score({pts: [s1, s2], turn: -1}); setStatus(m); draw(); setTimeout(() => showOverlay(area, `${m}<br>P1: ${s1} | P2: ${s2}`, 'Rematch', () => { s1 = 0; s2 = 0; serving = true; resetBall(1); frameCount = 0; powerup = null; for (const k in fx) fx[k] = 0; raf = requestAnimationFrame(update); }), 600); return; }
+    if (s1 >= 5 || s2 >= 5) { SND.win(); const m = s1>=5?'P1 wins!':'P2 wins!'; setStatus.score({pts: [s1, s2], turn: -1}); setStatus(m); draw(); setTimeout(() => showOverlay(area, `${m}<br>P1: ${s1} | P2: ${s2}`, 'Rematch', () => { s1 = 0; s2 = 0; serving = true; resetBall(1); frameCount = 0; powerup = null; for (const k in fx) fx[k] = 0; raf = tickFrame(update); }), 600); return; }
     setStatus.score({pts: [s1, s2], turn: -1}); setStatus('First to 5');
     draw();
-    raf = requestAnimationFrame(update);
+    raf = tickFrame(update);
   }
 
   // Court painted once: hard court, white lines, net; player bands fade toward the court
@@ -2427,8 +2468,8 @@ function initTennis(area, setStatus) {
 
     ctx.font = '9px sans-serif';
   }
-  raf = requestAnimationFrame(update);
-  return () => cancelAnimationFrame(raf);
+  raf = tickFrame(update);
+  return () => cancelTick(raf);
 }
 
 // ==================== AIR HOCKEY ====================
@@ -2531,13 +2572,13 @@ function initAirHockey(area, setStatus) {
         m2 = {x:w/2, y:h*0.18, vx:0, vy:0};
         particles = []; shake = 0;
         resetPuck();
-        raf = requestAnimationFrame(update);
+        raf = tickFrame(update);
       }), 600);
       return;
     }
     setStatus.score({pts: [s1, s2], turn: -1}); setStatus('First to 5');
     draw();
-    raf = requestAnimationFrame(update);
+    raf = tickFrame(update);
   }
   // Rink painted once: rails, surface with air holes, markings, goals with depth
   const rink = (() => {
@@ -2611,8 +2652,8 @@ function initAirHockey(area, setStatus) {
     ctx.globalAlpha = 1;
     ctx.restore();
   }
-  raf = requestAnimationFrame(update);
-  return () => cancelAnimationFrame(raf);
+  raf = tickFrame(update);
+  return () => cancelTick(raf);
 }
 
 // ==================== WORD CLASH ====================
@@ -3334,7 +3375,7 @@ function initTankWars(area, setStatus) {
       if (allDone) { explosions = []; endTurn(); }
     }
     draw();
-    raf = requestAnimationFrame(update);
+    raf = tickFrame(update);
   }
 
   // Static sky: dusk gradient, stars, two ranges of distant hills (painted once)
@@ -3469,8 +3510,8 @@ function initTankWars(area, setStatus) {
   }
 
   tankBar();
-  raf = requestAnimationFrame(update);
-  return () => cancelAnimationFrame(raf);
+  raf = tickFrame(update);
+  return () => cancelTick(raf);
 }
 
 // ==================== CARROM ====================
@@ -3653,7 +3694,7 @@ function initCarrom(area, setStatus) {
       if (allStopped) { moving = false; endShot(); }
     }
     draw();
-    raf = requestAnimationFrame(step);
+    raf = tickFrame(step);
   }
 
   function returnPieceToCenter(p) {
@@ -3870,7 +3911,7 @@ function initCarrom(area, setStatus) {
 
   updateStatus();
   step();
-  return () => { cancelAnimationFrame(raf); };
+  return () => { cancelTick(raf); };
 }
 
 // ==================== POOL ====================
@@ -4005,7 +4046,7 @@ function initPool(area, setStatus) {
     // Smooth zoom back to 1 when not aiming
     if (!aiming && zoomScale < 1) zoomScale = Math.min(1, zoomScale + 0.03);
     draw();
-    raf = requestAnimationFrame(update);
+    raf = tickFrame(update);
   }
   // ---- Look: everything static is painted once ----
   const backdrop = backdropLayer(w, h);
@@ -4101,8 +4142,8 @@ function initPool(area, setStatus) {
     ctx.restore();
   }
   poolBar(); setStatus('P1 to shoot');
-  raf = requestAnimationFrame(update);
-  return () => cancelAnimationFrame(raf);
+  raf = tickFrame(update);
+  return () => cancelTick(raf);
 }
 
 // ==================== MINI GOLF ====================
@@ -4238,7 +4279,7 @@ function initMiniGolf(area, setStatus) {
     if (!moving && trail.length > 0) trail.shift();
     if (!aiming && zoomScale < 1) zoomScale = Math.min(1, zoomScale + 0.03);
     draw();
-    raf = requestAnimationFrame(update);
+    raf = tickFrame(update);
   }
   function draw() {
     // Dark background (visible when zoomed out)
@@ -4353,8 +4394,8 @@ function initMiniGolf(area, setStatus) {
     if (!gameEnd) setStatus(`Hole ${holeIdx + 1} of ${holes.length}`);
   }
   golfBar();
-  raf = requestAnimationFrame(update);
-  return () => cancelAnimationFrame(raf);
+  raf = tickFrame(update);
+  return () => cancelTick(raf);
 }
 
 // ==================== CARO (Gomoku Variant - 13x13) ====================
@@ -5089,7 +5130,7 @@ function initHorseJump(area, setStatus) {
   let raf;
   function update() {
     frameCount++;
-    if (!started) { draw(); raf = requestAnimationFrame(update); return; }
+    if (!started) { draw(); raf = tickFrame(update); return; }
     if (gameOver) { draw(); return; }
 
     const ramp = SPEED_MAX_EXTRA * (1 - Math.exp(-score / SPEED_TAU));
@@ -5173,7 +5214,7 @@ function initHorseJump(area, setStatus) {
           obstacleIndex = 0; lastObstacleType = 'hurdle';
           spawnInitialHurdle(lane1, w + 200); spawnInitialHurdle(lane2, w + 200);
           setStatus('Tap to start!');
-          raf = requestAnimationFrame(update);
+          raf = tickFrame(update);
         });
       }, 600);
       return;
@@ -5181,7 +5222,7 @@ function initHorseJump(area, setStatus) {
 
     setStatus(`Hurdles: ${score}`);
     draw();
-    raf = requestAnimationFrame(update);
+    raf = tickFrame(update);
   }
 
   function draw() {
@@ -5269,6 +5310,6 @@ function initHorseJump(area, setStatus) {
   }
 
   setStatus('Tap to start!');
-  raf = requestAnimationFrame(update);
-  return () => { cancelAnimationFrame(raf); document.removeEventListener('keydown', onKey); };
+  raf = tickFrame(update);
+  return () => { cancelTick(raf); document.removeEventListener('keydown', onKey); };
 }

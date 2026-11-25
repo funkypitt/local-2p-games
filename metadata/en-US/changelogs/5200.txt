@@ -1,0 +1,1 @@
+The action games run at the same speed on every screen: they were slowed down on 60 Hz phones.
