@@ -1,0 +1,1 @@
+Mini Golf: same stroke as Pool. Pull back from anywhere on the screen to putt, so a ball near the edge can be hit at full power.
