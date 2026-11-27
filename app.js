@@ -212,8 +212,34 @@ const SND = {
     slide: ['card-slide-1','card-slide-2'],
   },
   _MUSIC: ['music-sherwood', 'music-lofi'],
+  // iPhone: a web view plays Web Audio as "ambient" sound, which the ring/silent switch
+  // mutes entirely. Sounds and music are part of the game and have their own switch in
+  // the app, so the session is asked to be "playback": by the API that iOS 16.4+ has for
+  // it, and by a silent <audio> element that keeps looping, the hint older versions take
+  // (both are used: neither could be tried on a phone before release).
+  _quiet: null,
+  _iosAudible() {
+    const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (!ios) return;
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
+    try {
+      // half a second of silence, 8 kHz mono 8-bit PCM, as a WAV file
+      const n = 4000, wav = new Uint8Array(44 + n), v = new DataView(wav.buffer);
+      const str = (o, s) => { for (let i = 0; i < s.length; i++) wav[o + i] = s.charCodeAt(i); };
+      str(0, 'RIFF'); v.setUint32(4, 36 + n, true); str(8, 'WAVEfmt '); v.setUint32(16, 16, true);
+      v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, 8000, true); v.setUint32(28, 8000, true);
+      v.setUint16(32, 1, true); v.setUint16(34, 8, true); str(36, 'data'); v.setUint32(40, n, true);
+      wav.fill(128, 44);
+      const a = document.createElement('audio');
+      a.setAttribute('playsinline', ''); a.loop = true;
+      a.src = URL.createObjectURL(new Blob([wav], {type: 'audio/wav'}));
+      const p = a.play(); if (p && p.catch) p.catch(() => {});
+      this._quiet = a;
+    } catch (e) {}
+  },
   init() {
     if (this._ctx) return;
+    this._iosAudible();
     this._ctx = new (window.AudioContext || window.webkitAudioContext)();
     this._musicGain = this._ctx.createGain(); this._musicGain.gain.value = 0.5;
     this._musicGain.connect(this._ctx.destination);
@@ -463,8 +489,12 @@ function releaseWakeLock() {
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && wakeLock) acquireWakeLock(); });
 // Screen locked or app in the background: silence everything, music resumes where it was on return.
-function audioPause() { if (SND._ctx && SND._ctx.state === 'running') SND._ctx.suspend(); }
-function audioResume() { if (SND._ctx && SND._ctx.state === 'suspended' && document.visibilityState !== 'hidden') SND._ctx.resume(); }
+function audioPause() { if (SND._ctx && SND._ctx.state === 'running') SND._ctx.suspend(); if (SND._quiet) SND._quiet.pause(); }
+function audioResume() {
+  if (document.visibilityState === 'hidden') return;
+  if (SND._ctx && SND._ctx.state === 'suspended') SND._ctx.resume();
+  if (SND._quiet) { const p = SND._quiet.play(); if (p && p.catch) p.catch(() => {}); }
+}
 window.addEventListener('apppause', audioPause);
 window.addEventListener('appresume', audioResume);
 window.addEventListener('pagehide', audioPause);

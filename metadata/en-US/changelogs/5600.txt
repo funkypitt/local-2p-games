@@ -1,0 +1,1 @@
+iPhone: sounds and music also play when the ring/silent switch is on silent (they have their own switch in the app).
