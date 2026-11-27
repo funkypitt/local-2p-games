@@ -142,24 +142,28 @@ function scoreBarGain(bar, p, pts) {
 // at half or a quarter of their speed there. tickFrame() replaces
 // requestAnimationFrame for the game loops: callbacks run TICK_HZ times per second
 // of real time, several times within one displayed frame when the screen is slower.
+// Only the last of those steps is worth drawing: tickDraws() tells a loop whether
+// this step is the one the screen will show. Drawing every step made the heavier
+// games (pool, carrom) paint two to four times per frame, and stutter, on an iPhone.
 const TICK_HZ = 120;
 const TICK = (() => {
   const STEP = 1000 / TICK_HZ, SLACK = 1, MAX_STEPS = 5;
-  let pending = new Map(), nextId = 1, native = 0, last = -1, acc = 0;
+  let pending = new Map(), nextId = 1, native = 0, last = -1, acc = 0, draws = true;
   function frame(now) {
     native = 0;
     if (!pending.size) { last = -1; return; }
     // First frame, or back from a pause (tab hidden, app in the background): one step.
     if (last < 0 || now - last > 250) acc = STEP; else acc += now - last;
     last = now;
-    let n = 0;
     // SLACK keeps one step per frame on a screen at TICK_HZ despite timer jitter.
-    while (acc + SLACK >= STEP && pending.size) {
-      if (++n > MAX_STEPS) { acc = 0; break; }
-      acc -= STEP;
+    let steps = Math.floor((acc + SLACK) / STEP);
+    if (steps > MAX_STEPS) { steps = MAX_STEPS; acc = 0; } else acc -= steps * STEP;
+    for (let n = 1; n <= steps && pending.size; n++) {
+      draws = n === steps;
       const run = pending; pending = new Map();
       for (const fn of run.values()) fn(now);
     }
+    draws = true;
     if (pending.size) native = requestAnimationFrame(frame); else last = -1;
   }
   return {
@@ -169,11 +173,13 @@ const TICK = (() => {
       if (!native) native = requestAnimationFrame(frame);
       return id;
     },
-    cancel(id) { pending.delete(id); }
+    cancel(id) { pending.delete(id); },
+    draws() { return draws; }
   };
 })();
 const tickFrame = fn => TICK.request(fn);
 const cancelTick = id => TICK.cancel(id);
+const tickDraws = () => TICK.draws();
 
 // === GLOBAL AUDIO ENGINE ===
 // Sampled sounds (CC0: Kenney interface / casino / sci-fi packs) and two music loops
@@ -317,7 +323,7 @@ const SND = {
 const RULES = {
   tennis: 'Pong-style tennis. Slide your finger on your half of the screen to move your paddle. Bounce the ball past your opponent to score. Collect power-ups when the ball hits them: BIG = bigger paddle, TINY = shrink opponent, MAGNET = ball curves toward you, GHOST = invisible ball, QUAKE = jittery paddles, 2x = double ball! First to 5 wins.',
   four: 'Classic Connect 4. Tap a column to drop your disc. Get 4 in a row (horizontal, vertical, or diagonal) to win. Red goes first.',
-  pool: '8-ball pool. Drag from the cue ball to aim and set power, then release to shoot. Sink all your balls (stripes or solids, assigned on first pot) then the 8-ball to win. Potting the cue ball is a foul — opponent gets ball-in-hand.',
+  pool: '8-ball pool. Touch anywhere and pull back, away from where the ball should go: the further you pull, the harder the shot. Release to shoot. Sink all your balls (stripes or solids, assigned on first pot) then the 8-ball to win. Potting the cue ball is a foul — opponent gets ball-in-hand.',
   memory: 'Flip 2 cards per turn. If they match, you keep them and go again. If not, they flip back and it\'s the opponent\'s turn. The player with the most pairs wins.',
   hockey: 'Air hockey. Drag your mallet (bottom = P1, top = P2) to hit the puck into the opponent\'s goal. Mallet speed matters — a fast swipe smashes the puck (sparks!), a gentle one taps. First to 5 wins.',
   tanks: 'Artillery duel. On your turn, drag to adjust angle and power, then tap FIRE. Wind affects the shot. Damage depends on how close the shell lands. Destroy the opponent\'s tank to win.',
@@ -2105,7 +2111,7 @@ function initStarClash(area, setStatus) {
   function loop() {
     if (gameOver) { draw(); return; }
     update();
-    draw();
+    if (tickDraws()) draw();
     raf = tickFrame(loop);
   }
 
@@ -2306,7 +2312,7 @@ function initTennis(area, setStatus) {
     if (by > h) { s2++; SND.score(); resetBall(1); }
     if (s1 >= 5 || s2 >= 5) { SND.win(); const m = s1>=5?'P1 wins!':'P2 wins!'; setStatus.score({pts: [s1, s2], turn: -1}); setStatus(m); draw(); setTimeout(() => showOverlay(area, `${m}<br>P1: ${s1} | P2: ${s2}`, 'Rematch', () => { s1 = 0; s2 = 0; serving = true; resetBall(1); frameCount = 0; powerup = null; for (const k in fx) fx[k] = 0; raf = tickFrame(update); }), 600); return; }
     setStatus.score({pts: [s1, s2], turn: -1}); setStatus('First to 5');
-    draw();
+    if (tickDraws()) draw();
     raf = tickFrame(update);
   }
 
@@ -2577,7 +2583,7 @@ function initAirHockey(area, setStatus) {
       return;
     }
     setStatus.score({pts: [s1, s2], turn: -1}); setStatus('First to 5');
-    draw();
+    if (tickDraws()) draw();
     raf = tickFrame(update);
   }
   // Rink painted once: rails, surface with air holes, markings, goals with depth
@@ -3374,7 +3380,7 @@ function initTankWars(area, setStatus) {
       }
       if (allDone) { explosions = []; endTurn(); }
     }
-    draw();
+    if (tickDraws()) draw();
     raf = tickFrame(update);
   }
 
@@ -3693,7 +3699,7 @@ function initCarrom(area, setStatus) {
       }
       if (allStopped) { moving = false; endShot(); }
     }
-    draw();
+    if (tickDraws()) draw();
     raf = tickFrame(step);
   }
 
@@ -3925,7 +3931,12 @@ function initPool(area, setStatus) {
     '#FDD835','#1565C0','#E53935','#6A1B9A','#FF6F00','#2E7D32','#6D4C41'];
   let balls = [];
   let turn = 0, assigned = [null, null]; // 'solid' or 'stripe'
-  let aiming = false, aimStart = null, gameOver = false, moving = false, zoomScale = 1;
+  // Aiming is a pull-back, like a real cue: touch anywhere, drag away from where the
+  // ball should go, release. The pull is measured from where the finger went down, not
+  // from the cue ball, so a ball against a cushion can be hit at full power: the narrow
+  // strip between the table and the edge of the screen no longer limits the stroke.
+  const MAX_POWER = 200, PULL_GAIN = 1.5;   // a drag of MAX_POWER / PULL_GAIN is a full stroke
+  let aiming = false, dragFrom = null, pull = null, gameOver = false, moving = false;
   function initBalls() {
     balls = [{x:TX+TW*0.25,y:TY+TH/2,vx:0,vy:0,num:0,active:true}]; // cue ball
     const sx = TX+TW*0.72, sy = TY+TH/2;
@@ -3947,35 +3958,29 @@ function initPool(area, setStatus) {
   }
   canvas.addEventListener('mousedown', e => startAim(getTouch(e)));
   canvas.addEventListener('mousemove', e => moveAim(getTouch(e)));
-  canvas.addEventListener('mouseup', e => endAim(getTouch(e)));
+  canvas.addEventListener('mouseup', () => endAim());
   canvas.addEventListener('touchstart', e => { e.preventDefault(); startAim(getTouch(e)); });
   canvas.addEventListener('touchmove', e => { e.preventDefault(); moveAim(getTouch(e)); });
-  canvas.addEventListener('touchend', e => { e.preventDefault(); endAim(aimStart ? {x:aimStart.x,y:aimStart.y} : {x:0,y:0}); });
-  function startAim(p) { if (moving || gameOver) return; const cb = balls[0]; if (!cb.active) return; aiming = true; aimStart = p; zoomScale = 1; }
+  canvas.addEventListener('touchend', e => { e.preventDefault(); endAim(); });
+  canvas.addEventListener('touchcancel', () => { aiming = false; pull = null; stale = true; });
+  function startAim(p) { if (moving || gameOver) return; const cb = balls[0]; if (!cb.active) return; aiming = true; dragFrom = p; pull = {x: 0, y: 0, power: 0}; }
   function moveAim(p) {
     if (!aiming) return;
-    const cb = balls[0], cx = w/2, cy = h/2;
-    // Cue ball position on screen with current zoom
-    const cbSX = cx + (cb.x - cx) * zoomScale, cbSY = cy + (cb.y - cy) * zoomScale;
-    const sd = Math.sqrt((p.x - cbSX)**2 + (p.y - cbSY)**2);
-    // Zoom out as drag distance grows (start at 70px, min zoom 0.5)
-    const tgt = sd > 70 ? Math.max(0.5, 1 - (sd - 70) / 280) : 1;
-    zoomScale += (tgt - zoomScale) * 0.25;
-    // Inverse-transform touch position to game coords
-    aimStart = {x: cx + (p.x - cx) / zoomScale, y: cy + (p.y - cy) / zoomScale};
+    const dx = dragFrom.x - p.x, dy = dragFrom.y - p.y, d = Math.sqrt(dx*dx + dy*dy);
+    // direction of the shot (unit vector) and its power
+    pull = d > 0 ? {x: dx / d, y: dy / d, power: Math.min(d * PULL_GAIN, MAX_POWER)} : {x: 0, y: 0, power: 0};
   }
-  function endAim(p) {
-    if (!aiming) return; aiming = false;
-    const cb = balls[0]; if (!cb.active) return;
-    const dx = cb.x - aimStart.x, dy = cb.y - aimStart.y;
-    const power = Math.min(Math.sqrt(dx*dx+dy*dy), 200);
-    if (power < 5) return;
-    const angle = Math.atan2(dy, dx);
-    cb.vx = Math.cos(angle) * power * 0.08;
-    cb.vy = Math.sin(angle) * power * 0.08;
+  function endAim() {
+    if (!aiming) return; aiming = false; stale = true;
+    const cb = balls[0]; if (!cb.active || !pull) return;
+    const power = pull.power;
+    if (power < 5) { pull = null; return; }
+    cb.vx = pull.x * power * 0.08;
+    cb.vy = pull.y * power * 0.08;
+    pull = null;
     moving = true;
   }
-  let raf, pocketed = [];
+  let raf, pocketed = [], stale = true;   // stale: the picture on screen is out of date
   function update() {
     if (moving) {
       let allStopped = true;
@@ -4009,7 +4014,7 @@ function initPool(area, setStatus) {
         }
       }
       if (allStopped) {
-        moving = false;
+        moving = false; stale = true;
         // Handle pocketed balls
         let scored = false;
         const cuePocketed = pocketed.includes(0);
@@ -4043,9 +4048,8 @@ function initPool(area, setStatus) {
         pocketed = [];
       }
     }
-    // Smooth zoom back to 1 when not aiming
-    if (!aiming && zoomScale < 1) zoomScale = Math.min(1, zoomScale + 0.03);
-    draw();
+    // a table at rest is not repainted
+    if (tickDraws() && (moving || aiming || stale)) { stale = false; draw(); }
     raf = tickFrame(update);
   }
   // ---- Look: everything static is painted once ----
@@ -4055,6 +4059,7 @@ function initPool(area, setStatus) {
     const dpr = window.devicePixelRatio || 1;
     const c = document.createElement('canvas'); c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
     const x = c.getContext('2d'); x.scale(dpr, dpr);
+    x.drawImage(backdrop, 0, 0, w, h);
     const o = CUSH + RAIL;
     // wooden rail with a drop shadow
     x.save(); x.shadowColor = 'rgba(0,0,0,0.6)'; x.shadowBlur = 28; x.shadowOffsetY = 14;
@@ -4091,28 +4096,36 @@ function initPool(area, setStatus) {
     }
     return c;
   })();
-  function drawPoolBall(b) {
-    const col = COLORS[b.num], R = BR;
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.beginPath(); ctx.ellipse(b.x + R * 0.2, b.y + R * 0.35, R, R * 0.85, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.save();
-    ctx.beginPath(); ctx.arc(b.x, b.y, R, 0, Math.PI * 2); ctx.clip();
-    const stripe = b.num >= 9 && b.num <= 15;
-    ctx.fillStyle = stripe || b.num === 0 ? '#f7f3ea' : col; ctx.fillRect(b.x - R, b.y - R, R * 2, R * 2);
-    if (stripe) { ctx.fillStyle = col; ctx.fillRect(b.x - R, b.y - R * 0.55, R * 2, R * 1.1); }
-    if (b.num > 0) {
-      ctx.fillStyle = '#fbf8f0'; ctx.beginPath(); ctx.arc(b.x, b.y, R * 0.48, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#111'; ctx.font = `bold ${Math.max(7, R * 0.72)}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(b.num, b.x, b.y + R * 0.04);
+  // Each ball is painted once into its own small canvas (clip, print, shading), then
+  // blitted: sixteen clipped gradients per frame were the heaviest part of the drawing.
+  const SPR = BR * 3;   // sprite side, room for the shadow
+  const ballSprites = COLORS.map((col, num) => {
+    const dpr = window.devicePixelRatio || 1, R = BR;
+    const c = document.createElement('canvas'); c.width = c.height = Math.ceil(SPR * dpr);
+    const x = c.getContext('2d'); x.scale(dpr, dpr);
+    const bx = SPR / 2, by = SPR / 2;
+    x.fillStyle = 'rgba(0,0,0,0.35)';
+    x.beginPath(); x.ellipse(bx + R * 0.2, by + R * 0.35, R, R * 0.85, 0, 0, Math.PI * 2); x.fill();
+    x.save();
+    x.beginPath(); x.arc(bx, by, R, 0, Math.PI * 2); x.clip();
+    const stripe = num >= 9 && num <= 15;
+    x.fillStyle = stripe || num === 0 ? '#f7f3ea' : col; x.fillRect(bx - R, by - R, R * 2, R * 2);
+    if (stripe) { x.fillStyle = col; x.fillRect(bx - R, by - R * 0.55, R * 2, R * 1.1); }
+    if (num > 0) {
+      x.fillStyle = '#fbf8f0'; x.beginPath(); x.arc(bx, by, R * 0.48, 0, Math.PI * 2); x.fill();
+      x.fillStyle = '#111'; x.font = `bold ${Math.max(7, R * 0.72)}px sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle';
+      x.fillText(num, bx, by + R * 0.04);
     }
     // spherical shading over the print
-    const g = ctx.createRadialGradient(b.x - R * 0.4, b.y - R * 0.45, R * 0.1, b.x, b.y, R * 1.05);
+    const g = x.createRadialGradient(bx - R * 0.4, by - R * 0.45, R * 0.1, bx, by, R * 1.05);
     g.addColorStop(0, 'rgba(255,255,255,0.35)'); g.addColorStop(0.5, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(0,0,0,0.45)');
-    ctx.fillStyle = g; ctx.fillRect(b.x - R, b.y - R, R * 2, R * 2);
-    ctx.restore();
-    ctx.fillStyle = 'rgba(255,255,255,0.75)';
-    ctx.beginPath(); ctx.ellipse(b.x - R * 0.35, b.y - R * 0.42, R * 0.22, R * 0.13, -0.6, 0, Math.PI * 2); ctx.fill();
-  }
+    x.fillStyle = g; x.fillRect(bx - R, by - R, R * 2, R * 2);
+    x.restore();
+    x.fillStyle = 'rgba(255,255,255,0.75)';
+    x.beginPath(); x.ellipse(bx - R * 0.35, by - R * 0.42, R * 0.22, R * 0.13, -0.6, 0, Math.PI * 2); x.fill();
+    return c;
+  });
+  function drawPoolBall(b) { ctx.drawImage(ballSprites[b.num], b.x - SPR / 2, b.y - SPR / 2, SPR, SPR); }
   function poolBar() {
     const left = t => t === 'solid' ? balls.filter(b => b.num >= 1 && b.num <= 7 && b.active).length
       : t === 'stripe' ? balls.filter(b => b.num >= 9 && b.num <= 15 && b.active).length : 7;
@@ -4120,26 +4133,39 @@ function initPool(area, setStatus) {
     setStatus.score({pts: assigned.map(t => 7 - left(t)), sub, turn: gameOver ? -1 : turn});
   }
   function draw() {
-    ctx.drawImage(backdrop, 0, 0, w, h);
-    ctx.save();
-    if (zoomScale < 1) { const cx = w/2, cy = h/2; ctx.translate(cx,cy); ctx.scale(zoomScale,zoomScale); ctx.translate(-cx,-cy); }
     ctx.drawImage(tableLayer, 0, 0, w, h);
     // Aim glow and line (under the balls)
-    const showCue = aiming && aimStart && balls[0].active && !moving;
+    const showCue = aiming && pull && balls[0].active && !moving;
+    const cb = balls[0];
     if (showCue) {
-      const cb = balls[0];
       // glow around the cue ball while aiming
       const grd = ctx.createRadialGradient(cb.x, cb.y, BR, cb.x, cb.y, BR*3);
       grd.addColorStop(0, 'rgba(255,255,100,0.45)'); grd.addColorStop(1, 'rgba(255,255,100,0)');
       ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(cb.x, cb.y, BR*3, 0, Math.PI*2); ctx.fill();
-      const dx = cb.x - aimStart.x, dy = cb.y - aimStart.y;
-      ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1;
-      ctx.setLineDash([4,4]);
-      ctx.beginPath(); ctx.moveTo(cb.x, cb.y); ctx.lineTo(cb.x+dx*2, cb.y+dy*2); ctx.stroke();
-      ctx.setLineDash([]);
+      if (pull.power >= 5) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1;
+        ctx.setLineDash([4,4]);
+        ctx.beginPath(); ctx.moveTo(cb.x, cb.y); ctx.lineTo(cb.x + pull.x * pull.power * 2, cb.y + pull.y * pull.power * 2); ctx.stroke();
+        ctx.setLineDash([]);
+      }
     }
     for (const b of balls) if (b.active) drawPoolBall(b);
-    ctx.restore();
+    // The cue, behind the ball, drawn back as far as the stroke is strong
+    if (showCue && pull.power >= 5) {
+      const back = BR * 1.6 + pull.power * 0.18, len = TW * 0.55;
+      const x0 = cb.x - pull.x * back, y0 = cb.y - pull.y * back;
+      const x1 = x0 - pull.x * len, y1 = y0 - pull.y * len;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = BR * 0.8;
+      ctx.beginPath(); ctx.moveTo(x0 + 2, y0 + 3); ctx.lineTo(x1 + 2, y1 + 3); ctx.stroke();
+      ctx.strokeStyle = '#d9b77a'; ctx.lineWidth = BR * 0.6;
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      ctx.strokeStyle = '#5a3210'; ctx.lineWidth = BR * 0.75;
+      ctx.beginPath(); ctx.moveTo(x0 - pull.x * len * 0.62, y0 - pull.y * len * 0.62); ctx.lineTo(x1, y1); ctx.stroke();
+      ctx.strokeStyle = '#e9f1f5'; ctx.lineWidth = BR * 0.6;
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 - pull.x * BR * 0.5, y0 - pull.y * BR * 0.5); ctx.stroke();
+      ctx.lineCap = 'butt';
+    }
   }
   poolBar(); setStatus('P1 to shoot');
   raf = tickFrame(update);
@@ -4278,7 +4304,7 @@ function initMiniGolf(area, setStatus) {
     }
     if (!moving && trail.length > 0) trail.shift();
     if (!aiming && zoomScale < 1) zoomScale = Math.min(1, zoomScale + 0.03);
-    draw();
+    if (tickDraws()) draw();
     raf = tickFrame(update);
   }
   function draw() {
@@ -5130,7 +5156,7 @@ function initHorseJump(area, setStatus) {
   let raf;
   function update() {
     frameCount++;
-    if (!started) { draw(); raf = tickFrame(update); return; }
+    if (!started) { if (tickDraws()) draw(); raf = tickFrame(update); return; }
     if (gameOver) { draw(); return; }
 
     const ramp = SPEED_MAX_EXTRA * (1 - Math.exp(-score / SPEED_TAU));
@@ -5221,7 +5247,7 @@ function initHorseJump(area, setStatus) {
     }
 
     setStatus(`Hurdles: ${score}`);
-    draw();
+    if (tickDraws()) draw();
     raf = tickFrame(update);
   }
 

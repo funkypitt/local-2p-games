@@ -1,0 +1,1 @@
+Pool: pull back from anywhere on the screen to shoot, so a ball near a cushion can be hit at full power. The action games are drawn once per screen refresh: no more slowdowns on 60 Hz phones.
