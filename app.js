@@ -358,7 +358,7 @@ const RULES = {
   hockey: 'Air hockey. Drag your mallet (bottom = P1, top = P2) to hit the puck into the opponent\'s goal. Mallet speed matters — a fast swipe smashes the puck (sparks!), a gentle one taps. First to 5 wins.',
   tanks: 'Artillery duel. On your turn, drag to adjust angle and power, then tap FIRE. Wind affects the shot. Damage depends on how close the shell lands. Destroy the opponent\'s tank to win.',
   carrom: 'Indian flicking board game. 19 pieces: 9 white, 9 black, and the red Queen. Tap your baseline to slide the striker laterally, then drag away from the striker (slingshot) to aim and release to flick. Pocket your colour (P1 white, P2 black) to score 1 point and play again. Pocket opponent\'s colour: they score, your turn ends. Pocket the Queen: you keep flicking, but you must "cover" the Queen by pocketing one of your own pieces in the same or next shot — succeed and you score 3, fail and the Queen returns to the centre. Pocketing the striker is a foul: return one of your pieces, the Queen returns if pending, and your turn ends. First to pocket all 9 of your colour wins.',
-  golf: 'Mini golf for 2. Take turns putting — drag from the ball to aim and set power, release to putt. Fewer strokes wins each hole. Play through all holes.',
+  golf: 'Mini golf for 2. Take turns putting — touch anywhere and pull back, away from the hole: the further you pull, the harder the putt. Release to putt. Fewer strokes wins each hole. Play through all holes.',
   starclash: 'Competitive Galaga: P1 (bottom, red) and P2 (top, blue) share a wave of aliens. Slide on your half to move and auto-fire. 3 hits and you\'re out. Glowing aliens drop power-ups: \u26A1 Speed, \uD83D\uDCA5 Big Shot, \uD83D\uDC0C Slow (debuff), \u2702\uFE0F Short Range (debuff). Chain kills build a combo multiplier (3+ = x2, 5+ = x3, 8+ = x4) \u2014 taking a hit resets it. Every 100 points you score, a red "rusher" alien dives at your opponent. Your bullets cancel incoming alien bullets on contact. From Wave 5, aliens accelerate sharply (sudden death). Last one standing wins.',
   caro: 'Gomoku variant on a 13x13 board. Place stones on intersections. Get exactly 5 in a row (horizontal, vertical, or diagonal) to win. Black goes first.',
   awale: 'West African seed-sowing game. Tap a pit on your side to sow seeds counter-clockwise. If your last seed lands in an opponent\'s pit making it 2 or 3 seeds, you capture them (plus any consecutive 2s or 3s behind). First to capture 25+ seeds wins.',
@@ -4217,7 +4217,10 @@ function initMiniGolf(area, setStatus) {
   ];
   let holeIdx = 0, playerScores = [[],[]];
   let turn = 0, strokes = 0;
-  let ball, hole, walls, bvx=0, bvy=0, moving=false, aiming=false, aimPt=null, trail=[], zoomScale=1;
+  let ball, hole, walls, bvx=0, bvy=0, moving=false, aiming=false, dragFrom=null, pull=null, trail=[];
+  // Same stroke as the pool cue: touch anywhere, pull back, release. The pull is measured
+  // from where the finger went down, so a ball near the edge can be hit at full power.
+  const MAX_POWER = 200, PULL_GAIN = 1.5;
   function loadHole() {
     const hd = holes[holeIdx];
     ball = {...hd.ball}; hole = {...hd.hole}; walls = hd.walls;
@@ -4231,23 +4234,19 @@ function initMiniGolf(area, setStatus) {
   canvas.addEventListener('touchstart',e=>{e.preventDefault();if(!moving&&!gameEnd)startAim(getP(e));});
   canvas.addEventListener('touchmove',e=>{e.preventDefault();moveAim(getP(e));});
   canvas.addEventListener('touchend',e=>{e.preventDefault();if(aiming)shoot();});
+  canvas.addEventListener('touchcancel',()=>{aiming=false;pull=null;});
   let gameEnd = false;
-  function startAim(p) { aiming = true; aimPt = p; zoomScale = 1; }
+  function startAim(p) { aiming = true; dragFrom = p; pull = {x: 0, y: 0, power: 0}; }
   function moveAim(p) {
     if (!aiming) return;
-    const cx = w/2, cy = h/2;
-    const bSX = cx + (ball.x - cx) * zoomScale, bSY = cy + (ball.y - cy) * zoomScale;
-    const sd = Math.sqrt((p.x - bSX)**2 + (p.y - bSY)**2);
-    const tgt = sd > 70 ? Math.max(0.5, 1 - (sd - 70) / 280) : 1;
-    zoomScale += (tgt - zoomScale) * 0.25;
-    aimPt = {x: cx + (p.x - cx) / zoomScale, y: cy + (p.y - cy) / zoomScale};
+    const dx = dragFrom.x - p.x, dy = dragFrom.y - p.y, d = Math.sqrt(dx*dx + dy*dy);
+    pull = d > 0 ? {x: dx / d, y: dy / d, power: Math.min(d * PULL_GAIN, MAX_POWER)} : {x: 0, y: 0, power: 0};
   }
   function shoot() {
-    if (!aiming || !aimPt) return;
+    if (!aiming || !pull) return;
     aiming = false;
-    const dx = ball.x - aimPt.x, dy = ball.y - aimPt.y;
-    const power = Math.min(Math.sqrt(dx*dx+dy*dy), 200);
-    if (power < 3) return;
+    const power = pull.power;
+    if (power < 3) { pull = null; return; }
     // Nudge ball away from any touching wall to prevent instant bounce
     const nudge = 1.5;
     if (ball.x <= CX + BR + nudge) ball.x = CX + BR + nudge;
@@ -4266,7 +4265,7 @@ function initMiniGolf(area, setStatus) {
         ball.y += ny * (sign * (BR + nudge) - dist);
       }
     }
-    bvx = dx/power * power * POWER_MULT; bvy = dy/power * power * POWER_MULT;
+    bvx = pull.x * power * POWER_MULT; bvy = pull.y * power * POWER_MULT; pull = null;
     moving = true; strokes++; SND.clack(); golfBar();
   }
   function checkWallBounce(bx, by, vx, vy) {
@@ -4333,15 +4332,13 @@ function initMiniGolf(area, setStatus) {
       if (Math.abs(bvx)+Math.abs(bvy) < 0.1) { bvx=bvy=0; moving=false; }
     }
     if (!moving && trail.length > 0) trail.shift();
-    if (!aiming && zoomScale < 1) zoomScale = Math.min(1, zoomScale + 0.03);
     if (tickDraws()) draw();
     raf = tickFrame(update);
   }
   function draw() {
-    // Dark background (visible when zoomed out)
+    // Dark background around the course
     ctx.fillStyle = '#0a1a0a'; ctx.fillRect(0,0,w,h);
     ctx.save();
-    if (zoomScale < 1) { const cx = w/2, cy = h/2; ctx.translate(cx,cy); ctx.scale(zoomScale,zoomScale); ctx.translate(-cx,-cy); }
     // Green felt with gradient
     const feltG = ctx.createLinearGradient(CX,CY,CX+CW,CY+CH);
     feltG.addColorStop(0,'#1a6b1a'); feltG.addColorStop(0.5,'#1B5E20'); feltG.addColorStop(1,'#145a14');
@@ -4412,14 +4409,13 @@ function initMiniGolf(area, setStatus) {
     ctx.strokeStyle='rgba(0,0,0,0.12)';ctx.lineWidth=0.5;ctx.beginPath();ctx.arc(ball.x,ball.y,BR,0,Math.PI*2);ctx.stroke();
 
     // Aim UI
-    if(aiming&&aimPt){
+    if(aiming&&pull){
       // Glow around ball
       const grd=ctx.createRadialGradient(ball.x,ball.y,BR,ball.x,ball.y,BR*3);
       grd.addColorStop(0,'rgba(255,255,100,0.45)');grd.addColorStop(1,'rgba(255,255,100,0)');
       ctx.fillStyle=grd;ctx.beginPath();ctx.arc(ball.x,ball.y,BR*3,0,Math.PI*2);ctx.fill();
-      const dx=ball.x-aimPt.x, dy=ball.y-aimPt.y;
-      const power=Math.min(Math.sqrt(dx*dx+dy*dy),200), pct=power/200;
-      const angle=Math.atan2(dy,dx);
+      const power=pull.power, pct=power/MAX_POWER;
+      const angle=Math.atan2(pull.y,pull.x);
       // Trajectory dots
       for(let i=1;i<=8;i++){
         const t=i/9, dotX=ball.x+Math.cos(angle)*power*t, dotY=ball.y+Math.sin(angle)*power*t;
