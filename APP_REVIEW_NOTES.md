@@ -1,4 +1,4 @@
-# App Review Notes - Funky's 2P Games (1.50)
+# App Review Notes - Funky's 2P Games (1.51)
 
 ## Purpose and audience
 Funky's 2P Games is a collection of 16 classic two-player games played face to face on ONE device (split screen, or turn by turn). It is for friends and families of all ages who want a quick game together. Free: no ads, no account, no in-app purchase, no data collection. It works fully offline and asks for no permission.

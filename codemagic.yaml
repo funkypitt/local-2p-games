@@ -70,6 +70,8 @@ workflows:
     triggering: *tags
     scripts:
       - *web
+      - name: AAC copies of the sounds (iOS before 18.4 does not decode Ogg Vorbis)
+        script: cp -r audio-m4a www/
       - name: Sync into the iOS project (Capacitor 8 uses Swift Package Manager, no CocoaPods)
         script: npx cap sync ios
       - name: Set up code signing

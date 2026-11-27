@@ -221,14 +221,42 @@ const SND = {
     this._sfxGain.connect(this._ctx.destination);
     for (const k in this._S) this._S[k].forEach(f => this._load(f));
   },
+  // Ogg Vorbis everywhere it decodes; iOS before 18.4 refuses it, so the iOS build also
+  // carries AAC copies in audio-m4a/ (built by tools/make_m4a.sh), used once Ogg has failed.
+  _m4a: false,
+  _fetch(path) {
+    return fetch(path)
+      .then(r => { if (!r.ok) throw new Error(path + ' ' + r.status); return r.arrayBuffer(); })
+      .then(ab => new Promise((ok, ko) => {
+        // callback form: the only one old WebKit has; the promise form is covered too
+        const p = this._ctx.decodeAudioData(ab, ok, ko);
+        if (p && p.then) p.then(ok, ko);
+      }));
+  },
   _load(name) {
     if (this._buf[name] || this._loading[name]) return this._loading[name];
-    this._loading[name] = fetch('audio/' + name + '.ogg')
-      .then(r => r.arrayBuffer())
-      .then(ab => this._ctx.decodeAudioData(ab))
+    const m4a = () => this._fetch('audio-m4a/' + name + '.m4a').then(b => { b._m4a = true; return b; });
+    this._loading[name] = (this._m4a ? m4a() : this._fetch('audio/' + name + '.ogg').catch(() => { this._m4a = true; return m4a(); }))
       .then(b => { this._buf[name] = b; return b; })
       .catch(e => { console.warn('audio load failed', name, e); delete this._loading[name]; });
     return this._loading[name];
+  },
+  // A decoder that does not strip AAC's padding returns a buffer longer than the Ogg
+  // original, with silence at both ends: the loop would stumble at each turn. The loop
+  // then runs over the original length (decoded Ogg, in seconds), past the leading pad.
+  _MUSIC_LEN: {'music-sherwood': 34.9054, 'music-lofi': 127.8869},
+  _loopBounds(name, b) {
+    const len = this._MUSIC_LEN[name], extra = len ? b.duration - len : 0;
+    if (extra < 0.002) return null;
+    const span = Math.min(b.length, Math.round(extra * b.sampleRate));
+    let lead = span;
+    for (let c = 0; c < b.numberOfChannels; c++) {
+      const d = b.getChannelData(c);
+      let i = 0; while (i < span && Math.abs(d[i]) < 1e-3) i++;
+      if (i < lead) lead = i;
+    }
+    const a = lead / b.sampleRate;
+    return [a, a + len];
   },
   // Play one sample. rate: playback speed (1 = original), vol: linear gain, at: delay in s
   _play(set, vol, rate, at, dest) {
@@ -260,6 +288,8 @@ const SND = {
     this._load(name).then(b => {
       if (!b || !this._playing || this._musicToken !== token) return;
       const src = this._ctx.createBufferSource(); src.buffer = b; src.loop = true;
+      const lb = b._m4a && this._loopBounds(name, b);
+      if (lb) { src.loopStart = lb[0]; src.loopEnd = lb[1]; }
       const g = this._ctx.createGain();
       g.gain.setValueAtTime(0, this._ctx.currentTime);
       g.gain.linearRampToValueAtTime(1, this._ctx.currentTime + 1.5);
